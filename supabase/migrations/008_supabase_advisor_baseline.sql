@@ -1,0 +1,54 @@
+-- Coffee Platform V1 — Supabase advisor baseline
+-- Version: 1.0.0 | Date: 2026-08-09
+-- Moves pg_trgm out of the exposed public schema and indexes FK columns.
+
+begin;
+create schema if not exists extensions;
+alter extension pg_trgm set schema extensions;
+create index if not exists audit_events_actor_user_id_fkey_idx on public.audit_events (actor_user_id);
+create index if not exists brands_manufacturer_organization_id_fkey_idx on public.brands (manufacturer_organization_id);
+create index if not exists comparison_items_product_id_fkey_idx on public.comparison_items (product_id);
+create index if not exists content_links_category_id_fkey_idx on public.content_links (category_id);
+create index if not exists content_links_coffee_region_id_fkey_idx on public.content_links (coffee_region_id);
+create index if not exists content_links_content_id_fkey_idx on public.content_links (content_id);
+create index if not exists content_links_country_code_fkey_idx on public.content_links (country_code);
+create index if not exists content_links_organization_id_fkey_idx on public.content_links (organization_id);
+create index if not exists content_links_product_id_fkey_idx on public.content_links (product_id);
+create index if not exists content_topics_topic_id_fkey_idx on public.content_topics (topic_id);
+create index if not exists contents_author_profile_id_fkey_idx on public.contents (author_profile_id);
+create index if not exists data_import_batches_created_by_fkey_idx on public.data_import_batches (created_by);
+create index if not exists data_import_batches_imported_by_fkey_idx on public.data_import_batches (imported_by);
+create index if not exists data_import_batches_source_record_id_fkey_idx on public.data_import_batches (source_record_id);
+create index if not exists data_intake_rows_reviewed_by_fkey_idx on public.data_intake_rows (reviewed_by);
+create index if not exists data_quality_issues_assigned_to_fkey_idx on public.data_quality_issues (assigned_to);
+create index if not exists data_quality_issues_intake_row_id_fkey_idx on public.data_quality_issues (intake_row_id);
+create index if not exists data_quality_issues_resolved_by_fkey_idx on public.data_quality_issues (resolved_by);
+create index if not exists entity_source_links_created_by_fkey_idx on public.entity_source_links (created_by);
+create index if not exists entity_source_links_source_record_id_fkey_idx on public.entity_source_links (source_record_id);
+create index if not exists favorites_product_id_fkey_idx on public.favorites (product_id);
+create index if not exists filter_definitions_field_definition_id_fkey_idx on public.filter_definitions (field_definition_id);
+create index if not exists listing_claims_reviewed_by_fkey_idx on public.listing_claims (reviewed_by);
+create index if not exists locations_market_id_fkey_idx on public.locations (market_id);
+create index if not exists offers_market_id_fkey_idx on public.offers (market_id);
+create index if not exists offers_package_option_id_fkey_idx on public.offers (package_option_id);
+create index if not exists offers_source_record_id_fkey_idx on public.offers (source_record_id);
+create index if not exists organizations_created_by_fkey_idx on public.organizations (created_by);
+create index if not exists origin_claims_coffee_region_id_fkey_idx on public.origin_claims (coffee_region_id);
+create index if not exists origin_claims_country_code_fkey_idx on public.origin_claims (country_code);
+create index if not exists origin_claims_source_record_id_fkey_idx on public.origin_claims (source_record_id);
+create index if not exists platform_settings_updated_by_fkey_idx on public.platform_settings (updated_by);
+create index if not exists product_attribute_values_source_record_id_fkey_idx on public.product_attribute_values (source_record_id);
+create index if not exists product_compatibilities_source_record_id_fkey_idx on public.product_compatibilities (source_record_id);
+create index if not exists product_compatibilities_target_product_id_fkey_idx on public.product_compatibilities (target_product_id);
+create index if not exists product_media_source_record_id_fkey_idx on public.product_media (source_record_id);
+create index if not exists products_created_by_fkey_idx on public.products (created_by);
+create index if not exists products_owner_organization_id_fkey_idx on public.products (owner_organization_id);
+create index if not exists rights_requests_assigned_to_fkey_idx on public.rights_requests (assigned_to);
+create index if not exists rights_requests_organization_id_fkey_idx on public.rights_requests (organization_id);
+create index if not exists rights_requests_product_id_fkey_idx on public.rights_requests (product_id);
+create index if not exists roaster_specifications_source_record_id_fkey_idx on public.roaster_specifications (source_record_id);
+create index if not exists source_records_created_by_fkey_idx on public.source_records (created_by);
+create index if not exists verification_evidence_listing_claim_id_fkey_idx on public.verification_evidence (listing_claim_id);
+create index if not exists verification_evidence_rights_request_id_fkey_idx on public.verification_evidence (rights_request_id);
+create index if not exists verification_evidence_verified_by_fkey_idx on public.verification_evidence (verified_by);
+commit;

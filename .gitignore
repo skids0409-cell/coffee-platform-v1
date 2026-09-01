@@ -1,0 +1,11 @@
+node_modules
+.env*
+!.env.example
+.next
+next-env.d.ts
+/dist/
+.vinext/
+.wrangler/
+.npm-cache/
+.sites-runtime/
+supabase/.temp/

@@ -1,0 +1,69 @@
+{
+  "batch_code": "BGD-PRD-001",
+  "market_code": "IQ-BGD",
+  "accessed_at": "2026-08-09",
+  "publication_decision": "none",
+  "canonical_products": [
+    {
+      "product_code": "PRD-BGD-001",
+      "slug": "df54-v4-coffee-grinder",
+      "name_ar": "مطحنة القهوة DF54 V4",
+      "name_en": "DF54 V4 Coffee Grinder",
+      "brand": "DF Grinders",
+      "model_number": "DF54 V4",
+      "category_code": "EQP-GRD-ELE",
+      "status": "in_review",
+      "canonical_source": "SRC-PRD-001",
+      "local_offer_source": "SRC-PRD-002",
+      "local_offer": {"seller_slug": "kshta-coffee-tools", "price": 325250, "currency": "IQD", "availability": "unknown", "observed_at": "2026-08-09", "status": "in_review"},
+      "canonical_attributes": {"grinder_drive": "electric", "brew_methods": ["espresso", "filter", "french_press"], "burr_mechanism": "burr", "burr_geometry": "flat", "adjustment": "stepless", "feeding": "single_dose", "burr_size_mm": 54, "capacity_g": 25}
+    },
+    {
+      "product_code": "PRD-BGD-002",
+      "slug": "1zpresso-j-ultra",
+      "name_ar": "مطحنة 1Zpresso J-Ultra اليدوية",
+      "name_en": "1Zpresso J-Ultra Manual Grinder",
+      "brand": "1Zpresso",
+      "model_number": "J-Ultra",
+      "category_code": "EQP-GRD-MAN",
+      "status": "in_review",
+      "canonical_source": "SRC-PRD-003",
+      "local_offer_source": "SRC-PRD-004",
+      "local_offer": {"seller_slug": "kshta-coffee-tools", "price": 438000, "currency": "IQD", "availability": "unknown", "observed_at": "2026-08-09", "status": "in_review"},
+      "canonical_attributes": {"grinder_drive": "manual", "brew_methods": ["espresso"], "burr_mechanism": "burr", "burr_geometry": "conical", "adjustment": "stepped", "feeding": "single_dose", "burr_size_mm": 48, "capacity_g": 40, "manufacturer_capacity_range_g": "35–40", "manufacturer_weight_g": 670, "microns_per_click": 8}
+    },
+    {
+      "product_code": "PRD-BGD-003",
+      "slug": "kuban-supreme-3",
+      "name_ar": "ماكينة تحميص كوبان سوبريم 3",
+      "name_en": "Kuban Supreme 3 Coffee Roaster",
+      "brand": "Kuban",
+      "model_number": "Supreme 3",
+      "category_code": "EQP-ROA-COM",
+      "status": "in_review",
+      "canonical_source": "SRC-PRD-005",
+      "local_offer": null,
+      "canonical_attributes": {"application": ["commercial"], "roaster_technology": "drum", "roaster_use_class": "commercial_batch", "heat_source": "dual_fuel", "batch_max_kg": 3, "production_kg_per_hour": 12, "control_level": "assisted", "rated_power_kw": 1.84, "power_supply": "220–380 V; 50–60 Hz", "gas_type": "LPG or natural gas; configuration dependent", "dimensions_mm": {"width": 1040, "height": 1220, "depth": 1670}, "weight_kg": 310, "cyclone": true, "profile_software_connection": ["Cropster", "Artisan"]}
+    }
+  ],
+  "held_candidates": [
+    {
+      "product_code": "PRD-BGD-004",
+      "candidate_slug": "fellow-opus",
+      "name": "Fellow Opus",
+      "seller_source": "SRC-PRD-006",
+      "current_manufacturer_source": "SRC-PRD-007",
+      "decision": "hold_for_exact_model_verification",
+      "reason": "The seller listing appears to describe the original 40 mm Opus, while the current manufacturer page is for Opus 2. No canonical product is created until the exact model is proven."
+    }
+  ],
+  "source_urls": {
+    "SRC-PRD-001": "https://dfgrinders.com/products/df54-coffee-grinder",
+    "SRC-PRD-002": "https://kshtaiq.com/products/df54-coffee-grinder",
+    "SRC-PRD-003": "https://1zpresso.coffee/product/jultra/",
+    "SRC-PRD-004": "https://kshtaiq.com/products/1zpresso-j-ultra-manual-coffee-grinder-copy",
+    "SRC-PRD-005": "https://kubancoffeeroasters.com/product/3-kg-coffee-roaster/",
+    "SRC-PRD-006": "https://kshtaiq.com/products/fellow-opus-conical-burr-coffee-grinder-%D9%81%D9%8A%D9%84%D9%88-%D9%85%D8%B7%D8%AD%D9%86%D9%87-%D9%83%D9%87%D8%B1%D8%A8%D8%A7%D8%A6%D9%8A%D8%A9-copy-2",
+    "SRC-PRD-007": "https://fellowproducts.com/products/opus-2-conical-burr-grinder"
+  }
+}
