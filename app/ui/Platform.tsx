@@ -4398,7 +4398,7 @@ function MultiChoiceField({ value, options, onChange }: { value: string; options
   return <div className="multi-choice-grid">{options.map((option) => <label className="multi-choice" key={option}><input type="checkbox" checked={selected.includes(option)} onChange={() => toggle(option)} /><span>{attributeValueLabels[option] || option}</span></label>)}</div>;
 }
 
-function CatalogDraftForm({ reference, onCreated }: { reference: DataCenterReference; onCreated: () => Promise<void> }) {
+function CatalogDraftForm({ reference, contractRevision, onCreated }: { reference: DataCenterReference; contractRevision: string; onCreated: () => Promise<void> }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [entityType, setEntityType] = useState("product");
   const [entrySection, setEntrySection] = useState("coffee");
@@ -4452,7 +4452,7 @@ function CatalogDraftForm({ reference, onCreated }: { reference: DataCenterRefer
     let response: Response;
     let result: any;
     try {
-      response = await fetch("/api/admin/data-center", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create_catalog_draft", entityType: pendingEntityType, payload, sourceConfirmed: true }) });
+      response = await fetch("/api/admin/data-center", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create_catalog_draft", entityType: pendingEntityType, payload, attributes: Object.entries(pendingAttributes).map(([fieldId, value]) => ({ fieldId, value })).filter((item) => item.value.trim()), contractRevision, sourceConfirmed: true }) });
       result = await response.json();
     } catch {
       setWorking(false); setMessage("تعذر الاتصال بقاعدة البيانات. لم تُنشأ المسودة؛ حدّث الصفحة وسجّل دخول الإدارة ثم حاول مجدداً."); return;
@@ -4461,6 +4461,8 @@ function CatalogDraftForm({ reference, onCreated }: { reference: DataCenterRefer
     if (!response.ok) {
       setMessage(result.reason === "category_kind_mismatch" ? "الفئة المختارة لا تنتمي إلى نوع المنتج. اختر فئة من القائمة المفلترة."
         : result.reason === "brand_kind_mismatch" ? "العلامة المختارة مسجلة لعائلة منتجات مختلفة."
+        : result.reason === "contract_revision_stale" || result.reason === "contract_revision_required" ? "تغيّر عقد التصنيف أثناء فتح النموذج. حدّث مركز الإدخال وراجع القيم قبل الحفظ."
+        : ["invalid_attribute", "invalid_attribute_value", "duplicate_attribute"].includes(result.reason) ? "إحدى قيم المواصفات غير معتمدة لهذه الفئة. راجع القيم الظاهرة ثم أعد الحفظ."
         : result.reason === "duplicate_product" ? `يوجد منتج بهذا الاسم مسبقاً وحالته «${({ draft:"مسودة", in_review:"قيد المراجعة", published:"منشور", rejected:"مرفوض" } as Record<string,string>)[result.existing?.status] || result.existing?.status}». افتحه من السجلات بدلاً من إنشاء نسخة مكررة.`
         : result.reason === "duplicate_brand" ? `هذه العلامة موجودة مسبقاً وحالتها «${({ draft:"مسودة", in_review:"قيد المراجعة", published:"منشور", rejected:"مرفوض" } as Record<string,string>)[result.existing?.status] || result.existing?.status}». راجع السجل الموجود.`
         : result.reason === "duplicate_offer" ? `يوجد عرض سابق لهذا المنتج لدى البائع نفسه وحالته «${({ draft:"مسودة", in_review:"قيد المراجعة", published:"منشور", rejected:"مرفوض" } as Record<string,string>)[result.existing?.status] || result.existing?.status}». عدّله من السجلات بدلاً من تكراره.`
@@ -4468,11 +4470,6 @@ function CatalogDraftForm({ reference, onCreated }: { reference: DataCenterRefer
       return;
     }
     const createdId = String(result.created?.id || result.id || "");
-    if (pendingEntityType === "product" && createdId) {
-      const attributes = Object.entries(pendingAttributes).map(([fieldId,value])=>({fieldId,value})).filter((item)=>item.value.trim());
-      const recordResponse = await fetch("/api/admin/records", { method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({entity:"products",id:createdId,fields:payload,attributes,issueUpdates:[]}) });
-      if(!recordResponse.ok){setMessage("تم إنشاء مسودة المنتج، لكن تعذر حفظ مواصفاته. افتح السجل من الطابور وأكملها دون إنشاء منتج ثانٍ.");await onCreated();return;}
-    }
     if (mediaFile instanceof File && mediaFile.size > 0) {
       const entityMap: Record<string, string> = { organization: "organizations", brand: "brands", product: "products", content: "contents", offer: "offers", origin: "origin_claims" };
       let mediaResponse: Response;
@@ -4483,7 +4480,7 @@ function CatalogDraftForm({ reference, onCreated }: { reference: DataCenterRefer
     formRef.current?.reset();
     setDraftAttributes({}); setProductCategoryId(""); setProductFamilyId("");
     setPendingDraft(null);
-    setMessage(pendingEntityType === "origin" ? "تم ربط مصدر القهوة بالمنتج وتسجيل العملية." : pendingEntityType === "product" ? `تم إنشاء المنتج كمسودة وربط الصورة إن وُجدت${mediaOptimized ? " بعد تحسين حجمها تلقائياً" : ""}. لن يظهر في البحث حتى اعتماده للنشر، ولن يظهر عند بائع حتى إنشاء «عرض وسعر» واعتماده.` : "تم إنشاء المسودة وربط الصورة إن وُجدت. افتحها من طابور المراجعة لإكمال التدقيق.");
+    setMessage(pendingEntityType === "origin" ? "تم ربط مصدر القهوة بالمنتج وتسجيل العملية." : pendingEntityType === "product" ? `تم إرفاق المنتج ومواصفاته ذرياً وربط الصورة إن وُجدت${mediaOptimized ? " بعد تحسين حجمها تلقائياً" : ""}. لن يظهر في البحث حتى اعتماده للنشر، ولن يظهر عند بائع حتى إنشاء «عرض وسعر» واعتماده.` : "تم إرفاق السجل وربط الصورة إن وُجدت. افتحه من طابور المراجعة لإكمال التدقيق.");
     await onCreated();
   };
   const categoryById = new Map(reference.categories.map((category) => [category.id, category]));
@@ -4641,6 +4638,7 @@ function DataCenter({ onChanged, mode = "entry" }: { onChanged: () => Promise<vo
   const [working, setWorking] = useState("");
   const [batchDetails, setBatchDetails] = useState<{ batch: DataCenterBatch; rows: Array<{ id: string; source_row_number: number; normalized_payload: Record<string, unknown>; validation_status: string; validation_messages: string[]; target_table: string | null; target_id: string | null }> } | null>(null);
   const [reference, setReference] = useState<DataCenterReference>({ categories: [], organizations: [], products: [], brands: [], countries: [], filterDefinitions: [] });
+  const [recordContractRevision, setRecordContractRevision] = useState("");
 
   const load = async () => {
     const response = await fetch("/api/admin/data-center", { cache: "no-store" });
@@ -4648,6 +4646,7 @@ function DataCenter({ onChanged, mode = "entry" }: { onChanged: () => Promise<vo
     const data = await response.json();
     setBatches(data.batches || []);
     setReference(data.referenceData || { categories: [], organizations: [], products: [], brands: [], countries: [], filterDefinitions: [] });
+    setRecordContractRevision(data.recordContractRevision || "");
   };
 
   useEffect(() => {
@@ -4789,7 +4788,7 @@ function DataCenter({ onChanged, mode = "entry" }: { onChanged: () => Promise<vo
         <span>هذا القيد يخص عناوين الجهات والفروع فقط، ولا يمنع إدخال المنتجات أو العلامات أو المحتوى المعرفي.</span>
       </div>
       {message && <p className="admin-message" role="status">{message}</p>}
-      {mode === "entry" && <CatalogDraftForm reference={reference} onCreated={async () => { await load(); await onChanged(); }} />}
+      {mode === "entry" && <CatalogDraftForm reference={reference} contractRevision={recordContractRevision} onCreated={async () => { await load(); await onChanged(); }} />}
       {mode === "imports" && <div className="bulk-intake">
       <div className="subsection-head"><h3>دفعات الجهات المشاركة في المنصة</h3><span>مقاهٍ، محامص، بائعون، موردون، ومراكز خدمة أو تدريب</span></div>
       <div className="data-entry-grid">
@@ -4901,10 +4900,10 @@ function ReviewRecordEditor({ entity, id, canRestore, onClose, onSaved }: { enti
     const fields = Object.fromEntries(new FormData(event.currentTarget).entries());
     setWorking(true);
     setMessage("");
-    const response = await fetch("/api/admin/records", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ entity, id, fields, attributes, issueUpdates: issueUpdates.filter((issue) => issue.status) }) });
+    const response = await fetch("/api/admin/records", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ entity, id, fields, attributes, issueUpdates: issueUpdates.filter((issue) => issue.status), contractRevision: data?.recordContractRevision || "" }) });
     const result = await response.json();
     setWorking(false);
-    if (!response.ok) { setMessage(result.reason === "invalid_attribute_value" ? "إحدى قيم المواصفات غير معتمدة. اختر القيم من القوائم الظاهرة." : result.reason === "upstream_error" ? "تعذر حفظ السجل في قاعدة البيانات. لم تُحذف المواصفات السابقة؛ أعد المحاولة، وإذا تكرر الخطأ سجل الوقت الظاهر." : "تعذر الحفظ. تحقق من القيم المنظمة وروابط المصدر."); return; }
+    if (!response.ok) { setMessage(result.reason === "contract_revision_stale" || result.reason === "contract_revision_required" ? "تغيّر عقد التصنيف منذ فتح السجل. أغلق المحرر وافتحه مجدداً قبل الحفظ." : ["invalid_attribute", "invalid_attribute_value", "duplicate_attribute"].includes(result.reason) ? "إحدى قيم المواصفات غير معتمدة. اختر القيم من القوائم الظاهرة." : result.reason === "upstream_error" ? "تعذر حفظ السجل في قاعدة البيانات. لم تُحذف المواصفات السابقة؛ أعد المحاولة، وإذا تكرر الخطأ سجل الوقت الظاهر." : "تعذر الحفظ. تحقق من القيم المنظمة وروابط المصدر."); return; }
     setData((current: any) => ({ ...current, ...result }));
     await onSaved();
     onClose();

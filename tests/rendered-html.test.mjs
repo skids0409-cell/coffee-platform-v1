@@ -8,6 +8,10 @@ import {
 import { validateOrganizationCsv } from "../lib/data-center.ts";
 import { readAdminRestResponse } from "../lib/supabase-admin.ts";
 import {
+  ProductAttributeError,
+  serializeProductAttributes,
+} from "../lib/admin-product-contract.ts";
+import {
   TaxonomyInputError,
   categoryPayload,
   fieldPayload,
@@ -354,7 +358,7 @@ test("operations center v3 keeps product data, batches, support, and search gove
   assert.match(source, /التقرير الأصلي المحفوظ/);
   assert.match(source, /درجة الأولوية \(1–100\)/);
   assert.match(records, /filter_definitions\?select=/);
-  assert.match(records, /rpc\/admin_replace_product_attributes/);
+  assert.match(records, /rpc\/admin_update_product_v2/);
   assert.match(atomicAttributes, /delete from public\.product_attribute_values/);
   assert.match(atomicAttributes, /jsonb_to_recordset/);
   assert.match(review, /admin_publish_override/);
@@ -1062,4 +1066,49 @@ test("STEP2 TaxonomyWorkspace is restricted to admins and has no delete workflow
   assert.match(workspace, /حفظ الحقل الجديد/);
   assert.match(workspace, /جارٍ الحفظ…/);
   assert.doesNotMatch(workspace, /method:\s*"DELETE"/);
+});
+
+test("Phase 5 migration makes the legacy attachment outcome unambiguously attached", () => {
+  const migration = readFileSync(new URL("../supabase/migrations/041_phase5_attached_record_contract.sql", import.meta.url), "utf8");
+  assert.match(migration, /'status','attached'/);
+  assert.match(migration, /'attach_'\|\|p_entity_type\|\|'_record'/);
+  assert.match(migration, /security invoker/);
+  assert.match(migration, /set search_path = ''/);
+  assert.match(migration, /revoke all on function public\.admin_create_catalog_draft\(text,jsonb\) from public,anon/);
+  assert.doesNotMatch(migration, /case when p_entity_type='origin' then 'attached' else 'draft' end/);
+});
+
+test("Phase 5 product Add/Edit uses the server-owned capability contract atomically", () => {
+  const dataCenter = readFileSync(new URL("../app/api/admin/data-center/route.ts", import.meta.url), "utf8");
+  const records = readFileSync(new URL("../app/api/admin/records/route.ts", import.meta.url), "utf8");
+  const ui = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
+  assert.match(dataCenter, /rpc\/admin_record_contract_revision/);
+  assert.match(dataCenter, /rpc\/admin_create_product_draft_v2/);
+  assert.match(dataCenter, /p_contract_revision: body\.contractRevision/);
+  assert.doesNotMatch(dataCenter, /body\.entityType === "origin" \? \{ \.\.\.created, status: "draft" \}/);
+  assert.match(records, /rpc\/admin_update_product_v2/);
+  assert.match(records, /handledAtomically = true/);
+  assert.match(ui, /contractRevision: data\?\.recordContractRevision/);
+  assert.match(ui, /تم إرفاق المنتج ومواصفاته ذرياً/);
+});
+
+test("Phase 5 attribute serialization rejects malformed and duplicate values", () => {
+  const definitions = [
+    { id: "11111111-1111-4111-8111-111111111111", data_type: "integer", unit_code: "mm" },
+    { id: "22222222-2222-4222-8222-222222222222", data_type: "enum", allowed_values: ["flat", "conical"] },
+  ];
+  assert.deepEqual(serializeProductAttributes([
+    { fieldId: definitions[0].id, value: "54" },
+    { fieldId: definitions[1].id, value: "flat" },
+  ], definitions), [
+    { field_definition_id: definitions[0].id, unit_code: "mm", value_integer: 54 },
+    { field_definition_id: definitions[1].id, unit_code: null, value_text: "flat" },
+  ]);
+  assert.throws(() => serializeProductAttributes([
+    { fieldId: definitions[1].id, value: "invalid" },
+  ], definitions), ProductAttributeError);
+  assert.throws(() => serializeProductAttributes([
+    { fieldId: definitions[0].id, value: "54" },
+    { fieldId: definitions[0].id, value: "55" },
+  ], definitions), /duplicate_attribute/);
 });
