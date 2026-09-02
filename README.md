@@ -40,6 +40,7 @@
 ```text
 SUPABASE_URL
 SUPABASE_PUBLISHABLE_KEY
+APP_BASE_URL
 ```
 
 مفتاح `service_role` وكلمة مرور قاعدة البيانات غير مطلوبين داخل التطبيق ويجب

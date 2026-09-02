@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 export const metadata: Metadata = {
-  metadataBase: new URL("https://coffee-platform-v1-private.skids0409.chatgpt.site"),
+  metadataBase: new URL(process.env.APP_BASE_URL || "https://coffee-platform-baghdad-beta.onrender.com"),
   title: {
     default: "منصة القهوة V1 — بغداد",
     template: "%s | قهوتنا",

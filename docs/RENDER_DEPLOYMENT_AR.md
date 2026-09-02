@@ -16,8 +16,12 @@
 4. عند مطالبة Render بالقيم، أدخل:
    - `SUPABASE_URL`
    - `SUPABASE_PUBLISHABLE_KEY`
-5. لا تضف مفتاح `service_role` إلى خدمة الويب.
-6. نفّذ أول Deploy وتأكد أن `/api/health` يعيد الحالة `ok`.
+5. في Supabase Auth > URL Configuration اضبط Site URL على `https://coffee-platform-baghdad-beta.onrender.com`، وأضف `https://coffee-platform-baghdad-beta.onrender.com/auth/callback` إلى Redirect URLs.
+6. في Supabase Auth > Email Templates > Reset password، يفضّل أن يكون رابط الزر المباشر:
+   `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=recovery`
+   ويظل مسار التطبيق متوافقاً أيضاً مع قالب `{{ .ConfirmationURL }}` الافتراضي ومع PKCE.
+7. لا تضف مفتاح `service_role` إلى خدمة الويب.
+8. نفّذ أول Deploy وتأكد أن `/api/health` يعيد الحالة `ok`، ثم اطلب رابطاً جديداً من `/forgot-password` وافتح أحدث رسالة مرة واحدة.
 
 القيمتان السريتان معلّمتان بـ `sync: false`، لذلك لا تُخزنان في Git ولا تظهر قيمهما في ملف Blueprint.
 

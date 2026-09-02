@@ -1187,6 +1187,54 @@ test("Phase 5 attribute serialization rejects malformed and duplicate values", (
   ], definitions), /duplicate_attribute/);
 });
 
+test("password recovery renders dedicated production-safe pages and fails closed", async () => {
+  const worker = await loadWorker("password-recovery");
+  const forgot = await worker.fetch(
+    new Request("http://localhost/forgot-password", { headers: { accept: "text/html" } }),
+    runtimeEnv,
+    runtimeContext,
+  );
+  assert.equal(forgot.status, 200);
+  assert.match(await forgot.text(), /استعادة كلمة المرور/);
+
+  const update = await worker.fetch(
+    new Request("http://localhost/update-password", { headers: { accept: "text/html" } }),
+    runtimeEnv,
+    runtimeContext,
+  );
+  assert.equal(update.status, 200);
+  assert.match(await update.text(), /تعيين كلمة مرور جديدة/);
+
+  const requestReset = await worker.fetch(new Request("http://localhost/api/auth/password-reset", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "http://localhost" },
+    body: JSON.stringify({ email: "admin@example.com" }),
+  }), runtimeEnv, runtimeContext);
+  assert.equal(requestReset.status, 503);
+  assert.deepEqual(await requestReset.json(), { accepted: false, reason: "not_configured" });
+});
+
+test("password recovery supports Supabase recovery links and active-admin authorization", () => {
+  const reset = readFileSync(new URL("../app/api/auth/password-reset/route.ts", import.meta.url), "utf8");
+  const callback = readFileSync(new URL("../app/auth/callback/route.ts", import.meta.url), "utf8");
+  const update = readFileSync(new URL("../app/api/auth/update-password/route.ts", import.meta.url), "utf8");
+  const recovery = readFileSync(new URL("../lib/password-recovery.ts", import.meta.url), "utf8");
+  const blueprint = readFileSync(new URL("../render.yaml", import.meta.url), "utf8");
+
+  assert.match(reset, /recover\?redirect_to=/);
+  assert.match(reset, /code_challenge: challenge/);
+  assert.match(callback, /token_hash: tokenHash, type: "recovery"/);
+  assert.match(callback, /token\?grant_type=pkce/);
+  assert.match(callback, /implicitRecoveryBridge/);
+  assert.match(update, /method: "PUT"/);
+  assert.match(update, /logout\?scope=global/);
+  assert.match(recovery, /profiles\?select=role,is_active/);
+  assert.match(recovery, /role !== "admin"/);
+  assert.match(recovery, /is_active !== true/);
+  assert.doesNotMatch(`${reset}\n${callback}\n${update}\n${recovery}`, /service[_-]?role|user_metadata/i);
+  assert.match(blueprint, /key: APP_BASE_URL\s+value: https:\/\/coffee-platform-baghdad-beta\.onrender\.com/);
+});
+
 test("GitHub CI gates Phase branches before Render deployment", () => {
   const workflow = readFileSync(new URL("../.github/workflows/coffee-platform.yml", import.meta.url), "utf8");
   assert.match(workflow, /"phase5\/\*\*"/);

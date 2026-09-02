@@ -2926,3 +2926,12 @@ footer a:hover {
 .taxonomy-head-actions{display:flex;flex-wrap:wrap;gap:8px}.taxonomy-field-submit{position:sticky;bottom:0;z-index:5;margin-top:14px;padding:12px;border:1px solid #c8d7df;background:rgba(255,255,255,.96);box-shadow:0 -4px 14px rgba(37,60,72,.08)}
 @media(max-width:900px){.taxonomy-layout,.taxonomy-field-layout{grid-template-columns:1fr}.taxonomy-list{max-height:320px}.taxonomy-filter-row{grid-template-columns:1fr 1fr}.taxonomy-summary{grid-template-columns:repeat(3,1fr)}.taxonomy-summary>span{grid-column:1/-1}}
 @media(max-width:600px){.taxonomy-form-grid,.taxonomy-filter-row{grid-template-columns:1fr}.taxonomy-summary{grid-template-columns:1fr}.taxonomy-wide{grid-column:auto}}
+
+.password-recovery-page{min-height:100vh;display:grid;place-items:center;padding:32px 18px;background:var(--cream,#f7f1e8)}
+.password-recovery-card{width:min(100%,520px);display:grid;gap:16px;padding:28px;border:1px solid #d8c9b5;border-radius:20px;background:#fff;box-shadow:0 18px 55px rgba(49,31,18,.12)}
+.password-recovery-card h1,.password-recovery-card p{margin:0}
+.password-recovery-card form{display:grid;gap:14px}
+.password-recovery-card label{display:grid;gap:7px;font-weight:700}
+.password-recovery-card input{width:100%;padding:12px;border:1px solid #bda98f;border-radius:10px;background:#fff;color:#21170f}
+.password-recovery-card button{padding:12px 16px}
+.admin-password-reset-link{display:inline-block;margin-top:10px}
