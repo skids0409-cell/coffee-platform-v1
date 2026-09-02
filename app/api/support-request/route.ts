@@ -15,7 +15,7 @@ const attempts = new Map<string, number[]>();
 const clean = (value: unknown, max: number) => typeof value === "string" ? value.trim().slice(0, max) : "";
 
 function rateLimited(request: Request) {
-  const key = request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const key = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
   const now = Date.now();
   const recent = (attempts.get(key) || []).filter((time) => now - time < 10 * 60 * 1000);
   if (recent.length >= 6) return true;
