@@ -19,7 +19,7 @@ export function ForgotPassword() {
     });
     setSubmitting(false);
     if (response.status === 429) {
-      setMessage("تم إرسال طلبات كثيرة. انتظر قليلاً ثم حاول مجدداً.");
+      setMessage("تم إرسال طلبات كثيرة. لا تطلب رابطاً آخر الآن؛ افتح أحدث رسالة وصلتك، أو انتظر قليلاً ثم حاول مجدداً.");
       return;
     }
     if (!response.ok) {

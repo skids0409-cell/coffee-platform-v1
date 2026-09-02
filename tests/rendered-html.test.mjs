@@ -1247,6 +1247,18 @@ test("password recovery supports Supabase recovery links and active-admin author
   assert.match(blueprint, /key: APP_BASE_URL\s+value: https:\/\/coffee-platform-baghdad-beta\.onrender\.com/);
 });
 
+test("recovery fragments are consumed safely from any Render landing page", () => {
+  const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const bridge = readFileSync(new URL("../app/ui/RecoveryFragmentBridge.tsx", import.meta.url), "utf8");
+  assert.match(layout, /<RecoveryFragmentBridge \/>/);
+  assert.match(bridge, /fragment\.get\("type"\) !== "recovery"/);
+  assert.match(bridge, /fragment\.get\("access_token"\)/);
+  assert.match(bridge, /history\.replaceState/);
+  assert.match(bridge, /\/api\/auth\/recovery-session/);
+  assert.match(bridge, /credentials: "same-origin"/);
+  assert.match(bridge, /location\.replace\("\/update-password"\)/);
+});
+
 test("GitHub CI gates Phase branches before Render deployment", () => {
   const workflow = readFileSync(new URL("../.github/workflows/coffee-platform.yml", import.meta.url), "utf8");
   assert.match(workflow, /"phase5\/\*\*"/);
