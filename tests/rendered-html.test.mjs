@@ -9,7 +9,7 @@ import {
   normalizeSearchText,
 } from "../lib/search-governance.ts";
 import { validateOrganizationCsv } from "../lib/data-center.ts";
-import { readAdminRestResponse } from "../lib/supabase-admin.ts";
+import { readAdminRestResponse, sameOrigin } from "../lib/supabase-admin.ts";
 import {
   ProductAttributeError,
   serializeProductAttributes,
@@ -395,6 +395,18 @@ test("data center API rejects unauthenticated reads and writes", async () => {
 test("admin REST accepts successful empty 201 responses", async () => {
   assert.equal(await readAdminRestResponse(new Response(null, { status: 201 })), undefined);
   assert.deepEqual(await readAdminRestResponse(new Response('[{"ok":true}]', { status: 201 })), [{ ok: true }]);
+});
+
+test("same-origin protection accepts Render proxy headers and rejects foreign sites", () => {
+  const headers = {
+    origin: "https://coffee-platform-baghdad-beta.onrender.com",
+    "x-forwarded-host": "coffee-platform-baghdad-beta.onrender.com",
+    "x-forwarded-proto": "https",
+  };
+  assert.equal(sameOrigin(new Request("http://internal-render:10000/api/auth/password-reset", { headers })), true);
+  assert.equal(sameOrigin(new Request("http://internal-render:10000/api/auth/password-reset", {
+    headers: { ...headers, origin: "https://attacker.example" },
+  })), false);
 });
 
 test("data center identifies Baghdad as the only current test market", () => {

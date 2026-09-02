@@ -105,5 +105,27 @@ export async function requireAdmin(request: Request) {
 
 export function sameOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  return !origin || origin === new URL(request.url).origin;
+  if (!origin) return true;
+
+  const allowedOrigins = new Set([new URL(request.url).origin]);
+  const configured = process.env.APP_BASE_URL?.trim();
+  if (configured) {
+    try {
+      allowedOrigins.add(new URL(configured).origin);
+    } catch {
+      // A malformed optional origin must not disable same-origin protection.
+    }
+  }
+
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  if (forwardedHost && (forwardedProto === "https" || forwardedProto === "http")) {
+    try {
+      allowedOrigins.add(new URL(`${forwardedProto}://${forwardedHost}`).origin);
+    } catch {
+      // Ignore malformed proxy headers and retain the other trusted origins.
+    }
+  }
+
+  return allowedOrigins.has(origin);
 }
