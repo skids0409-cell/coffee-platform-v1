@@ -79,8 +79,10 @@ async function loadWorker() {
       const incomingUrl = new URL(request.url);
       const targetUrl = new URL(`${incomingUrl.pathname}${incomingUrl.search}`, baseUrl);
       const headers = new Headers(request.headers);
-      headers.set("host", "localhost");
-      headers.set("x-forwarded-host", "localhost");
+      const runtimeOrigin = `http://localhost:${new URL(baseUrl).port}`;
+      if (headers.has("origin")) headers.set("origin", runtimeOrigin);
+      headers.set("host", new URL(runtimeOrigin).host);
+      headers.set("x-forwarded-host", new URL(runtimeOrigin).host);
       headers.set("x-forwarded-proto", "http");
       const init = {
         method: request.method,
