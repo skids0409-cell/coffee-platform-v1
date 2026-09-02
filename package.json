@@ -13,6 +13,7 @@
     "verify:migrations": "node scripts/verify-recovered-migrations.mjs",
     "test": "npm run verify:migrations && npm run build && node --test tests/rendered-html.test.mjs",
     "validate:artifact": "bash scripts/validate-artifact.sh",
+    "deploy:dry-run": "bash scripts/deploy-dry-run.sh",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
   },

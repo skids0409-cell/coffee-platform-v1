@@ -1112,3 +1112,31 @@ test("Phase 5 attribute serialization rejects malformed and duplicate values", (
     { fieldId: definitions[0].id, value: "55" },
   ], definitions), /duplicate_attribute/);
 });
+
+test("GitHub CI gates Phase branches and protects the Baghdad beta deployment", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/coffee-platform.yml", import.meta.url), "utf8");
+  assert.match(workflow, /"phase5\/\*\*"/);
+  assert.match(workflow, /pull_request:[\s\S]*?- main/);
+  assert.match(workflow, /name: Quality gate/);
+  assert.match(workflow, /run: npm run lint/);
+  assert.match(workflow, /run: npm test/);
+  assert.match(workflow, /run: npm run deploy:dry-run/);
+  assert.match(workflow, /needs: quality/);
+  assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /name: baghdad-beta/);
+  assert.match(workflow, /include-hidden-files: true/);
+  assert.doesNotMatch(workflow, /service[_-]?role/i);
+
+  const actionPins = [...workflow.matchAll(/uses:\s+[^@\s]+@([0-9a-f]{40})/g)];
+  assert.equal(actionPins.length, 7);
+});
+
+test("Cloudflare beta config deploys the built Worker with required Supabase bindings", () => {
+  const config = JSON.parse(readFileSync(new URL("../wrangler.deploy.jsonc", import.meta.url), "utf8"));
+  assert.equal(config.name, "coffee-platform-baghdad-beta");
+  assert.equal(config.main, "dist/server/index.js");
+  assert.equal(config.assets?.directory, "dist/client");
+  assert.equal(config.assets?.binding, "ASSETS");
+  assert.equal(config.no_bundle, true);
+  assert.deepEqual(config.secrets?.required, ["SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY"]);
+});
