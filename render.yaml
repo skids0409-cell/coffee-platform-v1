@@ -9,7 +9,6 @@ services:
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeployTrigger: checksPass
-    maxShutdownDelaySeconds: 30
     envVars:
       - key: NODE_VERSION
         value: 24.19.0
