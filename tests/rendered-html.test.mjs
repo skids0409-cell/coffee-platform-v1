@@ -1208,7 +1208,7 @@ test("Render blueprint deploys main only after CI with externalized Supabase val
   assert.match(blueprint, /runtime: node/);
   assert.match(blueprint, /region: frankfurt/);
   assert.match(blueprint, /branch: main/);
-  assert.match(blueprint, /buildCommand: npm ci && npm run build/);
+  assert.match(blueprint, /buildCommand: npm ci --include=dev && npm run build/);
   assert.match(blueprint, /startCommand: npm start/);
   assert.match(blueprint, /healthCheckPath: \/api\/health/);
   assert.match(blueprint, /autoDeployTrigger: checksPass/);

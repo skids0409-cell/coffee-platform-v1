@@ -34,7 +34,10 @@ jobs:
           cache: npm
 
       - name: Install locked dependencies
-        run: npm ci
+        run: npm ci --include=dev
+
+      - name: Verify CSS build toolchain
+        run: node -e "require.resolve('@tailwindcss/postcss'); require.resolve('tailwindcss')"
 
       - name: Lint
         run: npm run lint

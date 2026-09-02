@@ -30,7 +30,7 @@
 ## إعداد الخدمة
 
 - المنطقة: Frankfurt، وهي أقرب منطقة Render متاحة للجمهور المستهدف في بغداد.
-- البناء: `npm ci && npm run build`.
+- البناء: `npm ci --include=dev && npm run build` لضمان توفر أدوات Tailwind وPostCSS أثناء البناء حتى مع `NODE_ENV=production`.
 - التشغيل: `npm start`، ويستمع Next.js على `0.0.0.0` والمنفذ الذي يمرره Render.
 - فحص الصحة: `/api/health`.
 - إصدار Node.js: `24.19.0` من `.node-version` و`NODE_VERSION`.
