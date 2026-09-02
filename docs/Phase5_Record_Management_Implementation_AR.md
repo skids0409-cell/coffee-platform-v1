@@ -42,5 +42,5 @@
 
 - `npm run verify:migrations`: ناجح.
 - `npm run lint`: ناجح.
-- `npm test`: 72/72، وتشمل الاختبارات الـ69 الأصلية وثلاثة اختبارات Phase 5.
-- `npm run validate:artifact`: ناجح.
+- `npm test`: 75/75، وتشمل اختبارات Phase 5 ومسار تشغيل Next.js/Node وإعداد Render.
+- `npm run build`: ناجح على بيئة Next.js/Node القياسية.

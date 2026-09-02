@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+import test, { after } from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   expandArabicStorageVariants,
   normalizeSearchText,
@@ -21,22 +24,91 @@ import {
 const developmentPreviewMeta =
   /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
 
-async function loadWorker(label) {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${label}-${process.pid}-${Date.now()}`);
-  return (await import(workerUrl.href)).default;
+let serverProcess;
+let serverBaseUrlPromise;
+
+async function startNodeServer() {
+  const port = 32000 + (process.pid % 1000);
+  const projectRoot = fileURLToPath(new URL("..", import.meta.url));
+  const nextBin = fileURLToPath(
+    new URL("../node_modules/next/dist/bin/next", import.meta.url),
+  );
+  let output = "";
+
+  serverProcess = spawn(
+    process.execPath,
+    [nextBin, "start", "-H", "127.0.0.1", "-p", String(port)],
+    {
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        NEXT_TELEMETRY_DISABLED: "1",
+        PORT: String(port),
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  serverProcess.stdout.on("data", (chunk) => {
+    output += chunk;
+  });
+  serverProcess.stderr.on("data", (chunk) => {
+    output += chunk;
+  });
+
+  const baseUrl = `http://127.0.0.1:${port}`;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (serverProcess.exitCode !== null) {
+      throw new Error(`Next.js server exited before startup:\n${output}`);
+    }
+    try {
+      const response = await fetch(`${baseUrl}/api/hello`);
+      if (response.ok) return baseUrl;
+    } catch {
+      // The server is still starting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`Next.js server did not become ready:\n${output}`);
 }
 
-const runtimeEnv = {
-  ASSETS: {
-    fetch: async () => new Response("Not found", { status: 404 }),
-  },
-};
+async function loadWorker() {
+  serverBaseUrlPromise ??= startNodeServer();
+  const baseUrl = await serverBaseUrlPromise;
+  return {
+    async fetch(request) {
+      const incomingUrl = new URL(request.url);
+      const targetUrl = new URL(`${incomingUrl.pathname}${incomingUrl.search}`, baseUrl);
+      const headers = new Headers(request.headers);
+      if (headers.get("origin") === "http://localhost") {
+        headers.set("origin", baseUrl);
+      }
+      const init = {
+        method: request.method,
+        headers,
+      };
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        init.body = await request.arrayBuffer();
+      }
+      return fetch(targetUrl, init);
+    },
+  };
+}
 
-const runtimeContext = {
-  waitUntil() {},
-  passThroughOnException() {},
-};
+const runtimeEnv = undefined;
+const runtimeContext = undefined;
+
+after(async () => {
+  if (!serverProcess || serverProcess.exitCode !== null) return;
+  serverProcess.kill("SIGTERM");
+  const exited = once(serverProcess, "exit");
+  const forced = new Promise((resolve) => {
+    setTimeout(() => {
+      if (serverProcess.exitCode === null) serverProcess.kill("SIGKILL");
+      resolve();
+    }, 3000).unref();
+  });
+  await Promise.race([exited, forced]);
+});
 
 test("renders development preview metadata", async () => {
   const worker = await loadWorker("home");
@@ -828,7 +900,7 @@ test("operations aligns published taxonomy and exposes stateful rights actions",
   assert.match(api, /requester_email,requester_phone,details,evidence_reference/);
 });
 
-test("media intake reports exact validation failures and compresses below the Sites request limit", () => {
+test("media intake reports exact validation failures and compresses client uploads", () => {
   const api = readFileSync(new URL("../app/api/admin/media/route.ts", import.meta.url), "utf8");
   const ui = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
   assert.match(api, /MAX_MEDIA_BYTES = 8 \* 1024 \* 1024/);
@@ -1113,30 +1185,42 @@ test("Phase 5 attribute serialization rejects malformed and duplicate values", (
   ], definitions), /duplicate_attribute/);
 });
 
-test("GitHub CI gates Phase branches and protects the Baghdad beta deployment", () => {
+test("GitHub CI gates Phase branches before Render deployment", () => {
   const workflow = readFileSync(new URL("../.github/workflows/coffee-platform.yml", import.meta.url), "utf8");
   assert.match(workflow, /"phase5\/\*\*"/);
   assert.match(workflow, /pull_request:[\s\S]*?- main/);
   assert.match(workflow, /name: Quality gate/);
   assert.match(workflow, /run: npm run lint/);
   assert.match(workflow, /run: npm test/);
-  assert.match(workflow, /run: npm run deploy:dry-run/);
-  assert.match(workflow, /needs: quality/);
-  assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
-  assert.match(workflow, /name: baghdad-beta/);
+  assert.match(workflow, /coffee-platform-next-/);
   assert.match(workflow, /include-hidden-files: true/);
+  assert.doesNotMatch(workflow, /cloudflare|wrangler/i);
   assert.doesNotMatch(workflow, /service[_-]?role/i);
 
   const actionPins = [...workflow.matchAll(/uses:\s+[^@\s]+@([0-9a-f]{40})/g)];
-  assert.equal(actionPins.length, 7);
+  assert.equal(actionPins.length, 3);
 });
 
-test("Cloudflare beta config deploys the built Worker with required Supabase bindings", () => {
-  const config = JSON.parse(readFileSync(new URL("../wrangler.deploy.jsonc", import.meta.url), "utf8"));
-  assert.equal(config.name, "coffee-platform-baghdad-beta");
-  assert.equal(config.main, "dist/server/index.js");
-  assert.equal(config.assets?.directory, "dist/client");
-  assert.equal(config.assets?.binding, "ASSETS");
-  assert.equal(config.no_bundle, true);
-  assert.deepEqual(config.secrets?.required, ["SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY"]);
+test("Render blueprint deploys main only after CI with externalized Supabase values", () => {
+  const blueprint = readFileSync(new URL("../render.yaml", import.meta.url), "utf8");
+  assert.match(blueprint, /runtime: node/);
+  assert.match(blueprint, /region: frankfurt/);
+  assert.match(blueprint, /branch: main/);
+  assert.match(blueprint, /buildCommand: npm ci && npm run build/);
+  assert.match(blueprint, /startCommand: npm start/);
+  assert.match(blueprint, /healthCheckPath: \/api\/health/);
+  assert.match(blueprint, /autoDeployTrigger: checksPass/);
+  assert.match(blueprint, /key: SUPABASE_URL\s+sync: false/);
+  assert.match(blueprint, /key: SUPABASE_PUBLISHABLE_KEY\s+sync: false/);
+  assert.doesNotMatch(blueprint, /service[_-]?role|cloudflare|wrangler/i);
+});
+
+test("Node health endpoint fails closed when Render environment is incomplete", async () => {
+  const worker = await loadWorker("health");
+  const response = await worker.fetch(new Request("http://localhost/api/health"));
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), {
+    status: "not_configured",
+    runtime: "node",
+  });
 });

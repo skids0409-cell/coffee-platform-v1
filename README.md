@@ -31,6 +31,7 @@
 - `docs/Supabase_Advisor_Baseline_AR.md`: خط أساس أمان وأداء قاعدة البيانات.
 - `tests`: اختبارات البناء والمسارات وحالة الفشل الآمن.
 - `handoff`: دليل التشغيل والاختبار والقبول والفجوات المعروفة.
+- `render.yaml`: تعريف خدمة Next.js/Node التجريبية على Render.
 
 ## متغيرات التشغيل
 
@@ -79,8 +80,13 @@ npm run verify:migrations
 ```bash
 npm run lint
 npm test
-npm run validate:artifact
 ```
 
 نجاح البناء لا يساوي موافقة النشر. يجب إبقاء `public_launch_enabled=false` إلى
 حين انتهاء مراجعة البيانات والقبول النهائي من المالك.
+
+## الاستضافة
+
+يبني GitHub Actions فرعي `phase5/**` و`main` وطلبات الدمج إلى `main`. يرتبط
+Render بالفرع `main` وينشر فقط بعد نجاح فحوص GitHub، مستخدماً خدمة Node في
+Frankfurt. تُدخل قيم Supabase في Render عند إنشاء Blueprint ولا تحفظ في Git.

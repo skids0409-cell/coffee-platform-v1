@@ -2,7 +2,7 @@
 
 ## المكونات
 
-- واجهة متعددة الصفحات: React / Next-compatible Vinext على Cloudflare Sites.
+- واجهة متعددة الصفحات: React / Next.js على خدمة Node قياسية في Render.
 - قاعدة البيانات والمصادقة والتخزين: Supabase Postgres/Auth/Storage.
 - CMS التشغيلي: صفحة `/operations` مع طوابير المراجعة، إضافة إلى Supabase Dashboard لإدارة الحقول الكاملة.
 - البحث في V1: واجهات بيانات Supabase مع بحث موحد منظم.
@@ -24,10 +24,9 @@ SUPABASE_PUBLISHABLE_KEY
 npm ci
 npm run lint
 npm test
-npm run validate:artifact
 ```
 
-يتطلب المشروع Node.js 22.13 أو أحدث. نجاح الأوامر لا يغيّر بيانات Supabase ولا يفعّل الإطلاق العام.
+يتطلب المشروع Node.js 24.19.x. نجاح الأوامر لا يغيّر بيانات Supabase ولا يفعّل الإطلاق العام.
 
 ## ترتيب قاعدة البيانات
 
@@ -37,7 +36,7 @@ npm run validate:artifact
 
 1. شغّل الاختبارات.
 2. راجع الفرق البرمجي والبيانات.
-3. أنشئ نسخة نشر خاصة غير قابلة للفهرسة.
+3. دع Render ينشر `main` بعد نجاح فحوص GitHub Actions.
 4. تحقق من حالة النشر والرابط.
 5. نفذ خطة الفحص الواقعي.
 6. لا توسع الجمهور ولا تغير `public_launch_enabled` قبل توقيع قائمة القبول.
