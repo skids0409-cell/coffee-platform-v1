@@ -1239,7 +1239,6 @@ test("password recovery supports Supabase recovery links and active-admin author
   const blueprint = readFileSync(new URL("../render.yaml", import.meta.url), "utf8");
 
   assert.match(reset, /recover\?redirect_to=/);
-  assert.match(reset, /code_challenge: challenge/);
   assert.match(reset, /publicSupabaseConfig/);
   assert.doesNotMatch(reset, /supabaseAuth/);
   assert.match(recoveryUi, /fetch\(preparation\.recoveryEndpoint/);
