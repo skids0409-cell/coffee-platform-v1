@@ -1,11 +1,25 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
 
+function unquote(value: string) {
+  const trimmed = value.trim();
+  if (trimmed.length >= 2 && ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'")))) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
 export function publicSupabaseConfig() {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   try {
-    const url = new URL(SUPABASE_URL.trim());
-    const publishableKey = SUPABASE_KEY.trim();
+    const configuredUrl = unquote(SUPABASE_URL);
+    const candidate = /^[a-z0-9]{20}$/i.test(configuredUrl)
+      ? `https://${configuredUrl}.supabase.co`
+      : /^[a-z0-9-]+\.supabase\.co(?:\/.*)?$/i.test(configuredUrl)
+        ? `https://${configuredUrl}`
+        : configuredUrl;
+    const url = new URL(candidate);
+    const publishableKey = unquote(SUPABASE_KEY);
     if (url.protocol !== "https:" || !publishableKey) return null;
     return { url: url.origin, publishableKey };
   } catch {

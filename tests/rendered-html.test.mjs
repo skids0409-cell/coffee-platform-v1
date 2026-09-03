@@ -1236,6 +1236,7 @@ test("password recovery supports Supabase recovery links and active-admin author
   const updatePage = readFileSync(new URL("../app/update-password/page.tsx", import.meta.url), "utf8");
   const recoveryUi = readFileSync(new URL("../app/ui/PasswordRecovery.tsx", import.meta.url), "utf8");
   const recovery = readFileSync(new URL("../lib/password-recovery.ts", import.meta.url), "utf8");
+  const supabaseAdmin = readFileSync(new URL("../lib/supabase-admin.ts", import.meta.url), "utf8");
   const blueprint = readFileSync(new URL("../render.yaml", import.meta.url), "utf8");
 
   assert.match(reset, /recover\?redirect_to=/);
@@ -1254,6 +1255,9 @@ test("password recovery supports Supabase recovery links and active-admin author
   assert.match(updatePage, /validateActiveAdminToken/);
   assert.match(updatePage, /Boolean\(params\.error\) \|\| !admin/);
   assert.match(recovery, /profiles\?select=role,is_active/);
+  assert.match(supabaseAdmin, /\^\[a-z0-9\]\{20\}\$/);
+  assert.match(supabaseAdmin, /\.supabase\\\.co/);
+  assert.match(supabaseAdmin, /function unquote/);
   assert.match(recovery, /role !== "admin"/);
   assert.match(recovery, /is_active !== true/);
   assert.doesNotMatch(`${reset}\n${callback}\n${update}\n${recovery}`, /service[_-]?role|user_metadata/i);
