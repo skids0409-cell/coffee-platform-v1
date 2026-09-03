@@ -174,4 +174,3 @@ comment on function public.admin_media_vault_action(text,uuid[],jsonb) is
   'Atomic, role-checked and append-only-audited Media Vault bulk action service.';
 
 commit;
-

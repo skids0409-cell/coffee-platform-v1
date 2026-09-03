@@ -10,6 +10,9 @@ import {
   type SearchRequestType,
 } from "@/lib/search-governance";
 import { TaxonomyWorkspace } from "@/app/ui/admin/TaxonomyWorkspace";
+import { RecordForm } from "@/app/ui/admin/RecordForm";
+import { MediaVaultWorkspace } from "@/app/ui/admin/MediaVaultWorkspace";
+import type { ProductKind, RecordCapabilityContract } from "@/lib/record-capability-types";
 
 type PageDef = {
   id: string;
@@ -789,7 +792,6 @@ const organizationRoleLabels: Record<string, string> = {
   equipment_supplier: "مورد معدات",
   service_provider: "خدمات وصيانة",
   importer: "مستورد",
-  manufacturer: "مصنّع",
 };
 
 const organizationVerificationLabels: Record<string, string> = {
@@ -4338,75 +4340,53 @@ type DataCenterReference = {
   filterDefinitions: Array<{ category_id: string; id: string; code: string; name_ar: string; data_type: string; allowed_values: string[]; unit_code: string | null; is_required_for_publish: boolean; sort_order: number }>;
 };
 
-async function uploadCatalogMedia(entity: string, entityId: string, file: File, altAr: string, rightsNote: string) {
-  const media = new FormData();
-  media.set("entity", entity);
-  media.set("entityId", entityId);
-  media.set("file", file);
-  media.set("altAr", altAr);
-  media.set("rightsNote", rightsNote);
+type MediaRightsInput = { rightsBasis:string; copyrightOwner:string; sourceUrl:string; licenseUrl:string; permissionEvidence:string; attested:boolean };
+async function uploadCatalogMedia(entity: string, entityId: string, file: File, altAr: string, rights: MediaRightsInput) {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 60_000);
+  const timeout = window.setTimeout(() => controller.abort(), 180_000);
   try {
-    return await fetch("/api/admin/media", { method: "POST", body: media, signal: controller.signal });
+    const intentResponse = await fetch("/api/admin/media", { method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
+      entity,entityId,filename:file.name,declaredMime:file.type,altAr,rightsBasis:rights.rightsBasis,copyrightOwner:rights.copyrightOwner,
+      sourceUrl:rights.sourceUrl,licenseUrl:rights.licenseUrl,permissionEvidence:rights.permissionEvidence,attested:rights.attested,
+      commercialUseAllowed:rights.attested,modificationAllowed:rights.attested,
+    }),signal:controller.signal });
+    if(!intentResponse.ok) return intentResponse;
+    const intent=await intentResponse.json() as {intentId:string;signedUploadUrl:string;maxBytes:number};
+    if(file.size>intent.maxBytes) return Response.json({reason:"file_too_large",maxBytes:intent.maxBytes,receivedBytes:file.size},{status:400});
+    const uploadBody=new FormData(); uploadBody.append("cacheControl","0"); uploadBody.append("",file);
+    const uploadResponse=await fetch(intent.signedUploadUrl,{method:"PUT",headers:{"x-upsert":"false"},body:uploadBody,signal:controller.signal});
+    if(!uploadResponse.ok) return Response.json({reason:"storage_rejected",storageStatus:uploadResponse.status},{status:502});
+    return await fetch("/api/admin/media/validate",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({intentId:intent.intentId}),signal:controller.signal});
   } finally {
     window.clearTimeout(timeout);
   }
 }
 
-// Keep uploads small for reliable mobile submissions and predictable server
-// memory usage before the API performs its independent validation.
-const MAX_MEDIA_BYTES = 1024 * 1024;
 const allowedMediaExtension = (name: string) => ["jpg", "jpeg", "png", "webp", "avif"].includes(name.toLowerCase().split(".").pop() || "");
-async function prepareCatalogImage(file: File) {
-  if (file.size <= MAX_MEDIA_BYTES) return { file, optimized: false };
-  if (file.size > 40 * 1024 * 1024) throw new Error("file_too_large");
-  const bitmap = await createImageBitmap(file);
-  const maxDimension = 1800;
-  const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("image_processing_failed");
-  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  for (const quality of [0.82, 0.68, 0.54, 0.42]) {
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality));
-    if (blob && blob.size <= MAX_MEDIA_BYTES) return { file: new File([blob], `${file.name.replace(/\.[^.]+$/, "")}.webp`, { type: "image/webp" }), optimized: true };
-  }
-  throw new Error("file_too_large");
-}
 const mediaErrorMessage = (reason?: string, receivedBytes?: number) => {
-  if (reason === "file_too_large" || reason === "request_too_large") return `حجم الصورة ${((receivedBytes || 0) / 1024 / 1024).toFixed(1)}MB بعد المعالجة؛ تعذر جعله مناسباً للرفع. استخدم صورة أصغر أو بصيغة JPG/WebP.`;
+  if (reason === "file_too_large" || reason === "request_too_large") return `حجم الملف ${((receivedBytes || 0) / 1024 / 1024).toFixed(1)}MB يتجاوز حد الغرض المعتمد.`;
   if (reason === "unsupported_type") return "صيغة الصورة غير مدعومة. استخدم JPG أو PNG أو WebP أو AVIF.";
+  if (reason === "mime_mismatch") return "نوع الملف الفعلي لا يطابق النوع المعلن؛ رُفض الملف داخل الحجر الخاص.";
+  if (reason === "dimensions_below_minimum" || reason === "dimensions_above_maximum" || reason === "pixel_limit_exceeded" || reason === "aspect_ratio_out_of_bounds") return "أبعاد الصورة لا تطابق سياسة الغرض المحدد.";
+  if (reason === "attestation_required") return "يجب قبول إقرار الحقوق والنشر وإنشاء النسخة المنقحة.";
+  if (reason === "license_url_required" || reason === "permission_evidence_required") return "أساس الحقوق المختار يحتاج رابط رخصة أو دليل إذن مكتوب.";
   if (reason === "alt_required") return "اكتب وصفاً بديلاً للصورة من حرفين على الأقل.";
   if (reason === "rights_required") return "اكتب مصدر الصورة وحقوق استخدامها من ثلاثة أحرف على الأقل.";
   if (reason === "file_required") return "اختر ملف الصورة أولاً.";
   if (reason === "invalid_target") return "تعذر تحديد السجل الذي ستُربط به الصورة. أغلق النافذة وافتح السجل مجدداً.";
   if (reason === "storage_rejected") return "رفضت مكتبة الصور الملف قبل تخزينه. حدّث الصفحة وسجّل دخول الإدارة مجدداً، ثم جرّب JPG أو WebP أصغر.";
-  if (reason === "media_link_failed") return "رُفع الملف مؤقتاً لكن تعذر ربطه بالسجل، لذلك أزيل تلقائياً ولم تُترك صورة يتيمة. حدّث الصفحة وحاول مجدداً.";
-  if (reason === "upload_timeout") return "تجاوز الرفع دقيقة واحدة وأوقفناه بأمان. لم تُسجل الصورة؛ تحقق من الاتصال ثم أعد المحاولة.";
+  if (reason === "upload_timeout") return "تجاوز الرفع ثلاث دقائق وأوقفناه بأمان. تحقق من الاتصال ثم أعد المحاولة.";
   return "تعذر رفع الصورة إلى مكتبة الوسائط. لم تُسجل الصورة؛ أعد المحاولة بعد تحديث الصفحة.";
 };
 
-function MultiChoiceField({ value, options, onChange }: { value: string; options: string[]; onChange: (value: string) => void }) {
-  const selected = value ? value.split(/,\s*/).filter(Boolean) : [];
-  const toggle = (option: string) => {
-    const next = selected.includes(option) ? selected.filter((item) => item !== option) : [...selected, option];
-    onChange(next.join(", "));
-  };
-  return <div className="multi-choice-grid">{options.map((option) => <label className="multi-choice" key={option}><input type="checkbox" checked={selected.includes(option)} onChange={() => toggle(option)} /><span>{attributeValueLabels[option] || option}</span></label>)}</div>;
-}
-
-function CatalogDraftForm({ reference, contractRevision, onCreated }: { reference: DataCenterReference; contractRevision: string; onCreated: () => Promise<void> }) {
+function CatalogDraftForm({ reference, onCreated }: { reference: DataCenterReference; onCreated: () => Promise<void> }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [entityType, setEntityType] = useState("product");
   const [entrySection, setEntrySection] = useState("coffee");
-  const [productKind, setProductKind] = useState("roasted_coffee");
-  const [productFamilyId, setProductFamilyId] = useState("");
+  const [productKind, setProductKind] = useState<ProductKind>("roasted_coffee");
   const [productCategoryId, setProductCategoryId] = useState("");
   const [draftAttributes, setDraftAttributes] = useState<Record<string,string>>({});
+  const [productContract, setProductContract] = useState<RecordCapabilityContract | null>(null);
   const [offerProductKind, setOfferProductKind] = useState("roasted_coffee");
   const [offerFamilyId, setOfferFamilyId] = useState("");
   const [offerCategoryId, setOfferCategoryId] = useState("");
@@ -4414,7 +4394,7 @@ function CatalogDraftForm({ reference, contractRevision, onCreated }: { referenc
   const [offerProductId, setOfferProductId] = useState("");
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);
-  const [pendingDraft, setPendingDraft] = useState<null | { entityType: string; payload: Record<string,string>; mediaFile: File | null; mediaOptimized: boolean; mediaAltAr: string; mediaRightsNote: string; attributes: Record<string,string> }>(null);
+  const [pendingDraft, setPendingDraft] = useState<null | { entityType: string; payload: Record<string,string>; mediaFile: File | null; mediaAltAr: string; mediaRights: MediaRightsInput; attributes: Record<string,string>; contractRevision: string }>(null);
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formElement = event.currentTarget;
@@ -4429,41 +4409,41 @@ function CatalogDraftForm({ reference, contractRevision, onCreated }: { referenc
       return;
     }
     const form = new FormData(formElement);
-    const payload = Object.fromEntries([...form.entries()].filter(([key]) => !["sourceConfirmed", "entityType", "mediaFile", "mediaAltAr", "mediaRightsNote"].includes(key)).map(([key, value]) => [key, String(value)]));
+    const payload = Object.fromEntries([...form.entries()].filter(([key]) => !["sourceConfirmed", "entityType", "mediaFile", "mediaAltAr", "mediaRightsBasis", "mediaCopyrightOwner", "mediaSourceUrl", "mediaLicenseUrl", "mediaPermissionEvidence", "mediaAttested", "contract_revision"].includes(key)).map(([key, value]) => [key, String(value)]));
     const originalMediaFile = form.get("mediaFile");
-    let mediaFile = originalMediaFile instanceof File ? originalMediaFile : null;
-    let mediaOptimized = false;
+    const mediaFile = originalMediaFile instanceof File ? originalMediaFile : null;
     if (mediaFile && mediaFile.size > 0) {
       if (!allowedMediaExtension(mediaFile.name)) { setMessage(mediaErrorMessage("unsupported_type")); return; }
-      try { const prepared = await prepareCatalogImage(mediaFile); mediaFile = prepared.file; mediaOptimized = prepared.optimized; } catch { setMessage(mediaErrorMessage("file_too_large", mediaFile.size)); return; }
       if (String(form.get("mediaAltAr") || "").trim().length < 2) { setMessage(mediaErrorMessage("alt_required")); return; }
-      if (String(form.get("mediaRightsNote") || "").trim().length < 3) { setMessage(mediaErrorMessage("rights_required")); return; }
+      if (String(form.get("mediaRightsBasis") || "").length < 2 || String(form.get("mediaCopyrightOwner") || "").trim().length < 2) { setMessage(mediaErrorMessage("rights_required")); return; }
+      if (form.get("mediaAttested") !== "on") { setMessage(mediaErrorMessage("attestation_required")); return; }
     }
     if (entityType === "product" && !productCategoryId) { setMessage("اختر الفئة الدقيقة من شريط الإدخال أعلى النموذج قبل الحفظ."); return; }
+    if (entityType === "product" && !productContract) { setMessage("تعذر تحميل عقد التصنيف المعتمد. أعد فتح النموذج قبل الحفظ."); return; }
+    const coffeeFormField = productContract?.attributes_by_category[productCategoryId]?.find((field) => field.code === "coffee_form");
     if (entityType === "product" && productKind === "roasted_coffee" && coffeeFormField && !draftAttributes[coffeeFormField.id]) { setMessage("اختر شكل القهوة: حبوب كاملة أو مطحونة، قبل حفظ المسودة."); return; }
     if (entityType === "offer" && !offerProductId) { setMessage("اختر المنتج من القائمة المفلترة قبل حفظ العرض."); return; }
-    setPendingDraft({ entityType, payload, mediaFile, mediaOptimized, mediaAltAr: String(form.get("mediaAltAr") || ""), mediaRightsNote: String(form.get("mediaRightsNote") || ""), attributes: { ...draftAttributes } });
+    setPendingDraft({ entityType, payload, mediaFile, mediaAltAr: String(form.get("mediaAltAr") || ""), mediaRights: { rightsBasis:String(form.get("mediaRightsBasis")||""),copyrightOwner:String(form.get("mediaCopyrightOwner")||""),sourceUrl:String(form.get("mediaSourceUrl")||""),licenseUrl:String(form.get("mediaLicenseUrl")||""),permissionEvidence:String(form.get("mediaPermissionEvidence")||""),attested:form.get("mediaAttested")==="on" }, attributes: { ...draftAttributes }, contractRevision: productContract?.contract_revision || "" });
     setMessage("راجع المعاينة أدناه. لم تُحفظ المسودة بعد.");
   };
   const createPendingDraft = async () => {
     if (!pendingDraft) return;
-    const { entityType: pendingEntityType, payload, mediaFile, mediaOptimized, mediaAltAr, mediaRightsNote, attributes: pendingAttributes } = pendingDraft;
+    const { entityType: pendingEntityType, payload, mediaFile, mediaAltAr, mediaRights, attributes: pendingAttributes, contractRevision } = pendingDraft;
     setWorking(true);
     setMessage("");
     let response: Response;
     let result: any;
     try {
-      response = await fetch("/api/admin/data-center", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create_catalog_draft", entityType: pendingEntityType, payload, attributes: Object.entries(pendingAttributes).map(([fieldId, value]) => ({ fieldId, value })).filter((item) => item.value.trim()), contractRevision, sourceConfirmed: true }) });
+      response = await fetch("/api/admin/data-center", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create_catalog_draft", entityType: pendingEntityType, payload, attributes: Object.entries(pendingAttributes).map(([fieldId,value]) => ({ fieldId, value })), contractRevision, sourceConfirmed: true }) });
       result = await response.json();
     } catch {
       setWorking(false); setMessage("تعذر الاتصال بقاعدة البيانات. لم تُنشأ المسودة؛ حدّث الصفحة وسجّل دخول الإدارة ثم حاول مجدداً."); return;
     }
     setWorking(false);
     if (!response.ok) {
-      setMessage(result.reason === "category_kind_mismatch" ? "الفئة المختارة لا تنتمي إلى نوع المنتج. اختر فئة من القائمة المفلترة."
+      setMessage(result.reason === "contract_revision_stale" ? "تغير عقد التصنيف أثناء الإدخال. أعد فتح النموذج وراجع الفئة قبل الحفظ."
+        : result.reason === "category_kind_mismatch" ? "الفئة المختارة لا تنتمي إلى نوع المنتج. اختر فئة من القائمة المفلترة."
         : result.reason === "brand_kind_mismatch" ? "العلامة المختارة مسجلة لعائلة منتجات مختلفة."
-        : result.reason === "contract_revision_stale" || result.reason === "contract_revision_required" ? "تغيّر عقد التصنيف أثناء فتح النموذج. حدّث مركز الإدخال وراجع القيم قبل الحفظ."
-        : ["invalid_attribute", "invalid_attribute_value", "duplicate_attribute"].includes(result.reason) ? "إحدى قيم المواصفات غير معتمدة لهذه الفئة. راجع القيم الظاهرة ثم أعد الحفظ."
         : result.reason === "duplicate_product" ? `يوجد منتج بهذا الاسم مسبقاً وحالته «${({ draft:"مسودة", in_review:"قيد المراجعة", published:"منشور", rejected:"مرفوض" } as Record<string,string>)[result.existing?.status] || result.existing?.status}». افتحه من السجلات بدلاً من إنشاء نسخة مكررة.`
         : result.reason === "duplicate_brand" ? `هذه العلامة موجودة مسبقاً وحالتها «${({ draft:"مسودة", in_review:"قيد المراجعة", published:"منشور", rejected:"مرفوض" } as Record<string,string>)[result.existing?.status] || result.existing?.status}». راجع السجل الموجود.`
         : result.reason === "duplicate_offer" ? `يوجد عرض سابق لهذا المنتج لدى البائع نفسه وحالته «${({ draft:"مسودة", in_review:"قيد المراجعة", published:"منشور", rejected:"مرفوض" } as Record<string,string>)[result.existing?.status] || result.existing?.status}». عدّله من السجلات بدلاً من تكراره.`
@@ -4474,24 +4454,20 @@ function CatalogDraftForm({ reference, contractRevision, onCreated }: { referenc
     if (mediaFile instanceof File && mediaFile.size > 0) {
       const entityMap: Record<string, string> = { organization: "organizations", brand: "brands", product: "products", content: "contents", offer: "offers", origin: "origin_claims" };
       let mediaResponse: Response;
-      try { mediaResponse = await uploadCatalogMedia(entityMap[pendingEntityType], createdId, mediaFile, mediaAltAr, mediaRightsNote); }
+      try { mediaResponse = await uploadCatalogMedia(entityMap[pendingEntityType], createdId, mediaFile, mediaAltAr, mediaRights); }
       catch (error) { setMessage(`تم إنشاء المسودة، لكن الصورة لم تُحفظ: ${mediaErrorMessage(error instanceof DOMException && error.name === "AbortError" ? "upload_timeout" : undefined)} افتح السجل من الطابور ولا تنشئ سجلاً ثانياً.`); await onCreated(); return; }
       if (!mediaResponse.ok) { const mediaResult = await mediaResponse.json().catch(() => ({})); setMessage(`تم إنشاء المسودة، لكن الصورة لم تُحفظ: ${mediaErrorMessage(mediaResult.reason, mediaResult.receivedBytes)} افتح السجل من الطابور ولا تنشئ منتجاً ثانياً.`); await onCreated(); return; }
     }
     formRef.current?.reset();
-    setDraftAttributes({}); setProductCategoryId(""); setProductFamilyId("");
+    setDraftAttributes({}); setProductCategoryId(""); setProductContract(null);
     setPendingDraft(null);
-    setMessage(pendingEntityType === "origin" ? "تم ربط مصدر القهوة بالمنتج وتسجيل العملية." : pendingEntityType === "product" ? `تم إرفاق المنتج ومواصفاته ذرياً وربط الصورة إن وُجدت${mediaOptimized ? " بعد تحسين حجمها تلقائياً" : ""}. لن يظهر في البحث حتى اعتماده للنشر، ولن يظهر عند بائع حتى إنشاء «عرض وسعر» واعتماده.` : "تم إرفاق السجل وربط الصورة إن وُجدت. افتحه من طابور المراجعة لإكمال التدقيق.");
+    setMessage(pendingEntityType === "origin" ? "تم ربط مصدر القهوة بالمنتج، ووُضع ملفه إن وجد في مراجعة Media Vault." : pendingEntityType === "product" ? "تم إنشاء المنتج كمسودة. الصورة إن وُجدت بقيت خاصة ووُضعت في طابور Media Vault حتى اعتمادها؛ ولن يظهر المنتج في البحث حتى اعتماده." : "تم إنشاء المسودة. الملف إن وجد بقي خاصاً في طابور Media Vault حتى المراجعة والاعتماد.");
     await onCreated();
   };
   const categoryById = new Map(reference.categories.map((category) => [category.id, category]));
   const equipmentRoot = reference.categories.find((category) => category.code === "EQP");
   const equipmentFamilies = reference.categories.filter((category) => category.is_navigation_visible && category.navigation_parent_id === equipmentRoot?.id);
-  const productSubcategories = reference.categories.filter((category) => category.is_navigation_visible && category.navigation_parent_id === productFamilyId);
-  const coffeeCategory = reference.categories.find((category) => category.code === "COF-ROASTED");
-  const matchingBrands = reference.brands.filter((brand) => !brand.product_kinds.length || brand.product_kinds.includes(productKind));
-  const productFields = reference.filterDefinitions.filter((field)=>field.category_id===productCategoryId).sort((a,b)=>a.sort_order-b.sort_order);
-  const coffeeFormField = reference.filterDefinitions.find((field) => field.code === "coffee_form");
+  const matchingBrands = reference.brands.filter((brand) => productContract?.allowed_brand_ids.includes(brand.id) && (!brand.product_kinds.length || brand.product_kinds.includes(productKind)));
   const offerProductsByKind = reference.products.filter((product) => product.product_kind === offerProductKind);
   const offerSubcategories = reference.categories.filter((category) => category.is_navigation_visible && category.navigation_parent_id === offerFamilyId);
   const productCoffeeForm = (product: DataCenterReference["products"][number]) => product.product_attribute_values?.find((item) => item.field_definitions?.code === "coffee_form")?.value_text || "";
@@ -4506,9 +4482,10 @@ function CatalogDraftForm({ reference, contractRevision, onCreated }: { referenc
     ["coffee", "القهوة المحمصة"], ["equipment", "المعدات"], ["consumables", "المستهلكات"], ["care", "العناية والصيانة"], ["parts", "قطع الغيار"], ["directory", "الدليل والجهات"], ["brands", "العلامات التجارية"], ["offers", "العروض والأسعار"], ["origins", "مصادر القهوة"], ["learn", "التعلم والمعرفة"],
   ];
   const productKindLabel: Record<string, string> = { roasted_coffee: "قهوة محمصة", equipment: "معدات", consumable: "مستهلكات", care_product: "عناية وصيانة", replacement_part: "قطع غيار" };
+  const sectionForProductKind: Record<ProductKind, string> = { roasted_coffee: "coffee", equipment: "equipment", consumable: "consumables", care_product: "care", replacement_part: "parts" };
   const changeEntrySection = (value: string) => {
-    setEntrySection(value); setMessage(""); setProductCategoryId(""); setProductFamilyId(""); setDraftAttributes({}); setOfferFamilyId(""); setOfferCategoryId(""); setOfferCoffeeForm(""); setOfferProductId("");
-    const productKinds: Record<string, string> = { coffee: "roasted_coffee", equipment: "equipment", consumables: "consumable", care: "care_product", parts: "replacement_part" };
+    setEntrySection(value); setMessage(""); setProductCategoryId(""); setProductContract(null); setDraftAttributes({}); setOfferFamilyId(""); setOfferCategoryId(""); setOfferCoffeeForm(""); setOfferProductId("");
+    const productKinds: Partial<Record<string, ProductKind>> = { coffee: "roasted_coffee", equipment: "equipment", consumables: "consumable", care: "care_product", parts: "replacement_part" };
     if (productKinds[value]) { setEntityType("product"); setProductKind(productKinds[value]); return; }
     if (value === "directory") setEntityType("organization");
     else if (value === "brands") setEntityType("brand");
@@ -4520,13 +4497,13 @@ function CatalogDraftForm({ reference, contractRevision, onCreated }: { referenc
     <section className="catalog-draft-entry">
       <div className="record-nature-picker" aria-label="تحديد طبيعة الإدخال">
         <div><b>أولاً: ما طبيعة السجل؟</b><span>هذا الاختيار يمنع خلط بطاقة المنتج العامة مع سعر وصور بائع محدد.</span></div>
-        <button type="button" className={entityType === "product" ? "active" : ""} onClick={() => changeEntrySection(productKind === "roasted_coffee" ? "coffee" : "equipment")}><b>بطاقة منتج رئيسية</b><span>اسم، علامة، فئة ومواصفات مشتركة — بلا سعر بائع.</span></button>
+        <button type="button" className={entityType === "product" ? "active" : ""} onClick={() => changeEntrySection(sectionForProductKind[productKind])}><b>بطاقة منتج رئيسية</b><span>اسم، علامة، فئة ومواصفات مشتركة — بلا سعر بائع.</span></button>
         <button type="button" className={entityType === "offer" ? "active" : ""} onClick={() => changeEntrySection("offers")}><b>منتج لدى بائع</b><span>اختر بطاقة موجودة ثم اربط البائع والسعر وصوره الخاصة.</span></button>
       </div>
       <div className="data-entry-navigation">
         <div><span className="eyebrow">مدخل بيانات موحّد</span><h3>اختر القسم ثم الفئة الدقيقة</h3><p>نفس ترتيب وفلاتر «إدارة السجلات المنشورة» حتى يكون الإدخال والمراجعة متطابقين.</p></div>
         <label>قسم السجل<select value={entrySection} onChange={(event) => changeEntrySection(event.target.value)}>{entrySections.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-        {entityType === "product" && <>{productKind === "roasted_coffee" ? <label>عائلة المنتج<select value={productCategoryId} onChange={(event) => { setProductCategoryId(event.target.value); setDraftAttributes({}); }}><option value="">اختر الفئة</option>{coffeeCategory && <option value={coffeeCategory.id}>{coffeeCategory.name_ar}</option>}</select></label> : <><label>العائلة الرئيسية للمعدات<select value={productFamilyId} onChange={(event) => { setProductFamilyId(event.target.value); setProductCategoryId(""); setDraftAttributes({}); }} required><option value="">اختر إحدى العوائل الخمس</option>{equipmentFamilies.map((category) => <option key={category.id} value={category.id}>{category.name_ar}</option>)}</select></label><label>التصنيف الفرعي<select value={productCategoryId} disabled={!productFamilyId} onChange={(event) => { const selected = categoryById.get(event.target.value); setProductCategoryId(event.target.value); if (selected?.catalog_product_kind) setProductKind(selected.catalog_product_kind); setDraftAttributes({}); }} required><option value="">{productFamilyId ? "اختر التصنيف الفرعي" : "اختر العائلة أولاً"}</option>{productSubcategories.map((category) => <option key={category.id} value={category.id}>{category.name_ar}</option>)}</select></label></>}{productKind === "roasted_coffee" && coffeeFormField && <label>شكل القهوة — الفئة الدقيقة<select value={draftAttributes[coffeeFormField.id] || ""} onChange={(event) => setDraftAttributes((current) => ({ ...current, [coffeeFormField.id]: event.target.value }))} required><option value="">اختر حبوباً أو مطحونة</option><option value="whole">حبوب كاملة</option><option value="ground">مطحونة</option></select></label>}</>}
+        {entityType === "product" && <div className="read-only-pair"><span>نطاق التصنيف</span><b>{productKindLabel[productKind]}</b><small>سيُحمّل عقد الخادم داخل النموذج، وهو المصدر الوحيد للفئات والمواصفات المسموحة.</small></div>}
         {entityType === "offer" && <><label>قسم المنتج<select value={offerProductKind === "roasted_coffee" ? "coffee" : "equipment"} onChange={(event) => { setOfferProductKind(event.target.value === "coffee" ? "roasted_coffee" : "equipment"); setOfferFamilyId(""); setOfferCategoryId(""); setOfferCoffeeForm(""); setOfferProductId(""); }}><option value="coffee">القهوة</option><option value="equipment">المعدات</option></select></label>{offerProductKind !== "roasted_coffee" && <><label>العائلة الرئيسية<select value={offerFamilyId} onChange={(event) => { setOfferFamilyId(event.target.value); setOfferCategoryId(""); setOfferProductId(""); }}><option value="">كل عوائل المعدات</option>{equipmentFamilies.map((category) => <option key={category.id} value={category.id}>{category.name_ar}</option>)}</select></label><label>التصنيف الفرعي<select value={offerCategoryId} disabled={!offerFamilyId} onChange={(event) => { const selected = categoryById.get(event.target.value); setOfferCategoryId(event.target.value); if (selected?.catalog_product_kind) setOfferProductKind(selected.catalog_product_kind); setOfferProductId(""); }}><option value="">{offerFamilyId ? "كل التصنيفات الفرعية" : "اختر العائلة أولاً"}</option>{offerSubcategories.map((category) => <option key={category.id} value={category.id}>{category.name_ar}</option>)}</select></label></>}{offerProductKind === "roasted_coffee" && <label>شكل القهوة<select value={offerCoffeeForm} onChange={(event) => { setOfferCoffeeForm(event.target.value); setOfferProductId(""); }}><option value="">حبوب ومطحونة</option><option value="whole">حبوب كاملة</option><option value="ground">مطحونة</option></select></label>}</>}
       </div>
       {message && <p className="admin-message" role="status">{message}</p>}
@@ -4553,15 +4530,14 @@ function CatalogDraftForm({ reference, contractRevision, onCreated }: { referenc
             <label>رقم الموديل<input name="model_number" maxLength={160} /></label>
           </div></fieldset>
           <div className="catalog-stage-heading wide"><span>المرحلة 2</span><div><b>التصنيف والعلاقات</b><small>الفئة والعلامة والمنتِج؛ البائع يُربط لاحقاً من «عرض وسعر».</small></div></div>
+          <RecordForm mode="create" productKind={productKind} categoryId={productCategoryId} attributeValues={draftAttributes} organizations={reference.organizations} onCategoryChange={setProductCategoryId} onAttributeValuesChange={setDraftAttributes} onContractChange={setProductContract} />
           <fieldset className="catalog-form-stage wide"><legend>التصنيف والملكية</legend><div className="catalog-stage-grid">
-            <div className="read-only-pair"><span>الفئة المتوافقة</span><b>{reference.categories.find((category) => category.id === productCategoryId)?.name_ar || "اختر الفئة من شريط الإدخال أعلاه"}</b><input type="hidden" name="category_id" value={productCategoryId} /></div>
             <label>{productKind === "roasted_coffee" ? "علامة القهوة" : "العلامة التجارية"}<select name="brand_id"><option value="">غير محددة بعد</option>{matchingBrands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name_ar}</option>)}</select><small>{matchingBrands.length.toLocaleString("ar-IQ")} علامة منشورة لهذا النوع. أضف العلامة أولاً ولا تنسب المنتج إلى علامة غير صحيحة.</small><button className="inline-create-action" type="button" onClick={() => changeEntrySection("brands")}>+ إدخال علامة جديدة يدوياً</button></label>
             <label className="wide">الجهة المنتجة أو المالكة للمنتج<select name="owner_organization_id" required={productKind === "roasted_coffee"}><option value="">غير محددة</option>{reference.organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name_ar}</option>)}</select><small>ليست جهة البيع. ظهور المنتج في متجر بائع داخل قهوتنا يحتاج عرضاً مرتبطاً ومنشوراً.</small></label>
           </div></fieldset>
           <div className="catalog-stage-heading wide"><span>المرحلة 3</span><div><b>المحتوى والمواصفات</b><small>وصف المستخدم ثم الحقول المنظمة الخاصة بالفئة المختارة.</small></div></div>
           <fieldset className="catalog-form-stage wide"><legend>المحتوى الظاهر</legend><div className="catalog-stage-grid"><label className="wide">ملخص عربي <small>جملة قصيرة تظهر في بطاقات البحث والقوائم.</small><textarea name="summary_ar" rows={3} maxLength={1000} /></label><label className="wide">وصف عربي <small>تفاصيل المنتج التي تظهر في صفحته.</small><textarea name="description_ar" rows={5} maxLength={4000} /></label></div></fieldset>
           <div className="product-publication-path wide"><b>مسار الظهور العام</b><span>١) حفظ المنتج كمسودة ← ٢) تدقيقه واعتماده للنشر ← ٣) إذا كان يباع لدى جهة: إنشاء «عرض وسعر» وربطه بالمنتج والجهة ثم اعتماده. عندها يظهر في البحث وصفحة البائع.</span></div>
-          {productCategoryId && <fieldset className="attribute-editor wide"><legend>مواصفات الفئة نفسها المستخدمة عند التعديل</legend><p>هذه الحقول مولدة من الفئة المختارة؛ لذلك لا تظهر مواصفات القهوة للمطاحن ولا السعر ضمن المنتج.</p>{productFields.filter((field) => field.code !== "coffee_form").map((field)=>{const value=draftAttributes[field.id]||"";const update=(next:string)=>setDraftAttributes((current)=>({...current,[field.id]:next}));return <label key={field.id}><span>{field.name_ar}{field.is_required_for_publish?" — مطلوبة للنشر":" — اختيارية"}</span>{field.data_type==="enum"?<select value={value} onChange={(event)=>update(event.target.value)}><option value="">غير محدد</option>{(field.allowed_values||[]).map((option)=><option key={option} value={option}>{attributeValueLabels[option]||option}</option>)}</select>:field.data_type==="multi_enum"&&field.allowed_values?.length?<MultiChoiceField value={value} options={field.allowed_values} onChange={update}/>:field.data_type==="reference"&&field.code==="roaster_org_id"?<select value={value} onChange={(event)=>update(event.target.value)}><option value="">غير محدد</option>{reference.organizations.map((organization)=><option key={organization.id} value={organization.id}>{organization.name_ar}</option>)}</select>:field.data_type==="boolean"?<select value={value} onChange={(event)=>update(event.target.value)}><option value="">غير محدد</option><option value="true">نعم</option><option value="false">لا</option></select>:<input type={["integer","decimal"].includes(field.data_type)?"number":field.data_type==="date"?"date":"text"} value={value} onChange={(event)=>update(event.target.value)} placeholder={field.unit_code||"أدخل القيمة الموثقة"}/>}</label>})}</fieldset>}
         </>}
         {entityType === "content" && <>
           <label>نوع المحتوى<select name="content_type" required><option value="article">مقالة</option><option value="guide">دليل</option><option value="lesson">درس</option><option value="glossary">مصطلح</option></select></label>
@@ -4602,11 +4578,16 @@ function CatalogDraftForm({ reference, contractRevision, onCreated }: { referenc
         </fieldset>
         <fieldset className="media-fields">
           <legend>الصورة والحقوق (اختياري)</legend>
-          <p className="wide">JPG أو PNG أو WebP أو AVIF. تُضغط الصور الأكبر من 1MB تلقائياً قبل الإرسال لتجاوز حد بوابة الرفع بأمان، ويمكن اختيار ملف أصلي حتى 40MB.</p>
+          <p className="wide">يُرفع الأصل كما هو إلى حجر خاص، ثم يفحص الخادم النوع الفعلي والأبعاد والحجم والبصمة SHA-256 ويزيل بيانات الموقع من النسخة المعدّة للنشر. لا يصبح الملف عاماً قبل اعتماد المراجع.</p>
           <label className="wide">تحميل الصورة<input name="mediaFile" type="file" accept="image/jpeg,image/png,image/webp,image/avif,.jpg,.jpeg,.png,.webp,.avif" /></label>
           <label>الوصف البديل للصورة<input name="mediaAltAr" maxLength={300} placeholder="مثال: مطحنة DF54 سوداء من الأمام" /></label>
-          <label>حقوق الصورة ومصدرها<input name="mediaRightsNote" maxLength={1000} placeholder="مثال: صورة رسمية بإذن الشركة أو تصوير فريق المنصة" /></label>
-          <small className="wide">إذا اخترت صورة يصبح الوصف البديل وبيان الحقوق إلزاميين.</small>
+          <label>أساس الحقوق<select name="mediaRightsBasis" defaultValue=""><option value="">اختر أساساً موثقاً</option><option value="creator_owned">أنشأها رافع الملف ويملكها</option><option value="explicit_written_permission">إذن كتابي صريح</option><option value="exclusive_license">ترخيص حصري</option><option value="nonexclusive_license">ترخيص غير حصري</option><option value="manufacturer_press_kit">حزمة إعلامية للمصنّع</option><option value="open_license">رخصة مفتوحة</option><option value="public_domain">ملكية عامة</option></select></label>
+          <label>مالك حقوق النشر<input name="mediaCopyrightOwner" maxLength={300} placeholder="اسم المصور أو الشركة المالكة" /></label>
+          <label>رابط المصدر<input name="mediaSourceUrl" type="url" placeholder="https://…" /></label>
+          <label>رابط الرخصة المفتوحة<input name="mediaLicenseUrl" type="url" placeholder="مطلوب عند اختيار رخصة مفتوحة" /></label>
+          <label className="wide">مرجع الإذن المكتوب<textarea name="mediaPermissionEvidence" rows={2} maxLength={2000} placeholder="رقم العقد أو مكان حفظ رسالة الإذن؛ مطلوب للتراخيص والإذن المكتوب" /></label>
+          <label className="check wide"><input name="mediaAttested" type="checkbox" /> أقر أن لدي حق النشر والاستخدام التجاري وإنشاء نسخة منقحة، وأن المعلومات أعلاه صحيحة، وأقبل تقييد الملف أو إزالته عند ورود مطالبة قانونية.</label>
+          <small className="wide">إذا اخترت صورة تصبح بيانات الحقوق والإقرار إلزامية. الإقرار دليل تشغيلي ولا يحل محل الاستشارة القانونية.</small>
         </fieldset>
         {entityType === "product" && <div className="catalog-stage-heading wide"><span>المرحلة 5</span><div><b>المراجعة والحفظ</b><small>سيُنشأ سجل مسودة فقط؛ راجعه من الطابور قبل النشر.</small></div></div>}
         <label className="check wide"><input name="sourceConfirmed" type="checkbox" required /> راجعت الحقول والمصدر وأوافق على إنشاء مسودة غير منشورة</label>
@@ -4624,7 +4605,7 @@ function CatalogDraftForm({ reference, contractRevision, onCreated }: { referenc
           {pendingDraft.payload.seller_organization_id && <div><dt>البائع</dt><dd>{reference.organizations.find((item) => item.id === pendingDraft.payload.seller_organization_id)?.name_ar || "—"}</dd></div>}
           {pendingDraft.payload.price && <div><dt>السعر</dt><dd>{Number(pendingDraft.payload.price).toLocaleString("ar-IQ")} {pendingDraft.payload.currency_code || "IQD"}</dd></div>}
           <div><dt>المصدر</dt><dd>{pendingDraft.payload.source_label || "—"}</dd></div>
-          <div><dt>الصورة</dt><dd>{pendingDraft.mediaFile ? `${pendingDraft.mediaFile.name} · ${pendingDraft.mediaAltAr} · ${pendingDraft.mediaRightsNote}` : "لا توجد صورة في هذه المسودة"}</dd></div>
+          <div><dt>الصورة</dt><dd>{pendingDraft.mediaFile ? `${pendingDraft.mediaFile.name} · ${pendingDraft.mediaAltAr} · ${pendingDraft.mediaRights.copyrightOwner} · ${pendingDraft.mediaRights.rightsBasis}` : "لا توجد صورة في هذه المسودة"}</dd></div>
         </dl>
         <div className="queue-actions"><button className="primary" type="button" disabled={working} onClick={createPendingDraft}>{working ? "جارٍ إنشاء المسودة…" : "تأكيد وإنشاء المسودة"}</button><button type="button" disabled={working} onClick={() => { setPendingDraft(null); setMessage("عُدّل وضع المعاينة؛ غيّر الحقول ثم افتح المعاينة من جديد."); formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>العودة للتعديل</button></div>
       </section>}
@@ -4639,7 +4620,6 @@ function DataCenter({ onChanged, mode = "entry" }: { onChanged: () => Promise<vo
   const [working, setWorking] = useState("");
   const [batchDetails, setBatchDetails] = useState<{ batch: DataCenterBatch; rows: Array<{ id: string; source_row_number: number; normalized_payload: Record<string, unknown>; validation_status: string; validation_messages: string[]; target_table: string | null; target_id: string | null }> } | null>(null);
   const [reference, setReference] = useState<DataCenterReference>({ categories: [], organizations: [], products: [], brands: [], countries: [], filterDefinitions: [] });
-  const [recordContractRevision, setRecordContractRevision] = useState("");
 
   const load = async () => {
     const response = await fetch("/api/admin/data-center", { cache: "no-store" });
@@ -4647,7 +4627,6 @@ function DataCenter({ onChanged, mode = "entry" }: { onChanged: () => Promise<vo
     const data = await response.json();
     setBatches(data.batches || []);
     setReference(data.referenceData || { categories: [], organizations: [], products: [], brands: [], countries: [], filterDefinitions: [] });
-    setRecordContractRevision(data.recordContractRevision || "");
   };
 
   useEffect(() => {
@@ -4789,7 +4768,7 @@ function DataCenter({ onChanged, mode = "entry" }: { onChanged: () => Promise<vo
         <span>هذا القيد يخص عناوين الجهات والفروع فقط، ولا يمنع إدخال المنتجات أو العلامات أو المحتوى المعرفي.</span>
       </div>
       {message && <p className="admin-message" role="status">{message}</p>}
-      {mode === "entry" && <CatalogDraftForm reference={reference} contractRevision={recordContractRevision} onCreated={async () => { await load(); await onChanged(); }} />}
+      {mode === "entry" && <CatalogDraftForm reference={reference} onCreated={async () => { await load(); await onChanged(); }} />}
       {mode === "imports" && <div className="bulk-intake">
       <div className="subsection-head"><h3>دفعات الجهات المشاركة في المنصة</h3><span>مقاهٍ، محامص، بائعون، موردون، ومراكز خدمة أو تدريب</span></div>
       <div className="data-entry-grid">
@@ -4851,8 +4830,6 @@ function DataCenter({ onChanged, mode = "entry" }: { onChanged: () => Promise<vo
   );
 }
 
-type EditorAttribute = { fieldId: string; value: string };
-
 const attributeValueLabels: Record<string, string> = {
   whole: "حبوب كاملة", ground: "مطحونة", espresso: "إسبريسو", filter: "فلتر", turkish: "تركية", moka_pot: "موكا بوت", french_press: "فرنش بريس", cold_brew: "كولد برو",
   single_origin: "منشأ واحد", blend: "خلطة", light: "فاتح", medium_light: "فاتح متوسط", medium: "متوسط", medium_dark: "متوسط داكن", dark: "داكن", other_declared: "آخر كما أعلنه المصدر",
@@ -4862,7 +4839,8 @@ const attributeValueLabels: Record<string, string> = {
 
 function ReviewRecordEditor({ entity, id, canRestore, onClose, onSaved }: { entity: string; id: string; canRestore: boolean; onClose: () => void; onSaved: () => Promise<void> }) {
   const [data, setData] = useState<any>(null);
-  const [attributes, setAttributes] = useState<EditorAttribute[]>([]);
+  const [attributes, setAttributes] = useState<Record<string,string>>({});
+  const [editorContract, setEditorContract] = useState<RecordCapabilityContract | null>(null);
   const [issueUpdates, setIssueUpdates] = useState<Array<{ id: string; status: string; resolutionNote: string }>>([]);
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);
@@ -4870,8 +4848,8 @@ function ReviewRecordEditor({ entity, id, canRestore, onClose, onSaved }: { enti
   const [mediaFileInfo, setMediaFileInfo] = useState("");
   const [mediaAltText, setMediaAltText] = useState("");
   const [mediaRightsText, setMediaRightsText] = useState("");
+  const [mediaRightsBasis, setMediaRightsBasis] = useState("");
   const [editorCategoryId, setEditorCategoryId] = useState("");
-  const [editorFamilyId, setEditorFamilyId] = useState("");
   const [revisionKey, setRevisionKey] = useState(0);
   useEffect(() => {
     let active = true;
@@ -4885,12 +4863,10 @@ function ReviewRecordEditor({ entity, id, canRestore, onClose, onSaved }: { enti
         const displayJson = Array.isArray(jsonValue) && ["multi_enum", "reference"].includes(attribute.field_definitions?.data_type) ? jsonValue.join(", ") : jsonValue ? JSON.stringify(jsonValue) : "";
         return [attribute.field_definition_id, String(attribute.value_text ?? attribute.value_integer ?? attribute.value_decimal ?? attribute.value_boolean ?? attribute.value_date ?? displayJson)];
       }));
-      const values = (result.fieldDefinitions || []).map((field: any) => ({ fieldId: field.id, value: String(existingValues.get(field.id) || "") }));
+      const values = Object.fromEntries((result.record?.product_attribute_values || []).map((attribute: any) => [attribute.field_definition_id, String(existingValues.get(attribute.field_definition_id) || "")]));
       setAttributes(values);
       const selectedCategory = result.record?.product_categories?.find((item: any)=>item.is_primary)?.category_id || result.record?.product_categories?.[0]?.category_id || "";
-      const selectedCategoryMeta = (result.references?.categories || []).find((item: any) => item.id === selectedCategory);
-      setEditorFamilyId(selectedCategoryMeta?.catalog_family_id || "");
-      setEditorCategoryId(selectedCategoryMeta?.catalog_filter_id || selectedCategory);
+      setEditorCategoryId(selectedCategory);
       setIssueUpdates((result.qualityIssues || []).map((issue: any) => ({ id: issue.id, status: "", resolutionNote: "" })));
     }).catch(() => active && setMessage("تعذر فتح السجل للتدقيق."));
     return () => { active = false; };
@@ -4899,12 +4875,13 @@ function ReviewRecordEditor({ entity, id, canRestore, onClose, onSaved }: { enti
     event.preventDefault();
     if (data?.record?.status === "published" && !window.confirm("هذا السجل منشور حالياً، وأي تعديل سيظهر مباشرةً للمستخدمين بعد الحفظ. هل تريد المتابعة؟")) return;
     const fields = Object.fromEntries(new FormData(event.currentTarget).entries());
+    if (entity === "products" && !editorContract) { setMessage("تعذر تحميل عقد التصنيف المعتمد. أغلق السجل وافتحه مجدداً قبل الحفظ."); return; }
     setWorking(true);
     setMessage("");
-    const response = await fetch("/api/admin/records", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ entity, id, fields, attributes, issueUpdates: issueUpdates.filter((issue) => issue.status), contractRevision: data?.recordContractRevision || "" }) });
+    const response = await fetch("/api/admin/records", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ entity, id, fields, attributes: Object.entries(attributes).map(([fieldId,value]) => ({ fieldId, value })), contractRevision: editorContract?.contract_revision, issueUpdates: issueUpdates.filter((issue) => issue.status) }) });
     const result = await response.json();
     setWorking(false);
-    if (!response.ok) { setMessage(result.reason === "contract_revision_stale" || result.reason === "contract_revision_required" ? "تغيّر عقد التصنيف منذ فتح السجل. أغلق المحرر وافتحه مجدداً قبل الحفظ." : ["invalid_attribute", "invalid_attribute_value", "duplicate_attribute"].includes(result.reason) ? "إحدى قيم المواصفات غير معتمدة. اختر القيم من القوائم الظاهرة." : result.reason === "upstream_error" ? "تعذر حفظ السجل في قاعدة البيانات. لم تُحذف المواصفات السابقة؛ أعد المحاولة، وإذا تكرر الخطأ سجل الوقت الظاهر." : "تعذر الحفظ. تحقق من القيم المنظمة وروابط المصدر."); return; }
+    if (!response.ok) { setMessage(result.reason === "contract_revision_stale" ? "تغير عقد التصنيف أثناء التعديل. أغلق السجل وافتحه مجدداً ثم راجع الفئة." : result.reason === "reclassification_required" ? "التصنيف التاريخي غير متوافق مع نوع المنتج؛ يلزم مسار إعادة تصنيف قبل الحفظ." : result.reason === "invalid_attribute_value" ? "إحدى قيم المواصفات غير معتمدة. اختر القيم من القوائم الظاهرة." : result.reason === "upstream_error" ? "تعذر حفظ السجل في قاعدة البيانات. لم تُحذف المواصفات السابقة؛ أعد المحاولة، وإذا تكرر الخطأ سجل الوقت الظاهر." : "تعذر الحفظ. تحقق من القيم المنظمة وروابط المصدر."); return; }
     setData((current: any) => ({ ...current, ...result }));
     await onSaved();
     onClose();
@@ -4917,25 +4894,24 @@ function ReviewRecordEditor({ entity, id, canRestore, onClose, onSaved }: { enti
     if (!(originalFile instanceof File) || !originalFile.size) { setMessage("اختر ملف صورة أولاً."); return; }
     if (!allowedMediaExtension(originalFile.name)) { setMessage(mediaErrorMessage("unsupported_type")); return; }
     const altAr = String(form.get("altAr") || "").trim();
-    const rightsNote = String(form.get("rightsNote") || "").trim();
+    const copyrightOwner = String(form.get("copyrightOwner") || "").trim();
+    const rightsBasis = String(form.get("rightsBasis") || "");
     if (altAr.length < 2) { setMessage(mediaErrorMessage("alt_required")); return; }
-    if (rightsNote.length < 3) { setMessage(mediaErrorMessage("rights_required")); return; }
-    let file = originalFile;
-    let optimized = false;
-    try { const prepared = await prepareCatalogImage(originalFile); file = prepared.file; optimized = prepared.optimized; } catch { setMessage(mediaErrorMessage("file_too_large", originalFile.size)); return; }
+    if (copyrightOwner.length < 2 || !rightsBasis) { setMessage(mediaErrorMessage("rights_required")); return; }
+    if (form.get("attested") !== "on") { setMessage(mediaErrorMessage("attestation_required")); return; }
     setMediaWorking("upload"); setMessage("");
     let response: Response;
     try {
-      response = await uploadCatalogMedia(entity, id, file, altAr, rightsNote);
+      response = await uploadCatalogMedia(entity, id, originalFile, altAr, {rightsBasis,copyrightOwner,sourceUrl:String(form.get("sourceUrl")||""),licenseUrl:String(form.get("licenseUrl")||""),permissionEvidence:String(form.get("permissionEvidence")||""),attested:true});
     } catch (error) {
       setMediaWorking("");
       setMessage(mediaErrorMessage(error instanceof DOMException && error.name === "AbortError" ? "upload_timeout" : undefined));
       return;
     }
     const result = await response.json().catch(() => ({})); setMediaWorking("");
-    if (!response.ok) { setMessage(mediaErrorMessage(response.status === 413 ? "request_too_large" : result.reason, file.size)); return; }
-    setData((current: any) => ({ ...current, media: [...(current.media || []), result.media] }));
-    formElement.reset(); setMediaFileInfo(""); setMediaAltText(""); setMediaRightsText(""); setMessage(`تم رفع الصورة وربطها بالسجل${optimized ? " بعد تحسين حجمها تلقائياً" : ""}. ظهرت الآن في قائمة صور السجل وستظهر للعامة إذا كان السجل منشوراً.`);
+    if (!response.ok) { setMessage(mediaErrorMessage(response.status === 413 ? "request_too_large" : (result.rejection_codes?.[0] || result.reason), originalFile.size)); return; }
+    formElement.reset(); setMediaFileInfo(""); setMediaAltText(""); setMediaRightsText(""); setMediaRightsBasis("");
+    setMessage(result.technical_status === "duplicate" ? "اكتشف الخادم ملفاً مطابقاً ببصمة SHA-256 ووضعه في مراجعة التعارض والحقوق؛ لم يُنشر ملف ثانٍ." : "اجتاز الملف الفحص التقني وبقي خاصاً في Media Vault. يحتاج اعتماد مراجع قبل إنشاء النسخة العامة وربطها بالسجل.");
   };
   const deleteMedia = async (mediaId: string) => {
     if (!window.confirm("سيُحذف ملف الصورة وربطه من السجل. هل تريد المتابعة؟")) return;
@@ -4956,15 +4932,8 @@ function ReviewRecordEditor({ entity, id, canRestore, onClose, onSaved }: { enti
   };
   const record = data?.record || {};
   const firstLocation = record.locations?.[0] || {};
-  const primaryCategory = record.product_categories?.find((item: any) => item.is_primary) || record.product_categories?.[0] || {};
   const references = data?.references || {};
-  const editorEquipmentRoot = (references.categories || []).find((category: any) => category.code === "EQP");
-  const editorFamilies = (references.categories || []).filter((category: any) => category.is_navigation_visible && category.navigation_parent_id === editorEquipmentRoot?.id);
-  const matchingCategories = record.product_kind === "roasted_coffee"
-    ? (references.categories || []).filter((category: any) => category.code === "COF-ROASTED")
-    : (references.categories || []).filter((category: any) => category.is_navigation_visible && category.navigation_parent_id === editorFamilyId);
-  const matchingBrands = (references.brands || []).filter((brand: any) => !brand.product_kinds?.length || brand.product_kinds.includes(record.product_kind));
-  const displayedProductFields = ((references.filterDefinitions || data?.fieldDefinitions || []) as any[]).filter((field:any)=>!editorCategoryId || !field.category_id || field.category_id===editorCategoryId).sort((a:any,b:any)=>(a.sort_order||0)-(b.sort_order||0));
+  const matchingBrands = (references.brands || []).filter((brand: any) => editorContract?.allowed_brand_ids.includes(brand.id) && (!brand.product_kinds?.length || brand.product_kinds.includes(record.product_kind)));
   const entityPresentation: Record<string, { title: string; note: string; className: string }> = {
     products: { title: "بطاقة المنتج الرئيسية", note: "هوية ومواصفات مشتركة بين جميع البائعين؛ لا يوضع السعر هنا.", className: "master-product-context" },
     offers: { title: "عرض بائع مرتبط بمنتج", note: "السعر والتوفر وصور هذا البائع فقط؛ لا ينشئ منتجاً جديداً.", className: "seller-offer-context" },
@@ -4995,13 +4964,10 @@ function ReviewRecordEditor({ entity, id, canRestore, onClose, onSaved }: { enti
           </>}
           {entity === "products" && <>
             <label>الاسم العربي<input name="name_ar" defaultValue={record.name_ar || ""} required /></label><label>الاسم الإنجليزي<input name="name_en" defaultValue={record.name_en || ""} /></label>
-            <label>نوع المنتج<input value={record.product_kind === "roasted_coffee" ? "قهوة محمصة" : record.product_kind === "equipment" ? "معدات" : record.product_kind} readOnly /></label>
-            {record.product_kind !== "roasted_coffee" && <label>العائلة الرئيسية للمعدات<select value={editorFamilyId} onChange={(event)=>{setEditorFamilyId(event.target.value);setEditorCategoryId("");setAttributes([]);}} required><option value="">اختر إحدى العوائل الخمس</option>{editorFamilies.map((category:any)=><option key={category.id} value={category.id}>{category.name_ar}</option>)}</select></label>}
-            <label>التصنيف الفرعي<select name="category_id" value={editorCategoryId || primaryCategory.category_id || ""} disabled={record.product_kind !== "roasted_coffee" && !editorFamilyId} onChange={(event)=>{const next=event.target.value;setEditorCategoryId(next);const fields=(references.filterDefinitions||[]).filter((field:any)=>field.category_id===next);setAttributes((current)=>fields.map((field:any)=>current.find((item)=>item.fieldId===field.id)||{fieldId:field.id,value:""}));}} required><option value="">{editorFamilyId || record.product_kind === "roasted_coffee" ? "اختر التصنيف الفرعي" : "اختر العائلة أولاً"}</option>{matchingCategories.map((category: any) => <option key={category.id} value={category.id}>{category.name_ar}</option>)}</select></label>
+            <RecordForm mode="edit" recordId={id} productKind={record.product_kind as ProductKind} categoryId={editorCategoryId} attributeValues={attributes} organizations={(references.organizations || []).map((organization: any) => ({ id: organization.id, name_ar: organization.name_ar }))} onCategoryChange={setEditorCategoryId} onAttributeValuesChange={setAttributes} onContractChange={setEditorContract} />
             <label>العلامة<select name="brand_id" defaultValue={record.brand_id || ""}><option value="">غير محددة</option>{matchingBrands.map((brand: any) => <option key={brand.id} value={brand.id}>{brand.name_ar}</option>)}</select></label>
-            <label>الجهة المنتجة أو المحمصة<select name="owner_organization_id" defaultValue={record.owner_organization_id || ""} required={record.product_kind === "roasted_coffee"}><option value="">غير محددة</option>{(references.organizations || []).map((organization: any) => <option key={organization.id} value={organization.id}>{organization.name_ar} · {(organization.organization_roles || []).map((role: any) => organizationRoleLabels[role.role_type] || role.role_type).join("، ")}</option>)}</select><small>اختر صاحب المنتج/المحمصة هنا. البائع وسعره يربطان من «عرض وسعر» ولا يوضعان في هذا الحقل.</small></label><label>الموديل<input name="model_number" defaultValue={record.model_number || ""} /></label>
+            <label>الجهة المنتجة أو المحمصة<select name="owner_organization_id" defaultValue={record.owner_organization_id || ""} required={record.product_kind === "roasted_coffee"}><option value="">غير محددة</option>{(references.organizations || []).map((organization: any) => <option key={organization.id} value={organization.id}>{organization.name_ar} · {(organization.organization_roles || []).map((role: any) => ({ cafe: "مقهى", seller: "بائع", roaster: "محمصة", equipment_supplier: "مورد معدات", manufacturer: "مصنّع", importer: "مستورد" }[role.role_type] || role.role_type)).join("، ")}</option>)}</select><small>اختر صاحب المنتج/المحمصة هنا. البائع وسعره يربطان من «عرض وسعر» ولا يوضعان في هذا الحقل.</small></label><label>الموديل<input name="model_number" defaultValue={record.model_number || ""} /></label>
             <label className="wide">الملخص<textarea name="summary_ar" rows={3} defaultValue={record.summary_ar || ""} /></label><label className="wide">الوصف<textarea name="description_ar" rows={5} defaultValue={record.description_ar || ""} /></label>
-            <fieldset className="attribute-editor wide"><legend>المواصفات الخاصة بهذه الفئة</legend><p>تظهر هنا فقط مواصفات الفئة المختارة. الحقول الموسومة «مطلوبة للنشر» يجب إكمالها، والباقي اختياري حسب المصدر. السعر والتوفر لا يظهران هنا لأنهما تابعان للبائع.</p>{displayedProductFields.map((field: any) => { const index = attributes.findIndex((attribute) => attribute.fieldId === field.id); const value = index >= 0 ? attributes[index].value : ""; const update = (next: string) => setAttributes((current) => current.map((item) => item.fieldId === field.id ? { ...item, value: next } : item)); return <label key={field.id}><span>{field.name_ar}{field.is_required_for_publish ? " — مطلوبة للنشر" : " — اختيارية"}</span>{field.data_type === "enum" ? <select value={value} onChange={(event) => update(event.target.value)}><option value="">غير محدد</option>{(field.allowed_values || []).map((option: string) => <option value={option} key={option}>{attributeValueLabels[option] || option}</option>)}</select> : field.data_type === "multi_enum" && field.allowed_values?.length ? <MultiChoiceField value={value} options={field.allowed_values} onChange={update} /> : field.data_type === "reference" && field.code === "roaster_org_id" ? <select value={value.split(",")[0] || ""} onChange={(event) => update(event.target.value)}><option value="">غير محدد</option>{(references.organizations || []).map((organization: any) => <option key={organization.id} value={organization.id}>{organization.name_ar}</option>)}</select> : field.data_type === "boolean" ? <select value={value} onChange={(event) => update(event.target.value)}><option value="">غير محدد</option><option value="true">نعم</option><option value="false">لا</option></select> : <input type={["integer", "decimal"].includes(field.data_type) ? "number" : field.data_type === "date" ? "date" : "text"} value={value} onChange={(event) => update(event.target.value)} placeholder={field.unit_code || "أدخل القيمة الموثقة"} />}</label>; })}</fieldset>
           </>}
           {entity === "offers" && <><div className="read-only-pair"><span>المنتج</span><b>{record.products?.name_ar}</b></div><div className="read-only-pair"><span>البائع</span><b>{record.organizations?.name_ar}</b></div><label>السعر<input name="price" type="number" min="0" step="0.001" defaultValue={record.price ?? ""} required /></label><label>العملة<input name="currency_code" value="IQD" readOnly /></label><label>التوفر<select name="availability" defaultValue={record.availability || "unknown"}><option value="in_stock">متوفر</option><option value="out_of_stock">غير متوفر</option><option value="preorder">طلب مسبق</option><option value="unknown">غير متحقق</option></select></label><label>تاريخ الرصد<input name="observed_at" type="datetime-local" defaultValue={String(record.observed_at || "").slice(0, 16)} /></label><label className="wide">رابط توثيق العرض<input name="external_url" type="url" defaultValue={record.external_url || ""} required /><small>دليل داخلي للإدارة؛ المستخدم ينتقل إلى صفحة البائع داخل المنصة.</small></label></>}
           {entity === "contents" && <><label>العنوان العربي<input name="title_ar" defaultValue={record.title_ar || ""} required /></label><label>العنوان الإنجليزي<input name="title_en" defaultValue={record.title_en || ""} /></label><label className="wide">المقتطف<textarea name="excerpt_ar" rows={2} defaultValue={record.excerpt_ar || ""} /></label><label className="wide">النص العربي<textarea name="body_ar" rows={12} minLength={20} defaultValue={record.body_ar || ""} required /></label></>}
@@ -5012,7 +4978,20 @@ function ReviewRecordEditor({ entity, id, canRestore, onClose, onSaved }: { enti
           <button className="primary" type="submit" disabled={working}>{working ? "جارٍ الحفظ…" : "حفظ والعودة إلى الطابور"}</button>
         </form>}
         {data?.history?.length > 0 && <details className="record-revision-history"><summary><b>سجل التغييرات والنسخ السابقة</b><span>{data.history.length} عملية</span></summary><p>الاستعادة تعيد الحقول الأساسية فقط؛ الصور والعلاقات تبقى محفوظة لتجنب فقدان البيانات.</p>{data.history.map((event: any) => <article key={event.id}><div><b>{event.action}</b><span>{new Date(event.created_at).toLocaleString("ar-IQ")}</span></div>{canRestore && event.before_data && <button type="button" disabled={working} onClick={() => restoreRevision(event.id)}>استعادة هذه النسخة</button>}</article>)}</details>}
-        {data && <form className="entity-media-upload" onSubmit={addMedia} noValidate><h3>إضافة صورة جديدة</h3><p className="wide media-upload-note">نفّذ الخطوات الثلاث أدناه ثم اضغط زر الرفع. لن يمنع المتصفح الإرسال بصمت؛ إذا نقص حقل ستظهر رسالة عربية واضحة أعلى النافذة.</p><div className="media-readiness wide"><span className={mediaFileInfo ? "done" : ""}>1. اختيار الصورة {mediaFileInfo ? "✓" : ""}</span><span className={mediaAltText.trim().length >= 2 ? "done" : ""}>2. الوصف البديل {mediaAltText.trim().length >= 2 ? "✓" : ""}</span><span className={mediaRightsText.trim().length >= 3 ? "done" : ""}>3. المصدر والحقوق {mediaRightsText.trim().length >= 3 ? "✓" : ""}</span></div><label>1. ملف الصورة<input name="file" type="file" accept="image/jpeg,image/png,image/webp,image/avif,.jpg,.jpeg,.png,.webp,.avif" onChange={(event) => { const file = event.currentTarget.files?.[0]; setMediaFileInfo(file ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)}MB` : ""); }} />{mediaFileInfo && <small className="ready-text">تم اختيار: {mediaFileInfo}{Number(mediaFileInfo.match(/([\d.]+)MB/)?.[1] || 0) > 1 ? " · سيُحسّن الحجم تلقائياً" : ""}</small>}</label><label>2. الوصف البديل<input name="altAr" maxLength={300} value={mediaAltText} onChange={(event) => setMediaAltText(event.target.value)} placeholder="مثال: مطحنة DF54 V4 سوداء من الأمام" /><small>صف ما يظهر في الصورة للمستخدم الذي لا يستطيع رؤيتها.</small></label><label>3. حقوق الصورة ومصدرها<input name="rightsNote" maxLength={1000} value={mediaRightsText} onChange={(event) => setMediaRightsText(event.target.value)} placeholder="مثال: صورة رسمية من موقع الشركة المصنّعة" /><small>اكتب صاحب الصورة أو رابط/جهة الحصول عليها وسبب السماح باستخدامها.</small></label><button type="submit" disabled={mediaWorking === "upload"}>{mediaWorking === "upload" ? "جارٍ الرفع والربط…" : "رفع الصورة وربطها الآن"}</button></form>}
+        {data && <form className="entity-media-upload" onSubmit={addMedia} noValidate>
+          <h3>إدخال أصل جديد إلى Media Vault</h3>
+          <p className="wide media-upload-note">يذهب الأصل مباشرة إلى حجر خاص. يفحص الخادم التوقيع الحقيقي والأبعاد والحجم والبصمة SHA-256، ثم ينشئ نسخة منقحة خاصة لا تصبح عامة قبل الاعتماد.</p>
+          <div className="media-readiness wide"><span className={mediaFileInfo ? "done" : ""}>1. الملف {mediaFileInfo ? "✓" : ""}</span><span className={mediaAltText.trim().length >= 2 ? "done" : ""}>2. الوصف {mediaAltText.trim().length >= 2 ? "✓" : ""}</span><span className={mediaRightsText.trim().length >= 2 && mediaRightsBasis ? "done" : ""}>3. الحقوق {mediaRightsText.trim().length >= 2 && mediaRightsBasis ? "✓" : ""}</span></div>
+          <label>1. ملف الصورة<input name="file" type="file" accept="image/jpeg,image/png,image/webp,image/avif,.jpg,.jpeg,.png,.webp,.avif" onChange={(event) => { const file = event.currentTarget.files?.[0]; setMediaFileInfo(file ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)}MB` : ""); }} />{mediaFileInfo && <small className="ready-text">تم اختيار الأصل: {mediaFileInfo}</small>}</label>
+          <label>2. الوصف البديل<input name="altAr" maxLength={300} value={mediaAltText} onChange={(event) => setMediaAltText(event.target.value)} placeholder="مثال: مطحنة DF54 V4 سوداء من الأمام" /></label>
+          <label>3. أساس الحقوق<select name="rightsBasis" value={mediaRightsBasis} onChange={(event)=>setMediaRightsBasis(event.target.value)}><option value="">اختر أساساً موثقاً</option><option value="creator_owned">ملكية المنشئ</option><option value="explicit_written_permission">إذن كتابي</option><option value="exclusive_license">ترخيص حصري</option><option value="nonexclusive_license">ترخيص غير حصري</option><option value="manufacturer_press_kit">حزمة إعلامية للمصنّع</option><option value="open_license">رخصة مفتوحة</option><option value="public_domain">ملكية عامة</option></select></label>
+          <label>مالك حقوق النشر<input name="copyrightOwner" maxLength={300} value={mediaRightsText} onChange={(event)=>setMediaRightsText(event.target.value)} placeholder="اسم المصور أو الشركة" /></label>
+          <label>رابط المصدر<input name="sourceUrl" type="url" placeholder="https://…" /></label>
+          <label>رابط الرخصة<input name="licenseUrl" type="url" placeholder="مطلوب للرخصة المفتوحة" /></label>
+          <label className="wide">مرجع الإذن المكتوب<textarea name="permissionEvidence" rows={2} maxLength={2000} /></label>
+          <label className="check wide"><input name="attested" type="checkbox" /> أقر بامتلاك حق النشر والاستخدام التجاري وإنشاء النسخة المنقحة، وبصحة هذه البيانات، وبإمكان تقييد الأصل عند مطالبة قانونية.</label>
+          <button type="submit" disabled={mediaWorking === "upload"}>{mediaWorking === "upload" ? "جارٍ الحجر والفحص…" : "رفع الأصل إلى الحجر وفحصه"}</button>
+        </form>}
       </section>
     </div>
   );
@@ -5106,11 +5085,17 @@ function SearchTermEditForm({ term, onCancel, onSaved }: { term: any; onCancel: 
 }
 
 type MediaLibraryRow = { scope: "master" | "participant"; entity: "products" | "offers" | "organizations"; id: string; label: string; status: string; productKind: string; organizationId: string | null; organizationName: string | null; organizationRole: string | null; organizationRoles?: string[]; mediaCount: number; categoryId: string | null; categoryPathIds: string[]; categoryCode: string | null; categoryName: string | null; coffeeForm: string | null };
+type VaultAsset = { id:string;purpose:string;original_filename:string;detected_mime:string|null;byte_size:number|null;width:number|null;height:number|null;sha256_hex:string|null;technical_status:string;publication_status:string;rejection_codes:string[];duplicate_of_asset_id:string|null;legal_hold:boolean;created_at:string;media_asset_links:Array<{entity_type:string;entity_id:string;role:string;alt_ar:string;link_status:string}>;media_rights_assertions:Array<{rights_basis:string;copyright_owner:string;review_status:string}> };
 type MediaTaxonomy = { id: string; code: string; name_ar: string; name_en: string; parent_id: string | null; navigation_parent_id: string | null; is_navigation_visible: boolean; catalog_family_id: string | null; catalog_filter_id: string | null; catalog_product_kind: string | null; sort_order: number; status: string };
+// Compatibility adapter retained for record-level media consumers; the active Vault is MediaVaultWorkspace.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function MediaLibrary({ onOpen, onUnauthorized }: { onOpen: (record: { entity: string; id: string }) => void; onUnauthorized: () => void }) {
   const [rows, setRows] = useState<MediaLibraryRow[]>([]);
   const [taxonomy, setTaxonomy] = useState<MediaTaxonomy[]>([]);
   const [suspicious, setSuspicious] = useState<Array<{ id: string; entity: string; entityId: string; label: string; altAr: string; reason: string }>>([]);
+  const [vaultAssets,setVaultAssets]=useState<VaultAsset[]>([]);
+  const [vaultMessage,setVaultMessage]=useState("");
+  const [vaultWorking,setVaultWorking]=useState("");
   const [scope, setScope] = useState<"master" | "participant">("master");
   const [participantRecord, setParticipantRecord] = useState<"offers" | "organizations">("offers");
   const [role, setRole] = useState("all");
@@ -5136,6 +5121,7 @@ function MediaLibrary({ onOpen, onUnauthorized }: { onOpen: (record: { entity: s
       setRows(mediaResult.records || []);
       setTaxonomy(taxonomyResult.categories || []);
       setSuspicious(mediaResult.suspicious || []);
+      setVaultAssets(mediaResult.vaultAssets || []);
       setState("ready");
     } catch { setState("error"); }
   }, [onUnauthorized]);
@@ -5165,7 +5151,9 @@ function MediaLibrary({ onOpen, onUnauthorized }: { onOpen: (record: { entity: s
   const availableRoles = Object.entries(roleLabels).filter(([value]) => scoped.some((row) => (row.organizationRoles || [row.organizationRole || ""]).includes(value)));
   const matchesTaxonomy = (row: MediaLibraryRow) => row.entity === "organizations" || !selectedTaxonomyId || row.categoryPathIds.includes(selectedTaxonomyId);
   const visible = scoped.filter((row) => (scope === "master" || role === "all" || (row.organizationRoles || [row.organizationRole || ""]).includes(role)) && (scope === "master" || organizationId === "all" || row.organizationId === organizationId) && matchesTaxonomy(row) && (row.entity === "organizations" || coffeeForm === "all" || row.coffeeForm === coffeeForm) && (!query.trim() || `${row.label} ${row.organizationName || ""}`.toLocaleLowerCase("ar-IQ").includes(query.trim().toLocaleLowerCase("ar-IQ"))));
+  const approveAsset=async(assetId:string)=>{setVaultWorking(assetId);setVaultMessage("");const response=await fetch("/api/admin/media/approve",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({assetId})});const result=await response.json().catch(()=>({}));setVaultWorking("");if(!response.ok){setVaultMessage(`تعذر اعتماد الأصل: ${result.reason||"خطأ غير معروف"}`);return;}setVaultMessage("تم اعتماد النسخة المنقحة ونشرها وربطها بالسجل.");await load();};
   return <section className="media-library" id="operations-media"><div className="section-head"><div><span className="eyebrow">مكتبة الأصول</span><h2>الصور والملفات</h2></div><span>{visible.length} سجل</span></div><p>اختر أولاً بطاقة منتج رئيسية أو جهة مشاركة، ثم صفِّ الجهة ونوع المنتج. فتح السجل يتيح مشاهدة الصور ورفعها أو حذفها مع حقوقها.</p>
+    <details className="suspect-media-list" open={vaultAssets.some((asset)=>asset.publication_status==="ready_for_review")}><summary><b>Media Vault — طابور الأصول المحكوم</b><span>{vaultAssets.length} أصل · {vaultAssets.filter((asset)=>asset.publication_status==="ready_for_review").length} بانتظار الاعتماد</span></summary>{vaultMessage&&<p className="admin-message">{vaultMessage}</p>}{vaultAssets.map((asset)=><article key={asset.id}><div><b>{asset.original_filename}</b><span>{asset.purpose} · {asset.detected_mime||"غير معروف"} · {asset.width&&asset.height?`${asset.width}×${asset.height}`:"—"} · {asset.byte_size?`${(asset.byte_size/1024/1024).toFixed(2)}MB`:"—"}</span><small>SHA-256: {asset.sha256_hex?.slice(0,16)||"—"}… · تقني: {asset.technical_status} · نشر: {asset.publication_status}{asset.legal_hold?" · LEGAL HOLD":""}</small>{asset.rejection_codes?.length>0&&<small>رفض: {asset.rejection_codes.join("، ")}</small>}</div>{asset.publication_status==="ready_for_review"?<button type="button" disabled={vaultWorking===asset.id} onClick={()=>approveAsset(asset.id)}>{vaultWorking===asset.id?"جارٍ الاعتماد…":"اعتماد ونشر النسخة المنقحة"}</button>:<span className="entity-kind-badge">{asset.duplicate_of_asset_id?"نسخة مطابقة للمراجعة":asset.publication_status}</span>}</article>)}{!vaultAssets.length&&<p>لا توجد أصول في الخزنة بعد.</p>}</details>
     {suspicious.length > 0 && <details className="suspect-media-list"><summary><b>صور مشكوك في ربطها أو توثيقها</b><span>{suspicious.length} — للعرض فقط، لم نحذف شيئاً</span></summary>{suspicious.map((item)=><article key={item.id}><div><b>{item.label}</b><span>{item.reason}</span><small>الوصف الحالي: {item.altAr}</small></div><button type="button" onClick={()=>onOpen({entity:item.entity,id:item.entityId})}>فتح للتدقيق</button></article>)}</details>}
     <div className="media-scope-picker"><button type="button" className={scope === "master" ? "active" : ""} onClick={() => { setScope("master"); setRole("all"); setOrganizationId("all"); setRootCategoryId("all"); setFamilyCategoryId("all"); setTaxonomyNodeId("all"); setCoffeeForm("all"); }}>بطاقات المنتجات الرئيسية</button><button type="button" className={scope === "participant" ? "active" : ""} onClick={() => { setScope("participant"); setParticipantRecord("offers"); setRole("all"); setOrganizationId("all"); setRootCategoryId("all"); setFamilyCategoryId("all"); setTaxonomyNodeId("all"); setCoffeeForm("all"); }}>الجهات والبائعون ومنتجاتهم</button></div>
     {scope === "participant" && <div className="media-record-picker"><button type="button" className={participantRecord === "offers" ? "active" : ""} onClick={()=>{setParticipantRecord("offers");setRootCategoryId("all");setFamilyCategoryId("all");setTaxonomyNodeId("all");setCoffeeForm("all");}}>صور منتجات لدى جهة أو بائع</button><button type="button" className={participantRecord === "organizations" ? "active" : ""} onClick={()=>{setParticipantRecord("organizations");setRootCategoryId("all");setFamilyCategoryId("all");setTaxonomyNodeId("all");setCoffeeForm("all");}}>صور صفحة الجهة نفسها</button></div>}
@@ -5541,7 +5529,6 @@ function Operations() {
               <input name="password" type="password" autoComplete="current-password" minLength={8} required />
             </label>
             <button className="primary" type="submit">دخول الإدارة</button>
-            <Link className="admin-password-reset-link" href="/forgot-password">نسيت كلمة المرور؟</Link>
           </form>
         )}
         {adminMessage && <p className="admin-message" role="status">{adminMessage}</p>}
@@ -5660,7 +5647,7 @@ function Operations() {
                 </section>
               ))}
             </div>}
-            {workspace === "media" && <MediaLibrary onOpen={setRecordEditor} onUnauthorized={() => { setAdminData(null); setAdminState("signed_out"); }} />}
+            {workspace === "media" && <MediaVaultWorkspace onOpen={setRecordEditor} onUnauthorized={() => { setAdminData(null); setAdminState("signed_out"); }} />}
             {workspace === "archive" && <><section className="inactive-catalog"><div className="section-head"><div><span className="eyebrow">Archive</span><h2>المرفوضات والأرشيف</h2></div><span>{adminData.inactiveCatalog.length} سجل</span></div><p>الأرشفة هي الإجراء اليومي الآمن. الحذف النهائي متاح للمدير الأعلى فقط وبعد التأكيد.</p><div>{adminData.inactiveCatalog.map((item)=><article key={`${item.entity}-${item.id}`}><div><b>{item.label}</b><span>{item.status === "rejected" ? "مرفوض" : "مؤرشف"} · {new Date(item.updated_at).toLocaleDateString("ar-IQ")}</span></div><div className="queue-actions"><button type="button" onClick={()=>setRecordEditor({entity:item.entity,id:item.id})}>فتح وتعديل</button><button type="button" disabled={workingId===item.id} onClick={()=>setReviewStatus(item.entity,item.id,"draft")}>إعادة لمسودة</button>{adminData.profile.role === "admin" && <button type="button" className="danger-action" disabled={workingId===item.id} onClick={()=>deleteCatalogRecord(item.entity,item.id,item.label)}>حذف نهائي</button>}</div></article>)}{!adminData.inactiveCatalog.length && <p>لا توجد سجلات مؤرشفة أو مرفوضة حالياً.</p>}</div></section><ArchivedImportBatches /></>}
             {workspace === "search" && <div className="search-governance-disclosure" id="operations-search">
             <section className="search-governance-admin">

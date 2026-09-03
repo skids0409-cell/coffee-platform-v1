@@ -31,7 +31,6 @@
 - `docs/Supabase_Advisor_Baseline_AR.md`: خط أساس أمان وأداء قاعدة البيانات.
 - `tests`: اختبارات البناء والمسارات وحالة الفشل الآمن.
 - `handoff`: دليل التشغيل والاختبار والقبول والفجوات المعروفة.
-- `render.yaml`: تعريف خدمة Next.js/Node التجريبية على Render.
 
 ## متغيرات التشغيل
 
@@ -40,7 +39,6 @@
 ```text
 SUPABASE_URL
 SUPABASE_PUBLISHABLE_KEY
-APP_BASE_URL
 ```
 
 مفتاح `service_role` وكلمة مرور قاعدة البيانات غير مطلوبين داخل التطبيق ويجب
@@ -48,21 +46,7 @@ APP_BASE_URL
 
 ## ترتيب قاعدة البيانات
 
-تُشغّل الملفات الموجودة في `supabase/migrations` بالترتيب من `001` إلى `041`.
-يوثق `supabase/RECOVERY_MANIFEST.json` الترقيات التي استُرجعت من سجل قاعدة
-البيانات بعد انتقال المشروع إلى GitHub، ويتحقق الأمر التالي من سلامة نصوصها:
-
-```bash
-npm run verify:migrations
-```
-
-الملفان `031a/031b` والملف `037b` يحفظون حدود التنفيذ الأصلية لترقيات Supabase
-المستقلة، ولا يمثلون إعادة ترتيب للمخطط.
-
-يثبت `041_phase5_attached_record_contract.sql` نتيجة `attached` في واجهة الربط
-القديمة، ويغلق مسار إنشاء المنتجات القديم؛ إنشاء المنتج وتعديله يمران حصراً عبر
-عقد Phase 5 الذري مع فحص revision.
-
+تُشغّل الملفات الموجودة في `supabase/migrations` بالترتيب من `001` إلى `009`.
 الملفات `001`–`005` تنشئ المخطط والتصنيف والتشغيل والمالك ودفعة بغداد، ثم:
 
 1. `006_rights_request_intake.sql` يقوي استقبال طلبات الحقوق.
@@ -81,13 +65,8 @@ npm run verify:migrations
 ```bash
 npm run lint
 npm test
+npm run validate:artifact
 ```
 
 نجاح البناء لا يساوي موافقة النشر. يجب إبقاء `public_launch_enabled=false` إلى
 حين انتهاء مراجعة البيانات والقبول النهائي من المالك.
-
-## الاستضافة
-
-يبني GitHub Actions فرعي `phase5/**` و`main` وطلبات الدمج إلى `main`. يرتبط
-Render بالفرع `main` وينشر فقط بعد نجاح فحوص GitHub، مستخدماً خدمة Node في
-Frankfurt. تُدخل قيم Supabase في Render عند إنشاء Blueprint ولا تحفظ في Git.

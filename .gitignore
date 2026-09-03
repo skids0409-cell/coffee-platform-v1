@@ -3,4 +3,11 @@ node_modules
 !.env.example
 .next
 next-env.d.ts
+/dist/
+.vinext/
+.wrangler/
+.npm-cache/
+.sites-runtime/
 supabase/.temp/
+test-results/
+playwright-report/

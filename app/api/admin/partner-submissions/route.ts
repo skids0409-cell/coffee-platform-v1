@@ -51,12 +51,9 @@ export async function POST(request: Request) {
       const patch = Object.fromEntries(allowed.filter((key) => typeof payload[key] === "string").map((key) => [key, String(payload[key]).trim() || null]));
       const updated = await adminRest<Array<Record<string, unknown>>>(staff.token, `organizations?id=eq.${row.organization_id}&select=id,name_ar,slug,status`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify(patch) });
       canonical = updated[0] || null;
-    } else if (row.entity_type === "product_offer") {
-      canonical = await adminRest<Record<string, unknown>>(staff.token, "rpc/admin_create_catalog_draft", { method: "POST", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify({ p_entity_type: "offer", p_payload: { ...payload, seller_organization_id: row.organization_id, source_label: payload.source_label || "بوابة الجهة المشاركة", source_type: payload.source_type || "organization" } }) });
-    } else if (row.entity_type === "new_product") {
-      const contractRevision = await adminRest<string>(staff.token, "rpc/admin_record_contract_revision", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
-      const created = await adminRest<Record<string, unknown>>(staff.token, "rpc/admin_create_product_draft_v2", { method: "POST", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify({ p_payload: { ...payload, owner_organization_id: row.organization_id, source_label: payload.source_label || "بوابة الجهة المشاركة", source_type: payload.source_type || "organization" }, p_values: [], p_contract_revision: contractRevision }) });
-      canonical = { ...created, status: "attached" };
+    } else if (row.entity_type === "product_offer" || row.entity_type === "new_product") {
+      const entityType = row.entity_type === "product_offer" ? "offer" : "product";
+      canonical = await adminRest<Record<string, unknown>>(staff.token, "rpc/admin_create_catalog_draft", { method: "POST", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify({ p_entity_type: entityType, p_payload: { ...payload, seller_organization_id: row.organization_id, owner_organization_id: row.organization_id, source_label: payload.source_label || "بوابة الجهة المشاركة", source_type: payload.source_type || "organization" } }) });
     } else if (row.entity_type === "location") {
       const markets = await adminRest<Array<{ id: string }>>(staff.token, "markets?select=id&code=eq.IQ-BGD&limit=1");
       if (!markets[0] || String(payload.address_ar || "").trim().length < 3) return Response.json({ updated: false, reason: "location_data_missing" }, { status: 400 });

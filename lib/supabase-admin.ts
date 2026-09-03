@@ -1,34 +1,8 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
 
-function unquote(value: string) {
-  const trimmed = value.trim();
-  if (trimmed.length >= 2 && ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'")))) {
-    return trimmed.slice(1, -1).trim();
-  }
-  return trimmed;
-}
-
-export function publicSupabaseConfig() {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
-  try {
-    const configuredUrl = unquote(SUPABASE_URL);
-    const candidate = /^[a-z0-9]{20}$/i.test(configuredUrl)
-      ? `https://${configuredUrl}.supabase.co`
-      : /^[a-z0-9-]+\.supabase\.co(?:\/.*)?$/i.test(configuredUrl)
-        ? `https://${configuredUrl}`
-        : configuredUrl;
-    const url = new URL(candidate);
-    const publishableKey = unquote(SUPABASE_KEY);
-    if (url.protocol !== "https:" || !publishableKey) return null;
-    return { url: url.origin, publishableKey };
-  } catch {
-    return null;
-  }
-}
-
 export function adminConfigured() {
-  return Boolean(publicSupabaseConfig());
+  return Boolean(SUPABASE_URL && SUPABASE_KEY);
 }
 
 export function readSessionToken(request: Request) {
@@ -131,27 +105,5 @@ export async function requireAdmin(request: Request) {
 
 export function sameOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  if (!origin) return true;
-
-  const allowedOrigins = new Set([new URL(request.url).origin]);
-  const configured = process.env.APP_BASE_URL?.trim();
-  if (configured) {
-    try {
-      allowedOrigins.add(new URL(configured).origin);
-    } catch {
-      // A malformed optional origin must not disable same-origin protection.
-    }
-  }
-
-  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
-  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  if (forwardedHost && (forwardedProto === "https" || forwardedProto === "http")) {
-    try {
-      allowedOrigins.add(new URL(`${forwardedProto}://${forwardedHost}`).origin);
-    } catch {
-      // Ignore malformed proxy headers and retain the other trusted origins.
-    }
-  }
-
-  return allowedOrigins.has(origin);
+  return !origin || origin === new URL(request.url).origin;
 }

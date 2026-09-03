@@ -1,0 +1,82 @@
+{
+  "audit_mode": "read_only",
+  "project_ref": "xusglaiwrpfcqhoerzyn",
+  "postgres_target": "17.6",
+  "tables_found": [
+    "public.categories",
+    "step1_backup_20260825_pre031.categories"
+  ],
+  "tables_not_found": [
+    "public.taxonomy",
+    "public.subcategories"
+  ],
+  "preservation": {
+    "current_count": 59,
+    "backup_count": 57,
+    "missing_since_backup": [],
+    "added_since_backup": ["EQP-WCS-ORG", "EQP-WCS-PRT"],
+    "canonical_orphans": [],
+    "unreachable_or_cycles": [],
+    "duplicate_codes": [],
+    "duplicate_slugs": []
+  },
+  "canonical_depth_counts": {
+    "1": 2,
+    "2": 12,
+    "3": 44,
+    "4": 1
+  },
+  "strict_three_tier_violations": [
+    {
+      "code": "EQP-ESP-WDT",
+      "path": "EQP > EQP-ESP > EQP-ESP-DST > EQP-ESP-WDT",
+      "navigation_parent": null
+    }
+  ],
+  "hidden_granular_count": 32,
+  "hidden_granular_codes": [
+    "EQP-BRW-CLD", "EQP-BRW-FRP", "EQP-BRW-IBR", "EQP-BRW-INT",
+    "EQP-BRW-MOK", "EQP-BRW-PHN", "EQP-BRW-PRS", "EQP-BRW-SIF",
+    "EQP-BRW-SYP", "EQP-ESP-DSG", "EQP-ESP-DST", "EQP-ESP-KBX",
+    "EQP-ESP-MAT", "EQP-ESP-MIL", "EQP-ESP-MIR", "EQP-ESP-PCK",
+    "EQP-ESP-PRT", "EQP-ESP-TMP", "EQP-ESP-WDT", "EQP-FIL-CAP",
+    "EQP-FIL-CLT", "EQP-FIL-MET", "EQP-FIL-PAP", "EQP-KET-ELE",
+    "EQP-KET-STV", "EQP-MCH-TRK", "EQP-MSR-REF", "EQP-MSR-SCL",
+    "EQP-MSR-THM", "EQP-SRV-SRV", "EQP-SRV-THM", "EQP-WCS-STR"
+  ],
+  "missing_catalog_filter_count": 14,
+  "missing_catalog_filter_codes": [
+    "EQP-ESP-DSG", "EQP-ESP-DST", "EQP-ESP-KBX", "EQP-ESP-MAT",
+    "EQP-ESP-MIL", "EQP-ESP-MIR", "EQP-ESP-PCK", "EQP-ESP-PRT",
+    "EQP-ESP-TMP", "EQP-ESP-WDT", "EQP-MCH-TRK", "EQP-MSR-REF",
+    "EQP-MSR-THM", "EQP-WCS-STR"
+  ],
+  "semantic_review": [
+    {"code": "EQP-BRW-CLD", "current_filter": "EQP-BRW-DRP"},
+    {"code": "EQP-BRW-FRP", "current_filter": "EQP-BRW-DRP"},
+    {"code": "EQP-BRW-IBR", "current_filter": "EQP-BRW-DRP"},
+    {"code": "EQP-BRW-MOK", "current_filter": "EQP-BRW-DRP"},
+    {"code": "EQP-BRW-PRS", "current_filter": "EQP-BRW-DRP"},
+    {"code": "EQP-BRW-SYP", "current_filter": "EQP-BRW-DRP"}
+  ],
+  "published_product_filter_omissions": [
+    {
+      "product_id": "01e95444-e75e-40c1-8aaf-fb5c7a11c393",
+      "slug": "arzum-okka-ok001",
+      "category": "EQP-MCH-TRK",
+      "family": "EQP-MCH",
+      "filter": null
+    }
+  ],
+  "execution": {
+    "build": "PASS",
+    "lint": "PASS",
+    "repository_tests": "PASS_69_OF_69",
+    "playwright_discovered_tests": 28,
+    "playwright_browser": "BLOCKED_CDN_TIMEOUT",
+    "staging_dns_from_runner": "BLOCKED_EAI_AGAIN",
+    "operations_auth": "BLOCKED_CREDENTIALS_NOT_PRESENT",
+    "zero_omitted_products_assertion": "FAIL"
+  },
+  "gate": "FAIL_RECONCILIATION_REQUIRED"
+}
