@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     headers: {
       "content-type": "application/json",
       "cache-control": "no-store",
-      "set-cookie": secureCookie(recoveryCookieName, token, 900),
+      "set-cookie": secureCookie(recoveryCookieName, token, 900, "Lax"),
     },
   });
 }

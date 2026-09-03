@@ -1232,6 +1232,7 @@ test("password recovery renders dedicated production-safe pages and fails closed
 test("password recovery supports Supabase recovery links and active-admin authorization", () => {
   const reset = readFileSync(new URL("../app/api/auth/password-reset/route.ts", import.meta.url), "utf8");
   const callback = readFileSync(new URL("../app/auth/callback/route.ts", import.meta.url), "utf8");
+  const recoverySession = readFileSync(new URL("../app/api/auth/recovery-session/route.ts", import.meta.url), "utf8");
   const update = readFileSync(new URL("../app/api/auth/update-password/route.ts", import.meta.url), "utf8");
   const updatePage = readFileSync(new URL("../app/update-password/page.tsx", import.meta.url), "utf8");
   const recoveryUi = readFileSync(new URL("../app/ui/PasswordRecovery.tsx", import.meta.url), "utf8");
@@ -1248,6 +1249,8 @@ test("password recovery supports Supabase recovery links and active-admin author
   assert.match(callback, /token_hash: tokenHash, type: "recovery"/);
   assert.match(callback, /token\?grant_type=pkce/);
   assert.match(callback, /implicitRecoveryBridge/);
+  assert.match(callback, /secureCookie\(recoveryCookieName,[\s\S]*"Lax"\)/);
+  assert.match(recoverySession, /secureCookie\(recoveryCookieName, token, 900, "Lax"\)/);
   assert.match(update, /method: "PUT"/);
   assert.match(update, /logout\?scope=global/);
   assert.match(updatePage, /cookies\(\)/);

@@ -66,7 +66,14 @@ export async function GET(request: Request) {
 
   const destination = new URL("/update-password", applicationOrigin(request));
   const headers = new Headers({ location: destination.toString(), "cache-control": "no-store" });
-  headers.append("set-cookie", secureCookie(recoveryCookieName, token, Math.min(payload.expires_in || 900, 900)));
+  // The recovery callback is reached from an email, so the redirect that
+  // immediately follows is still part of a cross-site navigation in some
+  // browsers. Lax allows this HttpOnly cookie on that top-level GET while the
+  // update endpoint remains protected by its same-origin check.
+  headers.append(
+    "set-cookie",
+    secureCookie(recoveryCookieName, token, Math.min(payload.expires_in || 900, 900), "Lax"),
+  );
   headers.append("set-cookie", clearCookie(verifierCookieName));
   return new Response(null, { status: 303, headers });
 }
