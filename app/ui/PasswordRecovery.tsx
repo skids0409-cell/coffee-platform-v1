@@ -17,13 +17,42 @@ export function ForgotPassword() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email: form.get("email") }),
     });
-    setSubmitting(false);
+    const preparation = await response.json().catch(() => ({})) as {
+      prepared?: boolean;
+      recoveryEndpoint?: string;
+      publishableKey?: string;
+      challenge?: string;
+    };
     if (response.status === 429) {
+      setSubmitting(false);
       setMessage("تم إرسال طلبات كثيرة. لا تطلب رابطاً آخر الآن؛ افتح أحدث رسالة وصلتك، أو انتظر قليلاً ثم حاول مجدداً.");
       return;
     }
-    if (!response.ok) {
+    if (!response.ok || !preparation.prepared || !preparation.recoveryEndpoint || !preparation.publishableKey || !preparation.challenge) {
+      setSubmitting(false);
       setMessage("تعذر إرسال رسالة الاسترداد الآن. حاول مرة أخرى لاحقاً.");
+      return;
+    }
+
+    const delivery = await fetch(preparation.recoveryEndpoint, {
+      method: "POST",
+      headers: {
+        apikey: preparation.publishableKey,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        email: form.get("email"),
+        code_challenge: preparation.challenge,
+        code_challenge_method: "s256",
+      }),
+    }).catch(() => null);
+    setSubmitting(false);
+    if (delivery?.status === 429) {
+      setMessage("وصلت خدمة البريد إلى حد الإرسال. لا تكرر الطلب؛ انتظر ثم استخدم أحدث رسالة فقط.");
+      return;
+    }
+    if (!delivery?.ok) {
+      setMessage("تعذر الاتصال بخدمة المصادقة من هذا المتصفح. تحقق من الاتصال ثم حاول مرة واحدة.");
       return;
     }
     setMessage("إذا كان البريد مرتبطاً بحساب الإدارة فستصلك رسالة. استخدم أحدث رابط فقط، ومن الجهاز والمتصفح نفسيهما.");

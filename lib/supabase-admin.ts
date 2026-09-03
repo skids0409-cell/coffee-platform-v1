@@ -1,8 +1,20 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
 
+export function publicSupabaseConfig() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  try {
+    const url = new URL(SUPABASE_URL.trim());
+    const publishableKey = SUPABASE_KEY.trim();
+    if (url.protocol !== "https:" || !publishableKey) return null;
+    return { url: url.origin, publishableKey };
+  } catch {
+    return null;
+  }
+}
+
 export function adminConfigured() {
-  return Boolean(SUPABASE_URL && SUPABASE_KEY);
+  return Boolean(publicSupabaseConfig());
 }
 
 export function readSessionToken(request: Request) {

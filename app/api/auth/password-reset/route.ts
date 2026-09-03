@@ -1,4 +1,4 @@
-import { adminConfigured, sameOrigin, supabaseAuth } from "@/lib/supabase-admin";
+import { adminConfigured, publicSupabaseConfig, sameOrigin } from "@/lib/supabase-admin";
 import {
   applicationOrigin,
   createRecoveryPkce,
@@ -33,23 +33,15 @@ export async function POST(request: Request) {
 
   const { verifier, challenge } = createRecoveryPkce();
   const callback = new URL("/auth/callback", applicationOrigin(request));
-  const response = await supabaseAuth(`recover?redirect_to=${encodeURIComponent(callback.toString())}`, {
-    method: "POST",
-    body: JSON.stringify({
-      email,
-      code_challenge: challenge,
-      code_challenge_method: "s256",
-    }),
-  });
+  const config = publicSupabaseConfig();
+  if (!config) return Response.json({ accepted: false, reason: "not_configured" }, { status: 503 });
 
-  if (!response.ok && response.status === 429) {
-    return Response.json({ accepted: false, reason: "rate_limited" }, { status: 429 });
-  }
-  if (!response.ok) {
-    return Response.json({ accepted: false, reason: "delivery_failed" }, { status: 502 });
-  }
-
-  return new Response(JSON.stringify({ accepted: true }), {
+  return new Response(JSON.stringify({
+    prepared: true,
+    recoveryEndpoint: `${config.url}/auth/v1/recover?redirect_to=${encodeURIComponent(callback.toString())}`,
+    publishableKey: config.publishableKey,
+    challenge,
+  }), {
     status: 200,
     headers: {
       "content-type": "application/json",

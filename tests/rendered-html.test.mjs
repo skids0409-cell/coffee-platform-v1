@@ -1234,11 +1234,17 @@ test("password recovery supports Supabase recovery links and active-admin author
   const callback = readFileSync(new URL("../app/auth/callback/route.ts", import.meta.url), "utf8");
   const update = readFileSync(new URL("../app/api/auth/update-password/route.ts", import.meta.url), "utf8");
   const updatePage = readFileSync(new URL("../app/update-password/page.tsx", import.meta.url), "utf8");
+  const recoveryUi = readFileSync(new URL("../app/ui/PasswordRecovery.tsx", import.meta.url), "utf8");
   const recovery = readFileSync(new URL("../lib/password-recovery.ts", import.meta.url), "utf8");
   const blueprint = readFileSync(new URL("../render.yaml", import.meta.url), "utf8");
 
   assert.match(reset, /recover\?redirect_to=/);
   assert.match(reset, /code_challenge: challenge/);
+  assert.match(reset, /publicSupabaseConfig/);
+  assert.doesNotMatch(reset, /supabaseAuth/);
+  assert.match(recoveryUi, /fetch\(preparation\.recoveryEndpoint/);
+  assert.match(recoveryUi, /apikey: preparation\.publishableKey/);
+  assert.match(recoveryUi, /code_challenge: preparation\.challenge/);
   assert.match(callback, /token_hash: tokenHash, type: "recovery"/);
   assert.match(callback, /token\?grant_type=pkce/);
   assert.match(callback, /implicitRecoveryBridge/);
