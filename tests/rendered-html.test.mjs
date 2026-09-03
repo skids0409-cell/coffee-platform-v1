@@ -1292,7 +1292,7 @@ test("GitHub CI gates Phase branches before Render deployment", () => {
   assert.equal(actionPins.length, 3);
 });
 
-test("Render blueprint deploys main only after CI with externalized Supabase values", () => {
+test("Render blueprint deploys main only after CI with the public Supabase URL and externalized key", () => {
   const blueprint = readFileSync(new URL("../render.yaml", import.meta.url), "utf8");
   assert.match(blueprint, /runtime: node/);
   assert.match(blueprint, /region: frankfurt/);
@@ -1301,7 +1301,7 @@ test("Render blueprint deploys main only after CI with externalized Supabase val
   assert.match(blueprint, /startCommand: npm start/);
   assert.match(blueprint, /healthCheckPath: \/api\/health/);
   assert.match(blueprint, /autoDeployTrigger: checksPass/);
-  assert.match(blueprint, /key: SUPABASE_URL\s+sync: false/);
+  assert.match(blueprint, /key: SUPABASE_URL\s+value: https:\/\/xusglaiwrpfcqhoerzyn\.supabase\.co/);
   assert.match(blueprint, /key: SUPABASE_PUBLISHABLE_KEY\s+sync: false/);
   assert.doesNotMatch(blueprint, /service[_-]?role|cloudflare|wrangler/i);
 });
