@@ -13,4 +13,3 @@ create index media_legal_cases_assigned_to_idx on public.media_legal_cases(assig
 create index media_legal_case_assets_asset_idx on public.media_legal_case_assets(asset_id);
 create index media_legal_case_events_actor_idx on public.media_legal_case_events(actor_user_id) where actor_user_id is not null;
 commit;
-

@@ -1,11 +1,8 @@
 import { adminRest, requireStaff, sameOrigin } from "@/lib/supabase-admin";
+import { MEDIA_ATTESTATION_VERSION, MEDIA_ENTITIES, RIGHTS_BASES, cleanHttps, mapMediaError, mediaRpc, mediaStorageRequest, purposeForEntity, sanitizeFilename } from "@/lib/media-vault";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
-const entities = new Set(["organizations", "brands", "products", "offers", "contents", "origin_claims"]);
-const mimeExtensions: Record<string, string> = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif" };
-const extensionMime: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", avif: "image/avif" };
-const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
 const validId = (value: string) => /^[0-9a-f-]{36}$/i.test(value);
 
 async function storageRequest(token: string, path: string, init: RequestInit) {
@@ -17,12 +14,13 @@ export async function GET(request: Request) {
   const admin = await requireStaff(request).catch(() => null);
   if (!admin) return Response.json({ authenticated: false }, { status: 401 });
   try {
-    const [products, offers, organizations, media, categories] = await Promise.all([
+    const [products, offers, organizations, media, categories, vaultAssets] = await Promise.all([
       adminRest<Array<{ id: string; name_ar: string; status: string; product_kind: string; organizations: { id: string; name_ar: string } | null; product_categories: Array<{ is_primary: boolean; categories: { id: string; code: string; name_ar: string; parent_id: string | null } | null }>; product_attribute_values: Array<{ value_text: string | null; field_definitions: { code: string } | null }> }>>(admin.token, "products?select=id,name_ar,status,product_kind,organizations(id,name_ar),product_categories(is_primary,categories(id,code,name_ar,parent_id)),product_attribute_values(value_text,field_definitions(code))&status=neq.archived&order=name_ar.asc&limit=1000"),
       adminRest<Array<{ id: string; status: string; products: { id: string; name_ar: string; product_kind: string; product_categories: Array<{ is_primary: boolean; categories: { id: string; code: string; name_ar: string; parent_id: string | null } | null }>; product_attribute_values: Array<{ value_text: string | null; field_definitions: { code: string } | null }> } | null; organizations: { id: string; name_ar: string; organization_roles: Array<{ role_type: string; is_primary: boolean }> } | null }>>(admin.token, "offers?select=id,status,products(id,name_ar,product_kind,product_categories(is_primary,categories(id,code,name_ar,parent_id)),product_attribute_values(value_text,field_definitions(code))),organizations(id,name_ar,organization_roles(role_type,is_primary))&status=neq.archived&order=updated_at.desc&limit=1000"),
       adminRest<Array<{ id: string; name_ar: string; status: string; organization_roles: Array<{ role_type: string; is_primary: boolean }> }>>(admin.token, "organizations?select=id,name_ar,status,organization_roles(role_type,is_primary)&status=neq.archived&order=name_ar.asc&limit=1000"),
       adminRest<Array<{ id: string; entity_table: string; entity_id: string; alt_ar: string; rights_note: string; url: string }>>(admin.token, "entity_media?select=id,entity_table,entity_id,alt_ar,rights_note,url&order=created_at.desc&limit=5000"),
       adminRest<Array<{ id: string; parent_id: string | null; catalog_family_id: string | null; catalog_filter_id: string | null }>>(admin.token, "categories?select=id,parent_id,catalog_family_id,catalog_filter_id&limit=500"),
+      adminRest<Array<Record<string,unknown>>>(admin.token,"media_assets?select=id,purpose,original_filename,declared_mime,detected_mime,byte_size,width,height,pixel_count,sha256_hex,technical_status,publication_status,rejection_codes,duplicate_of_asset_id,legal_hold,created_at,media_asset_links(id,entity_type,entity_id,role,alt_ar,link_status),media_rights_assertions(rights_basis,copyright_owner,review_status)&order=created_at.desc&limit=300"),
     ]);
     const mediaCounts = new Map<string, number>();
     for (const item of media) {
@@ -65,7 +63,7 @@ export async function GET(request: Request) {
       const reason = item.alt_ar.trim().length < 3 ? "الوصف البديل غير كافٍ" : item.rights_note.trim().length < 3 ? "بيان الحقوق غير كافٍ" : foreignCode ? `الوصف يذكر «${foreignCode}» ولا يظهر في اسم السجل` : "";
       return reason && target ? [{ id: item.id, entity: target.entity, entityId: target.id, label: target.label, altAr: item.alt_ar, reason }] : [];
     });
-    return Response.json({ authenticated: true, records, suspicious });
+    return Response.json({ authenticated: true, records, suspicious, vaultAssets });
   } catch (error) {
     console.error("admin-media-library", error);
     return Response.json({ authenticated: true, reason: "upstream_error" }, { status: 502 });
@@ -73,42 +71,43 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return Response.json({ uploaded: false }, { status: 403 });
+  if (!sameOrigin(request)) return Response.json({ created: false }, { status: 403 });
   const admin = await requireStaff(request).catch(() => null);
-  if (!admin) return Response.json({ uploaded: false }, { status: 401 });
-  const form = await request.formData().catch(() => null);
-  const entity = String(form?.get("entity") || "");
-  const entityId = String(form?.get("entityId") || "");
-  const altAr = String(form?.get("altAr") || "").trim().slice(0, 300);
-  const rightsNote = String(form?.get("rightsNote") || "").trim().slice(0, 1000);
-  const file = form?.get("file");
-  if (!entities.has(entity) || !validId(entityId)) return Response.json({ uploaded: false, reason: "invalid_target" }, { status: 400 });
-  if (!(file instanceof File) || file.size < 1) return Response.json({ uploaded: false, reason: "file_required" }, { status: 400 });
-  if (file.size > MAX_MEDIA_BYTES) return Response.json({ uploaded: false, reason: "file_too_large", maxBytes: MAX_MEDIA_BYTES, receivedBytes: file.size }, { status: 400 });
-  if (altAr.length < 2) return Response.json({ uploaded: false, reason: "alt_required" }, { status: 400 });
-  if (rightsNote.length < 3) return Response.json({ uploaded: false, reason: "rights_required" }, { status: 400 });
-  const nameExtension = file.name.toLowerCase().split(".").pop() || "";
-  const normalizedMime = mimeExtensions[file.type] ? file.type : extensionMime[nameExtension];
-  if (!normalizedMime || !mimeExtensions[normalizedMime]) return Response.json({ uploaded: false, reason: "unsupported_type", receivedType: file.type || "unknown" }, { status: 400 });
-  const path = `catalog/${entity}/${entityId}/${crypto.randomUUID()}.${mimeExtensions[normalizedMime]}`;
-  let objectUploaded = false;
+  if (!admin) return Response.json({ created: false }, { status: 401 });
+  const body = await request.json().catch(() => null) as Record<string,unknown> | null;
+  const entity = String(body?.entity || "");
+  const entityId = String(body?.entityId || "");
+  const filename = sanitizeFilename(body?.filename);
+  const declaredMime = String(body?.declaredMime || "").toLowerCase();
+  const altAr = String(body?.altAr || "").trim().slice(0,300);
+  const rightsBasis = String(body?.rightsBasis || "");
+  const copyrightOwner = String(body?.copyrightOwner || "").trim().slice(0,300);
+  const sourceUrl = cleanHttps(body?.sourceUrl);
+  const licenseUrl = cleanHttps(body?.licenseUrl);
+  const permissionEvidence = String(body?.permissionEvidence || "").trim().slice(0,2000) || null;
+  const purpose = purposeForEntity(entity);
+  const role = ({ organizations: "logo", brands: "logo", contents: "hero", origin_claims: "evidence" } as Record<string,string>)[entity] || "gallery";
+  if (!MEDIA_ENTITIES.has(entity) || !validId(entityId) || !purpose) return Response.json({ created: false, reason: "invalid_target" }, { status: 400 });
+  if (!filename || !declaredMime) return Response.json({ created: false, reason: "file_required" }, { status: 400 });
+  if (altAr.length < 2) return Response.json({ created: false, reason: "alt_required" }, { status: 400 });
+  if (!RIGHTS_BASES.has(rightsBasis) || copyrightOwner.length < 2) return Response.json({ created: false, reason: "rights_required" }, { status: 400 });
+  if (body?.attested !== true || body?.commercialUseAllowed !== true || body?.modificationAllowed !== true) return Response.json({ created: false, reason: "attestation_required" }, { status: 400 });
+  if (rightsBasis === "open_license" && !licenseUrl) return Response.json({ created: false, reason: "license_url_required" }, { status: 400 });
+  if (["explicit_written_permission","exclusive_license","nonexclusive_license"].includes(rightsBasis) && !permissionEvidence) return Response.json({ created: false, reason: "permission_evidence_required" }, { status: 400 });
   try {
-    const upload = await storageRequest(admin.token, `object/public-media/${path}`, { method: "POST", headers: { "content-type": normalizedMime, "x-upsert": "false" }, body: await file.arrayBuffer() });
-    if (!upload.ok) {
-      const storageMessage = (await upload.text()).slice(0, 180);
-      console.error("admin-media-storage", `status=${upload.status}`, storageMessage);
-      return Response.json({ uploaded: false, reason: "storage_rejected", storageStatus: upload.status }, { status: 502 });
-    }
-    objectUploaded = true;
-    const existing = await adminRest<Array<{ id: string }>>(admin.token, `entity_media?select=id&entity_table=eq.${entity}&entity_id=eq.${entityId}&is_primary=eq.true&limit=1`);
-    const url = `${SUPABASE_URL}/storage/v1/object/public/public-media/${path}`;
-    const created = await adminRest<Array<Record<string, unknown>>>(admin.token, "entity_media?select=*", { method: "POST", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify({ entity_table: entity, entity_id: entityId, storage_path: path, url, alt_ar: altAr, rights_note: rightsNote, is_primary: !existing.length, created_by: admin.user.id }) });
-    await adminRest(admin.token, "audit_events", { method: "POST", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ actor_user_id: admin.user.id, action: "upload_catalog_media", entity_table: entity, entity_id: entityId, after_data: { path, alt_ar: altAr, rights_note: rightsNote }, source: "operations_center_v5" }) });
-    return Response.json({ uploaded: true, media: created[0] });
+    const intent = await mediaRpc<{ intent_id:string; quarantine_path:string; max_bytes:number; expires_at:string }>(admin.token,"admin_media_begin_ingestion",{ p_payload: {
+      purpose, entity_type:entity, entity_id:entityId, role, original_filename:filename, declared_mime:declaredMime, alt_ar:altAr,
+      rights_basis:rightsBasis, copyright_owner:copyrightOwner, source_url:sourceUrl, license_url:licenseUrl, permission_evidence:permissionEvidence,
+      commercial_use_allowed:true, modification_allowed:true, attestation_version:MEDIA_ATTESTATION_VERSION, attested:true,
+    }});
+    const signed = await mediaStorageRequest(admin.token,`object/upload/sign/media-quarantine/${intent.quarantine_path}`,{ method:"POST",headers:{"content-type":"application/json","x-upsert":"false"},body:"{}" });
+    if (!signed.ok) throw new Error(`signed_upload_${signed.status}:${(await signed.text()).slice(0,120)}`);
+    const signedData = await signed.json() as { url:string };
+    const signedUploadUrl = `${SUPABASE_URL}/storage/v1${signedData.url}`;
+    return Response.json({ created:true, intentId:intent.intent_id, path:intent.quarantine_path, signedUploadUrl, maxBytes:intent.max_bytes, expiresAt:intent.expires_at });
   } catch (error) {
-    if (objectUploaded) await storageRequest(admin.token, `object/public-media/${path}`, { method: "DELETE" }).catch(() => null);
-    console.error("admin-media-upload", error instanceof Error ? error.message : error);
-    return Response.json({ uploaded: false, reason: objectUploaded ? "media_link_failed" : "upstream_error" }, { status: 502 });
+    console.error("admin-media-intent", error instanceof Error ? error.message : error);
+    return Response.json({ created:false, reason:mapMediaError(error) }, { status:502 });
   }
 }
 

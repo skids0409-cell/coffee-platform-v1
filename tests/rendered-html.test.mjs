@@ -436,17 +436,18 @@ test("operations center v3 keeps product data, batches, support, and search gove
   const records = readFileSync(new URL("../app/api/admin/records/route.ts", import.meta.url), "utf8");
   const review = readFileSync(new URL("../app/api/admin/review/route.ts", import.meta.url), "utf8");
   const dataCenter = readFileSync(new URL("../app/api/admin/data-center/route.ts", import.meta.url), "utf8");
-  const atomicAttributes = readFileSync(new URL("../supabase/migrations/020_atomic_product_attribute_save.sql", import.meta.url), "utf8");
+  const phase2 = readFileSync(new URL("../supabase/migrations/035_phase2_record_capability_contract.sql", import.meta.url), "utf8");
+  const recordForm = readFileSync(new URL("../app/ui/admin/RecordForm.tsx", import.meta.url), "utf8");
   assert.match(source, /حفظ والعودة إلى الطابور/);
-  assert.match(source, /المواصفات الخاصة بهذه الفئة/);
-  assert.match(source, /حبوب كاملة/);
+  assert.match(recordForm, /المواصفات التالية صادرة من عقد الخادم/);
+  assert.match(recordForm, /حبوب كاملة/);
   assert.match(source, /حفظ في الأرشيف/);
   assert.match(source, /التقرير الأصلي المحفوظ/);
   assert.match(source, /درجة الأولوية \(1–100\)/);
   assert.match(records, /filter_definitions\?select=/);
   assert.match(records, /rpc\/admin_update_product_v2/);
-  assert.match(atomicAttributes, /delete from public\.product_attribute_values/);
-  assert.match(atomicAttributes, /jsonb_to_recordset/);
+  assert.match(phase2, /delete from public\.product_attribute_values/);
+  assert.match(phase2, /jsonb_to_recordset/);
   assert.match(review, /admin_publish_override/);
   assert.match(review, /المواصفة المطلوبة مفقودة/);
   assert.match(dataCenter, /category_kind_mismatch/);
@@ -455,6 +456,36 @@ test("operations center v3 keeps product data, batches, support, and search gove
   assert.match(source, /إدارة السجلات المنشورة/);
   assert.match(source, /العلامات التجارية/);
   assert.match(dataCenter, /delete_archived_batch/);
+});
+
+test("phase 2 serves one strict revisioned capability contract to Add and Manage", async () => {
+  const worker = await loadWorker("record-capabilities-auth");
+  const response = await worker.fetch(new Request("http://localhost/api/admin/record-capabilities?productKind=equipment&mode=create"), runtimeEnv, runtimeContext);
+  assert.equal(response.status, 401);
+
+  const types = readFileSync(new URL("../lib/record-capability-types.ts", import.meta.url), "utf8");
+  const contract = readFileSync(new URL("../lib/record-capabilities.ts", import.meta.url), "utf8");
+  const form = readFileSync(new URL("../app/ui/admin/RecordForm.tsx", import.meta.url), "utf8");
+  const platform = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
+  const dataCenter = readFileSync(new URL("../app/api/admin/data-center/route.ts", import.meta.url), "utf8");
+  const records = readFileSync(new URL("../app/api/admin/records/route.ts", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../supabase/migrations/035_phase2_record_capability_contract.sql", import.meta.url), "utf8");
+
+  for (const kind of ["roasted_coffee", "equipment", "consumable", "care_product", "replacement_part"]) assert.match(types, new RegExp(`"${kind}"`));
+  assert.match(contract, /category\.catalog_product_kind === productKind/);
+  assert.doesNotMatch(contract, /code\.startsWith/);
+  assert.match(form, /\/api\/admin\/record-capabilities/);
+  assert.equal((platform.match(/<RecordForm /g) || []).length, 2, "Add and Manage must render the same shared RecordForm");
+  assert.match(dataCenter, /rpc\/admin_create_product_draft_v2/);
+  assert.match(records, /rpc\/admin_update_product_v2/);
+  assert.match(dataCenter, /contract_revision_stale/);
+  assert.match(records, /contract_revision_stale/);
+  assert.match(migration, /p_contract_revision is distinct from public\.admin_record_contract_revision\(\)/);
+  assert.match(migration, /catalog_product_kind is distinct from v_kind/);
+  assert.match(migration, /catalog_product_kind is distinct from v_product\.product_kind/);
+  assert.match(migration, /product_kind_immutable/);
+  assert.match(migration, /begin;/);
+  assert.match(migration, /commit;/);
 });
 
 test("brand governance keeps coffee and equipment brands separated", () => {
@@ -470,22 +501,24 @@ test("operations center v5 separates product master data from seller offers", ()
   const governance = readFileSync(new URL("../supabase/migrations/021_operations_catalog_governance.sql", import.meta.url), "utf8");
   const cleanup = readFileSync(new URL("../supabase/migrations/023_cleanup_misplaced_product_attributes.sql", import.meta.url), "utf8");
   const source = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
+  const recordForm = readFileSync(new URL("../app/ui/admin/RecordForm.tsx", import.meta.url), "utf8");
   assert.match(governance, /f\.code in \('market_price','availability'\)/);
   assert.match(governance, /f\.code='brew_methods'.*EQP-GRD-ELE/s);
   assert.match(cleanup, /delete from public\.product_attribute_values/);
   assert.match(source, /متجر البائع داخل قهوتنا/);
-  assert.match(source, /السعر والتوفر لا يظهران هنا لأنهما تابعان للبائع/);
+  assert.doesNotMatch(recordForm, /name="price"|name="availability"/);
   assert.match(source, /المرفوضات والأرشيف/);
 });
 
-test("catalog media requires governed rights and accessible alternative text", () => {
+test("catalog media requires governed attestation and accessible alternative text", () => {
   const mediaRoute = readFileSync(new URL("../app/api/admin/media/route.ts", import.meta.url), "utf8");
-  const mediaSchema = readFileSync(new URL("../supabase/migrations/021_operations_catalog_governance.sql", import.meta.url), "utf8");
+  const mediaSchema = readFileSync(new URL("../supabase/migrations/036_phase3_media_vault_ingestion.sql", import.meta.url), "utf8");
   const source = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
-  assert.match(mediaRoute, /8 \* 1024 \* 1024/);
+  assert.match(mediaRoute, /MEDIA_ATTESTATION_VERSION/);
   assert.match(mediaRoute, /altAr\.length < 2/);
-  assert.match(mediaSchema, /rights_note text not null/);
-  assert.match(source, /رفع الصورة وربطها الآن/);
+  assert.match(mediaSchema, /create table public\.media_rights_assertions/);
+  assert.match(mediaSchema, /commercial_use_allowed boolean not null/);
+  assert.match(source, /رفع الأصل إلى الحجر وفحصه/);
 });
 
 test("operations center v2 migration adds support workflow and atomic catalog drafts", () => {
@@ -884,8 +917,9 @@ test("renders the structured coffee finder journey", async () => {
 
 test("catalog entry supports checkbox multi-values and persists new-record media against the created id", () => {
   const source = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
-  assert.match(source, /function MultiChoiceField/);
-  assert.match(source, /type="checkbox" checked=\{selected\.includes\(option\)\}/);
+  const recordForm = readFileSync(new URL("../app/ui/admin/RecordForm.tsx", import.meta.url), "utf8");
+  assert.match(recordForm, /function MultiValue/);
+  assert.match(recordForm, /type="checkbox" checked=\{selected\.includes\(option\)\}/);
   assert.match(source, /result\.created\?\.id \|\| result\.id/);
   assert.match(source, /uploadCatalogMedia\(entityMap\[pendingEntityType\], createdId/);
   assert.doesNotMatch(source, /يمكن اختيار أكثر من قيمة باستخدام Ctrl/);
@@ -905,30 +939,30 @@ test("operations center v3 separates workspaces and previews drafts before savin
 
 test("operations aligns published taxonomy and exposes stateful rights actions", () => {
   const ui = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
+  const recordForm = readFileSync(new URL("../app/ui/admin/RecordForm.tsx", import.meta.url), "utf8");
   const api = readFileSync(new URL("../app/api/admin/review/route.ts", import.meta.url), "utf8");
-  assert.match(ui, /العائلة الرئيسية للمعدات<select value=\{productFamilyId\}/);
-  assert.match(ui, /التصنيف الفرعي<select value=\{productCategoryId\}/);
+  assert.match(recordForm, /العائلة الرئيسية<select value=\{familyId\}/);
+  assert.match(recordForm, /الفئة الدقيقة<select value=\{props\.categoryId\}/);
   assert.match(ui, /بانتظار دليل إضافي/);
   assert.match(ui, /استئناف المراجعة بعد وصول الدليل/);
   assert.match(api, /const taxonomyPath/);
   assert.match(api, /requester_email,requester_phone,details,evidence_reference/);
 });
 
-test("media intake reports exact validation failures and compresses client uploads", () => {
+test("media intake bypasses the Sites body limit through signed private quarantine upload", () => {
   const api = readFileSync(new URL("../app/api/admin/media/route.ts", import.meta.url), "utf8");
+  const validator = readFileSync(new URL("../app/api/admin/media/validate/route.ts", import.meta.url), "utf8");
   const ui = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
-  assert.match(api, /MAX_MEDIA_BYTES = 8 \* 1024 \* 1024/);
-  assert.match(api, /reason: "file_too_large"/);
-  assert.match(api, /reason: "unsupported_type"/);
+  assert.match(api, /object\/upload\/sign\/media-quarantine/);
   assert.match(api, /reason: "alt_required"/);
   assert.match(api, /reason: "rights_required"/);
-  assert.match(api, /reason: "storage_rejected"/);
-  assert.match(api, /reason: objectUploaded \? "media_link_failed"/);
-  assert.match(ui, /تم اختيار:/);
-  assert.match(ui, /MAX_MEDIA_BYTES = 1024 \* 1024/);
-  assert.match(ui, /request_too_large/);
+  assert.match(api, /reason: "attestation_required"/);
+  assert.match(validator, /validateMedia/);
+  assert.match(validator, /media-derivatives/);
+  assert.match(ui, /signedUploadUrl/);
+  assert.doesNotMatch(ui, /createImageBitmap\(file\)/);
   assert.match(ui, /className="entity-media-upload" onSubmit=\{addMedia\} noValidate/);
-  assert.match(ui, /3\. المصدر والحقوق/);
+  assert.match(ui, /Media Vault/);
 });
 
 test("seller catalog is prioritized and published records use aligned dropdown filters", () => {
@@ -989,12 +1023,13 @@ test("global navigation exposes working menu back and contextual comparison", ()
   assert.match(ui, /منتجات من المجموعة نفسها/);
 });
 
-test("large catalog images are optimized in the browser before upload", () => {
+test("catalog originals are quarantined before server-side validation", () => {
   const ui = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
-  assert.match(ui, /async function prepareCatalogImage/);
-  assert.match(ui, /createImageBitmap\(file\)/);
-  assert.match(ui, /canvas\.toBlob\(resolve, "image\/webp"/);
-  assert.match(ui, /سيُحسّن الحجم تلقائياً/);
+  const migration = readFileSync(new URL("../supabase/migrations/036_phase3_media_vault_ingestion.sql", import.meta.url), "utf8");
+  assert.match(ui, /signedUploadUrl/);
+  assert.match(ui, /\/api\/admin\/media\/validate/);
+  assert.match(migration, /'media-quarantine','media-quarantine',false/);
+  assert.match(migration, /public_media_vault_insert/);
 });
 
 test("catalog media uses a carousel and exact full-name search suppresses alias noise", () => {
@@ -1016,9 +1051,10 @@ test("operations fixes media loading and separates coffee form from seller filte
   assert.match(mediaApi, /requireStaff\(request\)/);
   assert.doesNotMatch(mediaApi, /requireAdmin\(request\)/);
   assert.match(dataApi, /product_attribute_values\(value_text,value_json,field_definitions\(code\)\)/);
-  assert.match(ui, /شكل القهوة — الفئة الدقيقة/);
-  assert.match(ui, /حبوب كاملة/);
-  assert.match(ui, /مطحونة/);
+  const recordForm = readFileSync(new URL("../app/ui/admin/RecordForm.tsx", import.meta.url), "utf8");
+  assert.match(ui, /field\.code === "coffee_form"/);
+  assert.match(recordForm, /حبوب كاملة/);
+  assert.match(recordForm, /مطحونة/);
   assert.match(ui, /carousel-arrow previous/);
   assert.match(ui, /carousel-image-button/);
 });
@@ -1075,6 +1111,7 @@ test("media library follows the platform tree and every organization role", () =
 
 test("equipment catalog and Operations share the governed two-tier navigation projection", () => {
   const ui = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
+  const recordForm = readFileSync(new URL("../app/ui/admin/RecordForm.tsx", import.meta.url), "utf8");
   const publicApi = readFileSync(new URL("../app/api/public-products/route.ts", import.meta.url), "utf8");
   const migration = readFileSync(new URL("../supabase/migrations/034_equipment_catalog_navigation_alignment.sql", import.meta.url), "utf8");
   for (const path of ["/equipment/grinders", "/equipment/brew-tools", "/equipment/brew-machines", "/equipment/roasting-machines", "/equipment/care"]) {
@@ -1089,7 +1126,8 @@ test("equipment catalog and Operations share the governed two-tier navigation pr
   assert.match(migration, /catalog_filter_id/);
   assert.match(publicApi, /assigned\.catalog_family_id === requestedCategory\.id/);
   assert.match(publicApi, /assigned\.catalog_filter_id === requestedCategory\.id/);
-  assert.match(ui, /العائلة الرئيسية للمعدات<select value=\{productFamilyId\}/);
+  assert.match(recordForm, /contract\.selection_policy\.family_required/);
+  assert.match(recordForm, /category\.family_id === familyId/);
   assert.match(ui, /categoryOptions=\{published\.categoryOptions\}/);
 });
 
@@ -1153,7 +1191,6 @@ test("STEP2 TaxonomyWorkspace is restricted to admins and has no delete workflow
   assert.match(workspace, /جارٍ الحفظ…/);
   assert.doesNotMatch(workspace, /method:\s*"DELETE"/);
 });
-
 test("Phase 5 migration makes the legacy attachment outcome unambiguously attached", () => {
   const migration = readFileSync(new URL("../supabase/migrations/041_phase5_attached_record_contract.sql", import.meta.url), "utf8");
   assert.match(migration, /'status','attached'/);
@@ -1168,14 +1205,15 @@ test("Phase 5 product Add/Edit uses the server-owned capability contract atomica
   const dataCenter = readFileSync(new URL("../app/api/admin/data-center/route.ts", import.meta.url), "utf8");
   const records = readFileSync(new URL("../app/api/admin/records/route.ts", import.meta.url), "utf8");
   const ui = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
-  assert.match(dataCenter, /rpc\/admin_record_contract_revision/);
+  assert.match(dataCenter, /loadRecordCapability/);
   assert.match(dataCenter, /rpc\/admin_create_product_draft_v2/);
   assert.match(dataCenter, /p_contract_revision: body\.contractRevision/);
   assert.doesNotMatch(dataCenter, /body\.entityType === "origin" \? \{ \.\.\.created, status: "draft" \}/);
   assert.match(records, /rpc\/admin_update_product_v2/);
-  assert.match(records, /handledAtomically = true/);
-  assert.match(ui, /contractRevision: data\?\.recordContractRevision/);
-  assert.match(ui, /تم إرفاق المنتج ومواصفاته ذرياً/);
+  assert.match(records, /loadRecordCapability/);
+  assert.match(records, /serializeCapabilityAttributes/);
+  assert.match(ui, /contract_revision/);
+  assert.match(ui, /تم إنشاء المنتج كمسودة/);
 });
 
 test("Phase 5 attribute serialization rejects malformed and duplicate values", () => {

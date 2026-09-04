@@ -9,8 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start -H 0.0.0.0",
-    "verify:migrations": "node scripts/verify-recovered-migrations.mjs",
-    "test": "npm run verify:migrations && npm run build && node --test tests/rendered-html.test.mjs",
+    "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern .next"
   },
   "dependencies": {

@@ -6,4 +6,3 @@ create index media_purge_requests_reviewed_by_idx
   on public.media_purge_requests(reviewed_by)
   where reviewed_by is not null;
 commit;
-

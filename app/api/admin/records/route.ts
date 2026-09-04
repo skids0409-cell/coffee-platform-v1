@@ -1,11 +1,6 @@
 import { adminRest, requireStaff, sameOrigin } from "@/lib/supabase-admin";
-import {
-  isContractRevisionError,
-  ProductAttributeError,
-  serializeProductAttributes,
-  type ProductAttributeInput,
-  type ProductFieldDefinition,
-} from "@/lib/admin-product-contract";
+import { isProductKind } from "@/lib/record-capability-types";
+import { loadRecordCapability, serializeCapabilityAttributes } from "@/lib/record-capabilities";
 
 const entities = ["organizations", "brands", "products", "offers", "contents", "origin_claims"] as const;
 type Entity = (typeof entities)[number];
@@ -50,13 +45,12 @@ async function loadRecord(token: string, entity: Entity, id: string) {
     record = (await adminRest<Array<Record<string, unknown>>>(token, `origin_claims?select=*,products(id,name_ar),countries(code,name_ar),coffee_regions(id,name_ar),source_records(id,title,source_type,url,publisher,accessed_at,evidence_excerpt)&id=eq.${id}&limit=1`))[0];
   }
   if (!record) return null;
-  const [qualityIssues, media, history, recordContractRevision] = await Promise.all([
+  const [qualityIssues, media, history] = await Promise.all([
     adminRest<Array<Record<string, unknown>>>(token, `data_quality_issues?select=id,severity,message_ar,field_code,status,resolution_note&entity_table=eq.${entity}&entity_id=eq.${id}&status=eq.open&order=severity.asc`),
     adminRest<Array<Record<string, unknown>>>(token, `entity_media?select=id,url,alt_ar,rights_note,is_primary,sort_order,created_at&entity_table=eq.${entity}&entity_id=eq.${id}&order=is_primary.desc,sort_order.asc,created_at.asc`),
     adminRest<Array<Record<string, unknown>>>(token, `audit_events?select=id,action,before_data,after_data,created_at,actor_user_id&entity_table=eq.${entity}&entity_id=eq.${id}&order=created_at.desc&limit=30`),
-    entity === "products" ? adminRest<string>(token, "rpc/admin_record_contract_revision", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }) : Promise.resolve(null),
   ]);
-  return { record, sources: entity === "origin_claims" ? [{ id: `origin-${id}`, is_primary: true, source_records: (record as Record<string, unknown>).source_records }] : await sourceLinks(token, entity, id), fieldDefinitions, references, qualityIssues, media, history, recordContractRevision };
+  return { record, sources: entity === "origin_claims" ? [{ id: `origin-${id}`, is_primary: true, source_records: (record as Record<string, unknown>).source_records }] : await sourceLinks(token, entity, id), fieldDefinitions, references, qualityIssues, media, history };
 }
 
 export async function GET(request: Request) {
@@ -79,14 +73,13 @@ export async function PATCH(request: Request) {
   if (!sameOrigin(request)) return Response.json({ updated: false }, { status: 403 });
   const admin = await requireStaff(request).catch(() => null);
   if (!admin) return Response.json({ updated: false }, { status: 401 });
-  const body = await request.json().catch(() => null) as null | { entity?: string; id?: string; fields?: Record<string, unknown>; attributes?: ProductAttributeInput[]; issueUpdates?: Array<{ id?: string; status?: string; resolutionNote?: string }>; contractRevision?: string };
+  const body = await request.json().catch(() => null) as null | { entity?: string; id?: string; fields?: Record<string, unknown>; attributes?: Array<{ fieldId?: string; value?: unknown }>; issueUpdates?: Array<{ id?: string; status?: string; resolutionNote?: string }>; contractRevision?: string };
   if (!body?.entity || !isEntity(body.entity) || !body.id || !validId(body.id) || !body.fields) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
   const entity = body.entity;
   const beforeData = await loadRecord(admin.token, entity, body.id);
   if (!beforeData) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
   try {
     let patch: Record<string, unknown> = {};
-    let handledAtomically = false;
     if (entity === "organizations") {
       patch = { name_ar: clean(body.fields.name_ar, 160), name_en: clean(body.fields.name_en, 160) || null, description_ar: clean(body.fields.description_ar) || null, website_url: clean(body.fields.website_url, 500) || null, phone: clean(body.fields.phone, 80) || null, email: clean(body.fields.email, 200) || null };
       if (!patch.name_ar) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
@@ -101,30 +94,20 @@ export async function PATCH(request: Request) {
       await adminRest(admin.token, `brand_product_kinds?brand_id=eq.${body.id}`, { method: "DELETE", headers: { prefer: "return=minimal" } });
       await adminRest(admin.token, "brand_product_kinds", { method: "POST", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ brand_id: body.id, product_kind: productKind }) });
     } else if (entity === "products") {
-      if (!body.contractRevision) return Response.json({ updated: false, reason: "contract_revision_required" }, { status: 409 });
-      const categoryId = clean(body.fields.category_id, 36);
-      patch = {
-        name_ar: clean(body.fields.name_ar, 160),
-        name_en: clean(body.fields.name_en, 160),
-        summary_ar: clean(body.fields.summary_ar, 1000),
-        description_ar: clean(body.fields.description_ar),
-        model_number: clean(body.fields.model_number, 160),
-        brand_id: validId(clean(body.fields.brand_id)) ? clean(body.fields.brand_id) : "",
-        owner_organization_id: validId(clean(body.fields.owner_organization_id)) ? clean(body.fields.owner_organization_id) : "",
-        category_id: validId(categoryId) ? categoryId : "",
-        product_kind: clean(beforeData.record.product_kind, 40),
-      };
-      if (!patch.name_ar || !patch.category_id) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
-      const allDefinitions = ((beforeData.references as { filterDefinitions?: Array<ProductFieldDefinition & { category_id?: string }> }).filterDefinitions || beforeData.fieldDefinitions as Array<ProductFieldDefinition & { category_id?: string }>);
-      const definitions = allDefinitions.filter((definition) => !definition.category_id || definition.category_id === categoryId);
-      const values = serializeProductAttributes(body.attributes || [], definitions);
-      const issueUpdates = (body.issueUpdates || []).flatMap((issue) => issue.id && validId(issue.id) && ["accepted", "fixed", "dismissed"].includes(issue.status || "") ? [{ id: issue.id, status: issue.status, resolution_note: clean(issue.resolutionNote, 1000) }] : []);
-      await adminRest<Record<string, unknown>>(admin.token, "rpc/admin_update_product_v2", {
+      const productKind = String(beforeData.record.product_kind || "");
+      if (!isProductKind(productKind) || !body.contractRevision) return Response.json({ updated: false, reason: "capability_contract_required" }, { status: 409 });
+      const contract = await loadRecordCapability(admin.token, productKind, "edit", body.id);
+      if (contract.contract_revision !== body.contractRevision) return Response.json({ updated: false, reason: "contract_revision_stale", contract }, { status: 409 });
+      if (contract.record_state === "legacy_conflict") return Response.json({ updated: false, reason: "reclassification_required", contract }, { status: 409 });
+      const categoryId = clean(body.fields.category_id);
+      const existingSources = new Map(((beforeData.record.product_attribute_values || []) as Array<{ field_definition_id: string; source_record_id?: string | null }>).map((attribute) => [attribute.field_definition_id, attribute.source_record_id || null]));
+      const values = serializeCapabilityAttributes(contract, categoryId, body.attributes || []).map((value) => ({ ...value, source_record_id: existingSources.get(String(value.field_definition_id)) || null }));
+      await adminRest(admin.token, "rpc/admin_update_product_v2", {
         method: "POST",
         headers: { "content-type": "application/json", prefer: "return=representation" },
-        body: JSON.stringify({ p_product_id: body.id, p_fields: patch, p_values: values, p_issue_updates: issueUpdates, p_contract_revision: body.contractRevision }),
+        body: JSON.stringify({ p_product_id: body.id, p_fields: body.fields, p_values: values, p_issue_updates: body.issueUpdates || [], p_contract_revision: body.contractRevision }),
       });
-      handledAtomically = true;
+      return Response.json({ updated: true, ...(await loadRecord(admin.token, entity, body.id)) });
     } else if (entity === "offers") {
       patch = { price: Number(body.fields.price), currency_code: clean(body.fields.currency_code, 3) || "IQD", availability: clean(body.fields.availability, 30), external_url: clean(body.fields.external_url, 1000), observed_at: clean(body.fields.observed_at, 40) || new Date().toISOString() };
       await adminRest(admin.token, `offers?id=eq.${body.id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify(patch) });
@@ -136,18 +119,22 @@ export async function PATCH(request: Request) {
       patch = { farm_or_producer_name: clean(body.fields.farm_or_producer_name, 300) || null, lot_reference: clean(body.fields.lot_reference, 160) || null, process_code: clean(body.fields.process_code, 120) || null, variety_codes: clean(body.fields.variety_codes, 500).split(/[،,]/).map((value) => value.trim()).filter(Boolean), harvest_label: clean(body.fields.harvest_label, 120) || null };
       await adminRest(admin.token, `origin_claims?id=eq.${body.id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify(patch) });
     }
-    if (!handledAtomically && Array.isArray(body.issueUpdates)) {
+    if (Array.isArray(body.issueUpdates)) {
       for (const issue of body.issueUpdates) {
         if (!issue.id || !validId(issue.id) || !["accepted", "fixed", "dismissed"].includes(issue.status || "")) continue;
         await adminRest(admin.token, `data_quality_issues?id=eq.${issue.id}&entity_table=eq.${entity}&entity_id=eq.${body.id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ status: issue.status, resolution_note: clean(issue.resolutionNote, 1000) || "قرار إداري موثق من مركز العمليات", resolved_by: admin.user.id, resolved_at: new Date().toISOString() }) });
       }
     }
-    if (!handledAtomically) await adminRest(admin.token, "audit_events", { method: "POST", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ actor_user_id: admin.user.id, action: "edit_record_before_publication", entity_table: entity, entity_id: body.id, before_data: beforeData.record, after_data: patch, source: "operations_center_v2" }) });
+    await adminRest(admin.token, "audit_events", { method: "POST", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ actor_user_id: admin.user.id, action: "edit_record_before_publication", entity_table: entity, entity_id: body.id, before_data: beforeData.record, after_data: patch, source: "operations_center_v2" }) });
     return Response.json({ updated: true, ...(await loadRecord(admin.token, entity, body.id)) });
   } catch (error) {
-    console.error("admin-record-patch", error instanceof Error ? error.message : error);
-    if (isContractRevisionError(error)) return Response.json({ updated: false, reason: "contract_revision_stale" }, { status: 409 });
-    if (error instanceof ProductAttributeError) return Response.json({ updated: false, reason: error.reason }, { status: 400 });
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("admin-record-patch", message);
+    if (message.includes("contract_revision_stale")) return Response.json({ updated: false, reason: "contract_revision_stale" }, { status: 409 });
+    if (message.includes("category_kind_mismatch") || message.includes("brand_kind_mismatch") || message.includes("attribute_not_allowed") || message.includes("invalid_attribute_value") || message.includes("product_kind_immutable")) {
+      const reason = ["category_kind_mismatch","brand_kind_mismatch","attribute_not_allowed","invalid_attribute_value","product_kind_immutable"].find((value) => message.includes(value)) || "invalid_input";
+      return Response.json({ updated: false, reason }, { status: 400 });
+    }
     return Response.json({ updated: false, reason: "upstream_error" }, { status: 502 });
   }
 }

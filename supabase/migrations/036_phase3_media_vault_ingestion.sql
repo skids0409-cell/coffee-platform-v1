@@ -440,4 +440,3 @@ comment on table public.media_ingestion_events is 'Append-only evidence for Medi
 comment on table public.media_legal_cases is 'Notice-and-takedown case foundation; legal_hold prevents destructive cleanup.';
 
 commit;
-

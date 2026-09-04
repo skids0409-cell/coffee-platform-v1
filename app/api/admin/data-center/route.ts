@@ -1,12 +1,7 @@
 import { adminRest, requireStaff, sameOrigin } from "@/lib/supabase-admin";
 import { validateOrganizationCsv } from "@/lib/data-center";
-import {
-  isContractRevisionError,
-  ProductAttributeError,
-  serializeProductAttributes,
-  type ProductAttributeInput,
-  type ProductFieldDefinition,
-} from "@/lib/admin-product-contract";
+import { isProductKind } from "@/lib/record-capability-types";
+import { loadRecordCapability, serializeCapabilityAttributes } from "@/lib/record-capabilities";
 
 type BatchRow = {
   id: string;
@@ -22,7 +17,7 @@ type BatchRow = {
 };
 
 async function loadDataCenter(token: string) {
-  const [markets, batches, categories, organizations, products, brands, countries, filterDefinitions, recordContractRevision] = await Promise.all([
+  const [markets, batches, categories, organizations, products, brands, countries, filterDefinitions] = await Promise.all([
     adminRest<Array<{ id: string }>>(token, "markets?select=id&code=eq.IQ-BGD&limit=1"),
     adminRest<BatchRow[]>(token, "data_import_batches?select=id,batch_code,entity_type,source_label,status,total_rows,valid_rows,rejected_rows,created_at,imported_at&order=created_at.desc&limit=100"),
     adminRest<Array<{ id: string; code: string; name_ar: string; parent_id: string | null; navigation_parent_id: string | null; is_navigation_visible: boolean; catalog_family_id: string | null; catalog_filter_id: string | null; catalog_product_kind: string | null; comparison_group: string | null }>>(token, "categories?select=id,code,name_ar,parent_id,navigation_parent_id,is_navigation_visible,catalog_family_id,catalog_filter_id,catalog_product_kind,comparison_group&status=eq.published&order=sort_order.asc,code.asc&limit=500"),
@@ -31,23 +26,9 @@ async function loadDataCenter(token: string) {
     adminRest<Array<{ id: string; name_ar: string; brand_product_kinds: Array<{ product_kind: string }> }>>(token, "brands?select=id,name_ar,brand_product_kinds(product_kind)&status=eq.published&order=name_ar.asc&limit=500"),
     adminRest<Array<{ code: string; name_ar: string; coffee_regions: Array<{ id: string; name_ar: string }> }>>(token, "countries?select=code,name_ar,coffee_regions(id,name_ar)&status=eq.published&order=name_ar.asc"),
     adminRest<Array<{ category_id: string; sort_order: number; is_required_for_publish: boolean; field_definitions: Record<string, unknown> }>>(token, "filter_definitions?select=category_id,sort_order,is_required_for_publish,field_definitions(id,code,name_ar,data_type,allowed_values,unit_code)&status=eq.published&order=sort_order.asc"),
-    adminRest<string>(token, "rpc/admin_record_contract_revision", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}",
-    }),
   ]);
-  return { marketId: markets[0]?.id || null, batches, recordContractRevision, referenceData: { categories, organizations, products, brands: brands.map((brand) => ({ ...brand, product_kinds: [...new Set(brand.brand_product_kinds.map((row) => row.product_kind))] })), countries, filterDefinitions: filterDefinitions.map((rule) => ({ category_id: rule.category_id, sort_order: rule.sort_order, is_required_for_publish: rule.is_required_for_publish, ...rule.field_definitions })) } };
+  return { marketId: markets[0]?.id || null, batches, referenceData: { categories, organizations, products, brands: brands.map((brand) => ({ ...brand, product_kinds: [...new Set(brand.brand_product_kinds.map((row) => row.product_kind))] })), countries, filterDefinitions: filterDefinitions.map((rule) => ({ category_id: rule.category_id, sort_order: rule.sort_order, is_required_for_publish: rule.is_required_for_publish, ...rule.field_definitions })) } };
 }
-
-const categoryMatchesKind = (kind: string, code: string, catalogProductKind?: string | null) => {
-  if (catalogProductKind) return kind === catalogProductKind;
-  if (kind === "roasted_coffee") return code === "COF-ROASTED";
-  if (kind === "consumable") return code.startsWith("EQP-FIL-");
-  if (kind === "care_product") return code.startsWith("EQP-WCS-");
-  if (kind === "equipment") return code.startsWith("EQP-") && !code.startsWith("EQP-FIL-") && !code.startsWith("EQP-WCS-");
-  return code.startsWith("EQP-");
-};
 
 async function stageRows(
   token: string,
@@ -135,7 +116,7 @@ export async function POST(request: Request) {
     roleType?: string;
     entityType?: string;
     payload?: Record<string, unknown>;
-    attributes?: ProductAttributeInput[];
+    attributes?: Array<{ fieldId?: string; value?: unknown }>;
     contractRevision?: string;
   };
   try {
@@ -149,28 +130,21 @@ export async function POST(request: Request) {
         return Response.json({ updated: true, created, ...(await loadDataCenter(admin.token)) });
       }
       if (body.entityType === "product") {
-        if (!body.contractRevision) return Response.json({ updated: false, reason: "contract_revision_required" }, { status: 409 });
         const kind = String(body.payload.product_kind || "");
+        if (!isProductKind(kind) || !body.contractRevision) return Response.json({ updated: false, reason: "capability_contract_required" }, { status: 409 });
+        const contract = await loadRecordCapability(admin.token, kind, "create");
+        if (contract.contract_revision !== body.contractRevision) return Response.json({ updated: false, reason: "contract_revision_stale", contract }, { status: 409 });
         const productName = String(body.payload.name_ar || "").trim();
         const duplicateProducts = productName ? await adminRest<Array<{ id: string; name_ar: string; status: string }>>(admin.token, `products?select=id,name_ar,status&name_ar=eq.${encodeURIComponent(productName)}&product_kind=eq.${encodeURIComponent(kind)}&status=neq.archived&limit=1`) : [];
         if (duplicateProducts[0]) return Response.json({ updated: false, reason: "duplicate_product", existing: duplicateProducts[0] }, { status: 409 });
         const categoryId = String(body.payload.category_id || "");
-        const categories = await adminRest<Array<{ code: string; catalog_product_kind: string | null }>>(admin.token, `categories?select=code,catalog_product_kind&id=eq.${categoryId}&status=eq.published&limit=1`);
-        if (!categories[0] || !categoryMatchesKind(kind, categories[0].code, categories[0].catalog_product_kind)) return Response.json({ updated: false, reason: "category_kind_mismatch" }, { status: 400 });
-        const brandId = String(body.payload.brand_id || "");
-        if (brandId) {
-          const brandKinds = await adminRest<Array<{ product_kind: string }>>(admin.token, `brand_product_kinds?select=product_kind&brand_id=eq.${brandId}`);
-          const knownKinds = [...new Set(brandKinds.map((row) => row.product_kind))];
-          if (knownKinds.length && !knownKinds.includes(kind)) return Response.json({ updated: false, reason: "brand_kind_mismatch" }, { status: 400 });
-        }
-        const definitions = await adminRest<ProductFieldDefinition[]>(admin.token, "field_definitions?select=id,data_type,allowed_values,unit_code&status=eq.published&limit=500");
-        const values = serializeProductAttributes(body.attributes || [], definitions);
+        const values = serializeCapabilityAttributes(contract, categoryId, body.attributes || []);
         const created = await adminRest<Record<string, unknown>>(admin.token, "rpc/admin_create_product_draft_v2", {
           method: "POST",
           headers: { "content-type": "application/json", prefer: "return=representation" },
           body: JSON.stringify({ p_payload: body.payload, p_values: values, p_contract_revision: body.contractRevision }),
         });
-        return Response.json({ updated: true, created: { ...created, status: "attached" }, ...(await loadDataCenter(admin.token)) });
+        return Response.json({ updated: true, created, ...(await loadDataCenter(admin.token)) });
       }
       if (body.entityType === "offer") {
         const productId = String(body.payload.product_id || "");
@@ -252,8 +226,11 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown";
     console.error("admin-data-center-post", message);
-    if (isContractRevisionError(error)) return Response.json({ updated: false, reason: "contract_revision_stale" }, { status: 409 });
-    if (error instanceof ProductAttributeError) return Response.json({ updated: false, reason: error.reason }, { status: 400 });
+    if (message.includes("contract_revision_stale")) return Response.json({ updated: false, reason: "contract_revision_stale" }, { status: 409 });
+    if (message.includes("category_kind_mismatch") || message.includes("brand_kind_mismatch") || message.includes("attribute_not_allowed") || message.includes("invalid_attribute_value")) {
+      const reason = ["category_kind_mismatch","brand_kind_mismatch","attribute_not_allowed","invalid_attribute_value"].find((value) => message.includes(value)) || "invalid_input";
+      return Response.json({ updated: false, reason }, { status: 400 });
+    }
     const reason = /missing_headers|empty_csv|too_many_rows|invalid_size|unclosed_quote/.test(message) ? message : "upstream_error";
     return Response.json({ updated: false, reason }, { status: reason === "upstream_error" ? 502 : 400 });
   }

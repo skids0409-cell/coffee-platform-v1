@@ -171,4 +171,3 @@ comment on function public.admin_create_product_draft_v2(jsonb,jsonb,text) is 'A
 comment on function public.admin_update_product_v2(uuid,jsonb,jsonb,jsonb,text) is 'Atomic staff-only product edit guarded by capability revision and strict product-kind taxonomy.';
 
 commit;
-
