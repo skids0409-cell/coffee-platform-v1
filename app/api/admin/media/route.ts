@@ -2,13 +2,7 @@ import { adminRest, requireStaff, sameOrigin } from "@/lib/supabase-admin";
 import { MEDIA_ATTESTATION_VERSION, MEDIA_ENTITIES, RIGHTS_BASES, cleanHttps, mapMediaError, mediaRpc, mediaStorageRequest, purposeForEntity, sanitizeFilename } from "@/lib/media-vault";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
 const validId = (value: string) => /^[0-9a-f-]{36}$/i.test(value);
-
-async function storageRequest(token: string, path: string, init: RequestInit) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error("not_configured");
-  return fetch(`${SUPABASE_URL}/storage/v1/${path}`, { ...init, headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${token}`, ...(init.headers || {}) } });
-}
 
 export async function GET(request: Request) {
   const admin = await requireStaff(request).catch(() => null);
@@ -117,16 +111,13 @@ export async function DELETE(request: Request) {
   if (!admin) return Response.json({ deleted: false }, { status: 401 });
   const body = await request.json().catch(() => null) as { id?: string } | null;
   if (!body?.id || !validId(body.id)) return Response.json({ deleted: false, reason: "invalid_input" }, { status: 400 });
-  const rows = await adminRest<Array<{ id: string; entity_table: string; entity_id: string; storage_path: string; is_primary: boolean }>>(admin.token, `entity_media?select=id,entity_table,entity_id,storage_path,is_primary&id=eq.${body.id}&limit=1`);
+  const rows = await adminRest<Array<{ id: string; asset_id: string }>>(admin.token, `entity_media?select=id,asset_id&id=eq.${body.id}&limit=1`);
   const media = rows[0];
   if (!media) return Response.json({ deleted: false, reason: "not_found" }, { status: 404 });
-  const removed = await storageRequest(admin.token, `object/public-media/${media.storage_path}`, { method: "DELETE" });
-  if (!removed.ok && removed.status !== 404) return Response.json({ deleted: false, reason: "storage_error" }, { status: 502 });
-  await adminRest(admin.token, `entity_media?id=eq.${media.id}`, { method: "DELETE", headers: { prefer: "return=minimal" } });
-  if (media.is_primary) {
-    const next = await adminRest<Array<{ id: string }>>(admin.token, `entity_media?select=id&entity_table=eq.${media.entity_table}&entity_id=eq.${media.entity_id}&order=sort_order.asc,created_at.asc&limit=1`);
-    if (next[0]) await adminRest(admin.token, `entity_media?id=eq.${next[0].id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ is_primary: true }) });
+  try {
+    await mediaRpc(admin.token,"admin_media_vault_action",{p_action:"unlink",p_asset_ids:[media.asset_id],p_payload:{reason:"record_editor_unlink"}});
+    return Response.json({ deleted:true,unlinked:true,permanentDeletion:false });
+  } catch(error) {
+    return Response.json({deleted:false,reason:mapMediaError(error)},{status:502});
   }
-  await adminRest(admin.token, "audit_events", { method: "POST", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ actor_user_id: admin.user.id, action: "delete_catalog_media", entity_table: media.entity_table, entity_id: media.entity_id, before_data: { storage_path: media.storage_path }, source: "operations_center_v5" }) });
-  return Response.json({ deleted: true });
 }
