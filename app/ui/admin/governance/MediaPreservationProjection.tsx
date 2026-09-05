@@ -43,28 +43,37 @@ type ConformanceResponse = {
   baselineRevision?: string;
   conformanceStatus?: "CONFORMANT" | "NON_CONFORMANT";
   summary?: { totalRules?: number; passedRules?: number; failedRules?: number; criticalFailures?: number };
+  reason?: string;
 };
 
-type ProjectionData = {
+type PreservationProjection = {
   assets: MediaAsset[];
   packages: PreservationPackage[];
   role: string;
   preservationSummary: { aipCount: number; dipCount: number; failedFixity: number };
+};
+
+type ConformanceProjection = {
   baselineRevision: string;
   conformanceStatus: "CONFORMANT" | "NON_CONFORMANT" | "UNKNOWN";
   passedRules: number;
   totalRules: number;
+  available: boolean;
 };
 
-const emptyData: ProjectionData = {
+const emptyPreservation: PreservationProjection = {
   assets: [],
   packages: [],
   role: "",
   preservationSummary: { aipCount: 0, dipCount: 0, failedFixity: 0 },
+};
+
+const emptyConformance: ConformanceProjection = {
   baselineRevision: "wave-c.phase8.v1",
   conformanceStatus: "UNKNOWN",
   passedRules: 0,
   totalRules: 0,
+  available: false,
 };
 
 const fixityLabel = (value: string | null) => value === "success" ? "Verified" : value === "failure" ? "FAILED" : "Not verified";
@@ -77,16 +86,18 @@ function formatDate(value: string | null) {
   catch { return value; }
 }
 
-async function readProjection(): Promise<ProjectionData> {
-  const [vaultResponse, preservationResponse, conformanceResponse] = await Promise.all([
-    fetch("/api/admin/media-vault", { cache: "no-store", credentials: "same-origin" }),
-    fetch("/api/admin/preservation", { cache: "no-store", credentials: "same-origin" }),
-    fetch("/api/admin/architecture-conformance", { cache: "no-store", credentials: "same-origin" }),
+async function readEndpoint<T extends { reason?: string }>(url: string, label: string): Promise<T> {
+  const response = await fetch(url, { cache: "no-store", credentials: "same-origin" });
+  const body = await response.json().catch(() => ({})) as T;
+  if (!response.ok) throw new Error(`${label}:${body.reason || response.status}`);
+  return body;
+}
+
+async function readPreservationProjection(): Promise<PreservationProjection> {
+  const [vault, preservation] = await Promise.all([
+    readEndpoint<VaultResponse>("/api/admin/media-vault", "media_vault"),
+    readEndpoint<PreservationResponse>("/api/admin/preservation", "preservation"),
   ]);
-  if (!vaultResponse.ok || !preservationResponse.ok || !conformanceResponse.ok) throw new Error("projection_load_failed");
-  const vault = await vaultResponse.json() as VaultResponse;
-  const preservation = await preservationResponse.json() as PreservationResponse;
-  const conformance = await conformanceResponse.json() as ConformanceResponse;
   return {
     assets: Array.isArray(vault.assets) ? vault.assets : [],
     packages: Array.isArray(preservation.packages) ? preservation.packages : [],
@@ -96,20 +107,48 @@ async function readProjection(): Promise<ProjectionData> {
       dipCount: Number(preservation.summary?.dipCount || 0),
       failedFixity: Number(preservation.summary?.failedFixity || 0),
     },
+  };
+}
+
+async function readConformanceProjection(): Promise<ConformanceProjection> {
+  const conformance = await readEndpoint<ConformanceResponse>("/api/admin/architecture-conformance", "architecture_conformance");
+  return {
     baselineRevision: conformance.baselineRevision || "wave-c.phase8.v1",
     conformanceStatus: conformance.conformanceStatus || "UNKNOWN",
     passedRules: Number(conformance.summary?.passedRules || 0),
     totalRules: Number(conformance.summary?.totalRules || 0),
+    available: true,
   };
 }
 
+function loadErrorLabel(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.startsWith("preservation:")) return "تعذر تحميل سجل OAIS Preservation من واجهة الحفظ.";
+  if (message.startsWith("media_vault:")) return "تعذر ربط بيانات الأصل من Media Vault ببيانات الحفظ.";
+  return "تعذر تحميل بيانات الحفظ حالياً.";
+}
+
 export function MediaPreservationStatusStrip() {
-  const [data, setData] = useState<ProjectionData>(emptyData);
+  const [data, setData] = useState<PreservationProjection>(emptyPreservation);
+  const [conformance, setConformance] = useState<ConformanceProjection>(emptyConformance);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const load = useCallback(async () => {
-    try { setData(await readProjection()); setState("ready"); }
-    catch { setState("error"); }
+    setState("loading");
+    setErrorMessage("");
+    const [preservationResult, conformanceResult] = await Promise.allSettled([
+      readPreservationProjection(),
+      readConformanceProjection(),
+    ]);
+    if (preservationResult.status === "rejected") {
+      setErrorMessage(loadErrorLabel(preservationResult.reason));
+      setState("error");
+      return;
+    }
+    setData(preservationResult.value);
+    setConformance(conformanceResult.status === "fulfilled" ? conformanceResult.value : emptyConformance);
+    setState("ready");
   }, []);
 
   useEffect(() => {
@@ -118,27 +157,30 @@ export function MediaPreservationStatusStrip() {
   }, [load]);
 
   if (state === "loading") return <div className="rounded-xl border border-[#dfd4c5] bg-white p-4 text-sm text-[#756b63]">جارٍ تحميل حالة الحفظ والحوكمة…</div>;
-  if (state === "error") return <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">تعذر قراءة حالة الحفظ المعمارية حالياً.</div>;
+  if (state === "error") return <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><span>{errorMessage}</span><button type="button" className="secondary" onClick={() => void load()}>إعادة المحاولة</button></div>;
 
   const coverage = data.assets.filter((asset) => data.packages.some((item) => item.asset_id === asset.id && item.package_type === "AIP")).length;
+  const conformanceTone = conformance.conformanceStatus === "CONFORMANT" ? "ready" : conformance.conformanceStatus === "NON_CONFORMANT" ? "blocked" : "neutral";
   return <section className="rounded-xl border border-[#dfd4c5] bg-white p-4" aria-label="OAIS Preservation Status" data-preservation-status-strip>
     <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-      <div><span className="text-xs font-black text-[#6d371e]">OAIS Preservation · Governance Projection</span><div className="mt-1 text-sm text-[#756b63]">حالة الحفظ، Fixity، والتوافق المعماري من المصدر الخلفي الرسمي.</div></div>
-      <span className={`rounded-full px-3 py-1 text-xs font-black ${data.conformanceStatus === "CONFORMANT" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>{data.conformanceStatus}</span>
+      <div><span className="text-xs font-black text-[#6d371e]">OAIS Preservation · Governance Projection</span><div className="mt-1 text-sm text-[#756b63]">حالة الحفظ وFixity من واجهة OAIS الرسمية؛ التوافق المعماري يُقرأ بشكل مستقل ولا يعطل بيانات الحفظ.</div></div>
+      <span className={`rounded-full px-3 py-1 text-xs font-black ${conformance.conformanceStatus === "CONFORMANT" ? "bg-emerald-50 text-emerald-800" : conformance.conformanceStatus === "NON_CONFORMANT" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`}>{conformance.available ? conformance.conformanceStatus : "CONFORMANCE UNAVAILABLE"}</span>
     </div>
     <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
       <GovernanceStatusSummary label="AIP Coverage" value={`${coverage}/${data.assets.length}`} tone={coverage === data.assets.length ? "ready" : "blocked"} />
       <GovernanceStatusSummary label="AIP" value={data.preservationSummary.aipCount} tone="ready" />
       <GovernanceStatusSummary label="DIP" value={data.preservationSummary.dipCount} />
       <GovernanceStatusSummary label="Fixity Failures" value={data.preservationSummary.failedFixity} tone={data.preservationSummary.failedFixity === 0 ? "ready" : "blocked"} />
-      <GovernanceStatusSummary label={data.baselineRevision} value={`${data.passedRules}/${data.totalRules} PASS`} tone={data.conformanceStatus === "CONFORMANT" ? "ready" : "blocked"} />
+      <GovernanceStatusSummary label={conformance.baselineRevision} value={conformance.available ? `${conformance.passedRules}/${conformance.totalRules} PASS` : "غير متاح حالياً"} tone={conformanceTone} />
     </div>
   </section>;
 }
 
 export function MediaPreservationInspectorPanel() {
-  const [data, setData] = useState<ProjectionData>(emptyData);
+  const [data, setData] = useState<PreservationProjection>(emptyPreservation);
+  const [conformance, setConformance] = useState<ConformanceProjection>(emptyConformance);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [errorMessage, setErrorMessage] = useState("");
   const [selectedAssetId, setSelectedAssetId] = useState("");
   const [observedSha256, setObservedSha256] = useState("");
   const [fixityNote, setFixityNote] = useState("");
@@ -147,12 +189,17 @@ export function MediaPreservationInspectorPanel() {
   const [message, setMessage] = useState("");
 
   const load = useCallback(async () => {
+    setErrorMessage("");
     try {
-      const next = await readProjection();
+      const next = await readPreservationProjection();
       setData(next);
       setSelectedAssetId((current) => current && next.assets.some((asset) => asset.id === current) ? current : (next.assets[0]?.id || ""));
       setState("ready");
-    } catch { setState("error"); }
+      void readConformanceProjection().then(setConformance).catch(() => setConformance(emptyConformance));
+    } catch (error) {
+      setErrorMessage(loadErrorLabel(error));
+      setState("error");
+    }
   }, []);
 
   useEffect(() => {
@@ -198,7 +245,7 @@ export function MediaPreservationInspectorPanel() {
   };
 
   if (state === "loading") return <section className="mt-4 rounded-lg border border-[#eee4d8] bg-[#fffaf3] p-3 text-sm text-[#756b63]">جارٍ تحميل OAIS Preservation…</section>;
-  if (state === "error") return <section className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">تعذر تحميل بيانات OAIS Preservation.</section>;
+  if (state === "error") return <section className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><div>{errorMessage}</div><button type="button" className="secondary mt-3" onClick={() => { setState("loading"); void load(); }}>إعادة المحاولة</button></section>;
 
   return <section className="mt-4 space-y-3 border-t border-[#eee4d8] pt-4" aria-label="Preservation & Governance" data-preservation-inspector>
     <div><span className="text-xs font-black text-[#6d371e]">Preservation & Governance</span><h4 className="font-black">OAIS / Fixity</h4></div>
@@ -247,8 +294,8 @@ export function MediaPreservationInspectorPanel() {
       </div>
     </TransitionActionPanel>
 
-    <div className={`rounded-lg border p-3 text-xs ${data.conformanceStatus === "CONFORMANT" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-900"}`}>
-      <b>Architecture Conformance</b><div className="mt-1">{data.baselineRevision} · {data.conformanceStatus} · {data.passedRules}/{data.totalRules} PASS</div>
+    <div className={`rounded-lg border p-3 text-xs ${conformance.conformanceStatus === "CONFORMANT" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : conformance.conformanceStatus === "NON_CONFORMANT" ? "border-red-200 bg-red-50 text-red-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+      <b>Architecture Conformance</b><div className="mt-1">{conformance.available ? `${conformance.baselineRevision} · ${conformance.conformanceStatus} · ${conformance.passedRules}/${conformance.totalRules} PASS` : "حالة التوافق غير متاحة حالياً، بينما بيانات OAIS أعلاه ما زالت فعالة."}</div>
     </div>
     {message ? <div className="rounded-lg border border-[#c89152] bg-[#f7f1e8] p-2 text-xs font-bold text-[#3a1f12]" role="status">{message}</div> : null}
   </section>;
