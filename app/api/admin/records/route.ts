@@ -7,6 +7,7 @@ type Entity = (typeof entities)[number];
 
 const isEntity = (value: string): value is Entity => entities.includes(value as Entity);
 const validId = (value: string) => /^[0-9a-f-]{36}$/i.test(value);
+const validEventId = (value: string) => /^\d+$/.test(value);
 const clean = (value: unknown, max = 4000) => String(value ?? "").trim().slice(0, max);
 
 async function sourceLinks(token: string, entity: Entity, id: string) {
@@ -69,6 +70,15 @@ export async function GET(request: Request) {
   }
 }
 
+function normalizeFields(entity: Entity, fields: Record<string, unknown>) {
+  if (entity === "organizations") return { name_ar: clean(fields.name_ar, 160), name_en: clean(fields.name_en, 160) || null, description_ar: clean(fields.description_ar) || null, website_url: clean(fields.website_url, 500) || null, phone: clean(fields.phone, 80) || null, email: clean(fields.email, 200) || null, address_ar: clean(fields.address_ar, 400), district_ar: clean(fields.district_ar, 160) || null, location_phone: clean(fields.location_phone, 80) || null };
+  if (entity === "brands") return { name_ar: clean(fields.name_ar, 160), name_en: clean(fields.name_en, 160) || null, website_url: clean(fields.website_url, 500) || null, manufacturer_organization_id: validId(clean(fields.manufacturer_organization_id)) ? clean(fields.manufacturer_organization_id) : null, product_kind: clean(fields.product_kind, 40) };
+  if (entity === "offers") return { price: Number(fields.price), currency_code: clean(fields.currency_code, 3) || "IQD", availability: clean(fields.availability, 30), external_url: clean(fields.external_url, 1000), observed_at: clean(fields.observed_at, 40) || new Date().toISOString() };
+  if (entity === "contents") return { title_ar: clean(fields.title_ar, 200), title_en: clean(fields.title_en, 200) || null, excerpt_ar: clean(fields.excerpt_ar, 1000) || null, body_ar: clean(fields.body_ar, 20000) };
+  if (entity === "origin_claims") return { farm_or_producer_name: clean(fields.farm_or_producer_name, 300) || null, lot_reference: clean(fields.lot_reference, 160) || null, process_code: clean(fields.process_code, 120) || null, variety_codes: clean(fields.variety_codes, 500).split(/[،,]/).map((value) => value.trim()).filter(Boolean), harvest_label: clean(fields.harvest_label, 120) || null };
+  return fields;
+}
+
 export async function PATCH(request: Request) {
   if (!sameOrigin(request)) return Response.json({ updated: false }, { status: 403 });
   const admin = await requireStaff(request).catch(() => null);
@@ -79,21 +89,7 @@ export async function PATCH(request: Request) {
   const beforeData = await loadRecord(admin.token, entity, body.id);
   if (!beforeData) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
   try {
-    let patch: Record<string, unknown> = {};
-    if (entity === "organizations") {
-      patch = { name_ar: clean(body.fields.name_ar, 160), name_en: clean(body.fields.name_en, 160) || null, description_ar: clean(body.fields.description_ar) || null, website_url: clean(body.fields.website_url, 500) || null, phone: clean(body.fields.phone, 80) || null, email: clean(body.fields.email, 200) || null };
-      if (!patch.name_ar) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
-      await adminRest(admin.token, `organizations?id=eq.${body.id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify(patch) });
-      const locations = (beforeData.record.locations || []) as Array<{ id: string }>;
-      if (locations[0]?.id) await adminRest(admin.token, `locations?id=eq.${locations[0].id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ address_ar: clean(body.fields.address_ar, 400), district_ar: clean(body.fields.district_ar, 160) || null, phone: clean(body.fields.location_phone, 80) || null }) });
-    } else if (entity === "brands") {
-      patch = { name_ar: clean(body.fields.name_ar, 160), name_en: clean(body.fields.name_en, 160) || null, website_url: clean(body.fields.website_url, 500) || null, manufacturer_organization_id: validId(clean(body.fields.manufacturer_organization_id)) ? clean(body.fields.manufacturer_organization_id) : null };
-      const productKind = clean(body.fields.product_kind, 40);
-      if (!patch.name_ar || !["roasted_coffee", "equipment", "consumable", "care_product", "replacement_part"].includes(productKind)) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
-      await adminRest(admin.token, `brands?id=eq.${body.id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify(patch) });
-      await adminRest(admin.token, `brand_product_kinds?brand_id=eq.${body.id}`, { method: "DELETE", headers: { prefer: "return=minimal" } });
-      await adminRest(admin.token, "brand_product_kinds", { method: "POST", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ brand_id: body.id, product_kind: productKind }) });
-    } else if (entity === "products") {
+    if (entity === "products") {
       const productKind = String(beforeData.record.product_kind || "");
       if (!isProductKind(productKind) || !body.contractRevision) return Response.json({ updated: false, reason: "capability_contract_required" }, { status: 409 });
       const contract = await loadRecordCapability(admin.token, productKind, "edit", body.id);
@@ -102,65 +98,36 @@ export async function PATCH(request: Request) {
       const categoryId = clean(body.fields.category_id);
       const existingSources = new Map(((beforeData.record.product_attribute_values || []) as Array<{ field_definition_id: string; source_record_id?: string | null }>).map((attribute) => [attribute.field_definition_id, attribute.source_record_id || null]));
       const values = serializeCapabilityAttributes(contract, categoryId, body.attributes || []).map((value) => ({ ...value, source_record_id: existingSources.get(String(value.field_definition_id)) || null }));
-      await adminRest(admin.token, "rpc/admin_update_product_v2", {
-        method: "POST",
-        headers: { "content-type": "application/json", prefer: "return=representation" },
-        body: JSON.stringify({ p_product_id: body.id, p_fields: body.fields, p_values: values, p_issue_updates: body.issueUpdates || [], p_contract_revision: body.contractRevision }),
-      });
-      return Response.json({ updated: true, ...(await loadRecord(admin.token, entity, body.id)) });
-    } else if (entity === "offers") {
-      patch = { price: Number(body.fields.price), currency_code: clean(body.fields.currency_code, 3) || "IQD", availability: clean(body.fields.availability, 30), external_url: clean(body.fields.external_url, 1000), observed_at: clean(body.fields.observed_at, 40) || new Date().toISOString() };
-      await adminRest(admin.token, `offers?id=eq.${body.id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify(patch) });
-    } else if (entity === "contents") {
-      patch = { title_ar: clean(body.fields.title_ar, 200), title_en: clean(body.fields.title_en, 200) || null, excerpt_ar: clean(body.fields.excerpt_ar, 1000) || null, body_ar: clean(body.fields.body_ar, 20000) };
-      if (!patch.title_ar || clean(patch.body_ar).length < 20) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
-      await adminRest(admin.token, `contents?id=eq.${body.id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify(patch) });
+      await adminRest(admin.token, "rpc/admin_update_product_v2", { method: "POST", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify({ p_product_id: body.id, p_fields: body.fields, p_values: values, p_issue_updates: body.issueUpdates || [], p_contract_revision: body.contractRevision }) });
     } else {
-      patch = { farm_or_producer_name: clean(body.fields.farm_or_producer_name, 300) || null, lot_reference: clean(body.fields.lot_reference, 160) || null, process_code: clean(body.fields.process_code, 120) || null, variety_codes: clean(body.fields.variety_codes, 500).split(/[،,]/).map((value) => value.trim()).filter(Boolean), harvest_label: clean(body.fields.harvest_label, 120) || null };
-      await adminRest(admin.token, `origin_claims?id=eq.${body.id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify(patch) });
+      await adminRest(admin.token, "rpc/admin_update_governed_record", { method: "POST", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify({ p_entity: entity, p_entity_id: body.id, p_fields: normalizeFields(entity, body.fields), p_issue_updates: body.issueUpdates || [] }) });
     }
-    if (Array.isArray(body.issueUpdates)) {
-      for (const issue of body.issueUpdates) {
-        if (!issue.id || !validId(issue.id) || !["accepted", "fixed", "dismissed"].includes(issue.status || "")) continue;
-        await adminRest(admin.token, `data_quality_issues?id=eq.${issue.id}&entity_table=eq.${entity}&entity_id=eq.${body.id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ status: issue.status, resolution_note: clean(issue.resolutionNote, 1000) || "قرار إداري موثق من مركز العمليات", resolved_by: admin.user.id, resolved_at: new Date().toISOString() }) });
-      }
-    }
-    await adminRest(admin.token, "audit_events", { method: "POST", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ actor_user_id: admin.user.id, action: "edit_record_before_publication", entity_table: entity, entity_id: body.id, before_data: beforeData.record, after_data: patch, source: "operations_center_v2" }) });
     return Response.json({ updated: true, ...(await loadRecord(admin.token, entity, body.id)) });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("admin-record-patch", message);
     if (message.includes("contract_revision_stale")) return Response.json({ updated: false, reason: "contract_revision_stale" }, { status: 409 });
-    if (message.includes("category_kind_mismatch") || message.includes("brand_kind_mismatch") || message.includes("attribute_not_allowed") || message.includes("invalid_attribute_value") || message.includes("product_kind_immutable")) {
-      const reason = ["category_kind_mismatch","brand_kind_mismatch","attribute_not_allowed","invalid_attribute_value","product_kind_immutable"].find((value) => message.includes(value)) || "invalid_input";
-      return Response.json({ updated: false, reason }, { status: 400 });
-    }
-    return Response.json({ updated: false, reason: "upstream_error" }, { status: 502 });
+    const known = ["category_kind_mismatch","brand_kind_mismatch","attribute_not_allowed","invalid_attribute_value","product_kind_immutable","invalid_input","record_not_found","unsupported_governed_entity"];
+    const reason = known.find((value) => message.includes(value));
+    return Response.json({ updated: false, reason: reason || "upstream_error" }, { status: reason ? 400 : 502 });
   }
 }
-
-const restoreFields: Record<Entity, string[]> = {
-  organizations: ["name_ar","name_en","description_ar","description_en","website_url","phone","email","logo_url","verification_tier","source_checked_at"],
-  brands: ["name_ar","name_en","manufacturer_organization_id","website_url","logo_url"],
-  products: ["name_ar","name_en","summary_ar","summary_en","description_ar","description_en","product_kind","brand_id","owner_organization_id","model_number","verification_tier","source_checked_at"],
-  offers: ["price","currency_code","availability","external_url","observed_at","source_record_id"],
-  contents: ["title_ar","title_en","excerpt_ar","excerpt_en","body_ar","body_en"],
-  origin_claims: ["country_code","coffee_region_id","farm_or_producer_name","lot_reference","process_code","variety_codes","harvest_label","source_record_id","verification_tier"],
-};
 
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return Response.json({ restored: false }, { status: 403 });
   const staff = await requireStaff(request, ["verifier", "admin"]).catch(() => null);
   if (!staff) return Response.json({ restored: false, reason: "verifier_required" }, { status: 403 });
-  const body = await request.json().catch(() => null) as null | { action?: string; entity?: string; id?: string; eventId?: string };
-  if (body?.action !== "restore_revision" || !body.entity || !isEntity(body.entity) || !body.id || !validId(body.id) || !body.eventId || !validId(body.eventId)) return Response.json({ restored: false, reason: "invalid_input" }, { status: 400 });
-  const events = await adminRest<Array<{ before_data: Record<string, unknown> | null; action: string }>>(staff.token, `audit_events?select=before_data,action&id=eq.${body.eventId}&entity_table=eq.${body.entity}&entity_id=eq.${body.id}&limit=1`);
-  const snapshot = events[0]?.before_data;
-  if (!snapshot) return Response.json({ restored: false, reason: "revision_has_no_snapshot" }, { status: 409 });
-  const patch = Object.fromEntries(restoreFields[body.entity].filter((key) => Object.prototype.hasOwnProperty.call(snapshot, key)).map((key) => [key, snapshot[key]]));
-  if (!Object.keys(patch).length) return Response.json({ restored: false, reason: "revision_has_no_restorable_fields" }, { status: 409 });
-  const current = await loadRecord(staff.token, body.entity, body.id);
-  await adminRest(staff.token, `${body.entity}?id=eq.${body.id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify(patch) });
-  await adminRest(staff.token, "audit_events", { method: "POST", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ actor_user_id: staff.user.id, action: "restore_record_revision", entity_table: body.entity, entity_id: body.id, before_data: current?.record || null, after_data: { restored_from_event: body.eventId, ...patch }, source: "operations_center_v3" }) });
-  return Response.json({ restored: true, ...(await loadRecord(staff.token, body.entity, body.id)) });
+  const body = await request.json().catch(() => null) as null | { action?: string; entity?: string; id?: string; eventId?: string | number };
+  const eventId = String(body?.eventId ?? "");
+  if (body?.action !== "restore_revision" || !body.entity || !isEntity(body.entity) || !body.id || !validId(body.id) || !validEventId(eventId)) return Response.json({ restored: false, reason: "invalid_input" }, { status: 400 });
+  try {
+    await adminRest(staff.token, "rpc/admin_restore_governed_record_revision", { method: "POST", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify({ p_entity: body.entity, p_entity_id: body.id, p_event_id: Number(eventId) }) });
+    return Response.json({ restored: true, ...(await loadRecord(staff.token, body.entity, body.id)) });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("admin-record-restore", message);
+    const known = ["revision_not_found","record_not_found","unsupported_governed_entity","verifier_required"];
+    const reason = known.find((value) => message.includes(value));
+    return Response.json({ restored: false, reason: reason || "upstream_error" }, { status: reason ? 400 : 502 });
+  }
 }
