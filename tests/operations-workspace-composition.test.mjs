@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const composition = fs.readFileSync("app/ui/admin/governance/OperationsWorkspaceComposition.tsx", "utf8");
-const bridge = fs.readFileSync("app/ui/admin/governance/GovernedOperationsBridge.tsx", "utf8");
+const operationsRoute = fs.readFileSync("app/operations/page.tsx", "utf8");
 
 test("all Operations workspaces receive an explicit operator composition", () => {
   for (const label of [
@@ -45,7 +45,7 @@ test("composition projection remains presentation-only and preserves existing ha
   assert.doesNotMatch(composition, /method:\s*["'](?:POST|PATCH|DELETE)["']/);
   assert.doesNotMatch(composition, /setWorkspace\(/);
   assert.match(composition, /button\.active/);
-  assert.match(bridge, /<OperationsWorkspaceComposition \/>/);
+  assert.match(operationsRoute, /<OperationsWorkspaceComposition \/>/);
 });
 
 test("composition contract has responsive tablet and mobile layouts", () => {
