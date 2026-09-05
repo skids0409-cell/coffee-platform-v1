@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const operationsRoute = readFileSync(new URL("../app/operations/page.tsx", import.meta.url), "utf8");
 const reviewWorkspace = readFileSync(new URL("../app/ui/admin/ReviewWorkspace.tsx", import.meta.url), "utf8");
-const ui = readFileSync(new URL("../app/ui/admin/PendingAssetReviewBridge.tsx", import.meta.url), "utf8");
+const ui = readFileSync(new URL("../app/ui/admin/PendingAssetReviewConsole.tsx", import.meta.url), "utf8");
 const api = readFileSync(new URL("../app/api/admin/media-vault/review/route.ts", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../supabase/migrations/045_unified_asset_review_console.sql", import.meta.url), "utf8");
 
@@ -13,6 +13,7 @@ test("Review & Approval directly composes the pending asset audit sub-view", () 
   assert.doesNotMatch(layout, /PendingAssetReviewBridge/);
   assert.doesNotMatch(operationsRoute, /PendingAssetReviewBridge/);
   assert.match(reviewWorkspace, /PendingAssetReviewConsole/);
+  assert.match(reviewWorkspace, /PendingAssetReviewConsole"/);
   assert.match(ui, /export function PendingAssetReviewConsole/);
   assert.doesNotMatch(ui, /MutationObserver|createPortal/);
   assert.match(ui, /الأصول بانتظار الاعتماد وتقارير الفحص/);
