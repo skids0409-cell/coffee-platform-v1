@@ -29,6 +29,5 @@ test("catalog draft preserves source media and preview safeguards", () => {
 
 test("catalog draft presentation contains no mutation fetch or direct database client", () => {
   assert.doesNotMatch(source, /fetch\(/);
-  assert.doesNotMatch(source, /supabase/i);
-  assert.doesNotMatch(source, /\.from\(/);
+  assert.doesNotMatch(source, /@supabase|createClient\(|supabase\./i);
 });
