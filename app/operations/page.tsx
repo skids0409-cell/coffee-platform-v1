@@ -1,4 +1,6 @@
 import { OperationsController } from "@/app/ui/admin/OperationsController";
+import { PendingAssetReviewBridge } from "@/app/ui/admin/PendingAssetReviewBridge";
+import { GovernedOperationsBridge } from "@/app/ui/admin/governance/GovernedOperationsBridge";
 
 export default function OperationsPage() {
   return (
@@ -8,6 +10,8 @@ export default function OperationsPage() {
       data-review-queue="طابور المراجعة والاعتماد"
     >
       <OperationsController />
+      <GovernedOperationsBridge />
+      <PendingAssetReviewBridge />
     </main>
   );
 }
