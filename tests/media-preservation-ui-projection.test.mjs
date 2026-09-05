@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 const projection = fs.readFileSync("app/ui/admin/governance/MediaPreservationProjection.tsx", "utf8");
 const bridge = fs.readFileSync("app/ui/admin/governance/GovernedOperationsBridge.tsx", "utf8");
+const chrome = fs.readFileSync("app/ui/admin/governance/OperationsWorkspaceChrome.tsx", "utf8");
 const preservationApi = fs.readFileSync("app/api/admin/preservation/route.ts", "utf8");
 const conformanceApi = fs.readFileSync("app/api/admin/architecture-conformance/route.ts", "utf8");
 
@@ -23,6 +24,16 @@ test("preservation projection is mounted inside governed Media Vault surfaces", 
   assert.match(bridge, /preservationInspectorHost/);
 });
 
+test("OAIS data loading is decoupled from optional architecture conformance", () => {
+  assert.match(projection, /readPreservationProjection/);
+  assert.match(projection, /readConformanceProjection/);
+  assert.match(projection, /Promise\.allSettled/);
+  assert.match(projection, /void readConformanceProjection\(\)\.then\(setConformance\)\.catch/);
+  assert.doesNotMatch(projection, /if \(!vaultResponse\.ok \|\| !preservationResponse\.ok \|\| !conformanceResponse\.ok\)/);
+  assert.match(projection, /التوافق المعماري يُقرأ بشكل مستقل ولا يعطل بيانات الحفظ/);
+  assert.match(projection, /إعادة المحاولة/);
+});
+
 test("operator can create AIP, verify independent fixity, and create DIP from the inspector", () => {
   assert.match(projection, /Create AIP · إنشاء حزمة حفظ/);
   assert.match(projection, /Verify Fixity · تحقق البصمة/);
@@ -35,6 +46,7 @@ test("operator can create AIP, verify independent fixity, and create DIP from th
 });
 
 test("preservation actions remain backend-authoritative and role governed", () => {
+  assert.match(projection, /fetch\(url, \{ cache: "no-store", credentials: "same-origin" \}\)/);
   assert.match(projection, /fetch\("\/api\/admin\/preservation"/);
   assert.match(projection, /\["verifier", "admin"\]/);
   assert.match(preservationApi, /admin_create_oais_aip/);
@@ -50,4 +62,13 @@ test("output status is sourced from authoritative preservation and conformance A
   assert.match(projection, /\/api\/admin\/architecture-conformance/);
   assert.match(conformanceApi, /architecture_conformance_report/);
   assert.match(conformanceApi, /conformanceStatus/);
+});
+
+test("operations navigation uses the unified governed workspace chrome", () => {
+  assert.match(bridge, /OperationsWorkspaceChrome/);
+  assert.match(chrome, /\.operations-workspace-nav/);
+  assert.match(chrome, /border-radius: 14px/);
+  assert.match(chrome, /background: #3a1f12/);
+  assert.match(chrome, /top: 86px/);
+  assert.match(chrome, /@media \(max-width: 600px\)/);
 });
