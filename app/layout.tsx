@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { RecoveryFragmentBridge } from "@/app/ui/RecoveryFragmentBridge";
+import { PendingAssetReviewBridge } from "@/app/ui/admin/PendingAssetReviewBridge";
 import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_BASE_URL || "https://coffee-platform-baghdad-beta.onrender.com"),
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ar" dir="rtl">
-      <body><RecoveryFragmentBridge />{children}</body>
+      <body><RecoveryFragmentBridge /><PendingAssetReviewBridge />{children}</body>
     </html>
   );
 }
