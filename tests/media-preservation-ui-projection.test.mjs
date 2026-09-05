@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const projection = fs.readFileSync("app/ui/admin/governance/MediaPreservationProjection.tsx", "utf8");
-const bridge = fs.readFileSync("app/ui/admin/governance/GovernedOperationsBridge.tsx", "utf8");
+const bridge = fs.readFileSync("app/ui/admin/governance/MediaPreservationBridge.tsx", "utf8");
 const operationsRoute = fs.readFileSync("app/operations/page.tsx", "utf8");
 const chrome = fs.readFileSync("app/ui/admin/governance/OperationsWorkspaceChrome.tsx", "utf8");
 const preservationApi = fs.readFileSync("app/api/admin/preservation/route.ts", "utf8");
