@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { GovernanceStatusSummary, LifecycleBadge, TransitionActionPanel } from "./GovernedWorkspace";
 
-type MediaAsset = {
+export type MediaPreservationAsset = {
   id: string;
   original_filename: string;
   sha256_hex: string | null;
@@ -38,7 +38,6 @@ type PreservationResponse = {
   reason?: string;
 };
 
-type VaultResponse = { assets?: MediaAsset[]; role?: string; reason?: string };
 type ConformanceResponse = {
   baselineRevision?: string;
   conformanceStatus?: "CONFORMANT" | "NON_CONFORMANT";
@@ -47,7 +46,7 @@ type ConformanceResponse = {
 };
 
 type PreservationProjection = {
-  assets: MediaAsset[];
+  assets: MediaPreservationAsset[];
   packages: PreservationPackage[];
   role: string;
   preservationSummary: { aipCount: number; dipCount: number; failedFixity: number };
@@ -61,11 +60,12 @@ type ConformanceProjection = {
   available: boolean;
 };
 
-const emptyPreservation: PreservationProjection = {
-  assets: [],
-  packages: [],
-  role: "",
-  preservationSummary: { aipCount: 0, dipCount: 0, failedFixity: 0 },
+type ProjectionState = {
+  data: PreservationProjection;
+  conformance: ConformanceProjection;
+  state: "loading" | "ready" | "error";
+  errorMessage: string;
+  refresh: () => Promise<void>;
 };
 
 const emptyConformance: ConformanceProjection = {
@@ -76,9 +76,11 @@ const emptyConformance: ConformanceProjection = {
   available: false,
 };
 
+const ProjectionContext = createContext<ProjectionState | null>(null);
+
 const fixityLabel = (value: string | null) => value === "success" ? "Verified" : value === "failure" ? "FAILED" : "Not verified";
 const shortHash = (value: string | null) => value ? `${value.slice(0, 12)}…${value.slice(-8)}` : "—";
-const activeLinks = (asset: MediaAsset | undefined) => (asset?.links || []).filter((link) => ["active", "pending"].includes(String(link.link_status))).length;
+const activeLinks = (asset: MediaPreservationAsset | undefined) => (asset?.links || []).filter((link) => ["active", "pending"].includes(String(link.link_status))).length;
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -93,15 +95,12 @@ async function readEndpoint<T extends { reason?: string }>(url: string, label: s
   return body;
 }
 
-async function readPreservationProjection(): Promise<PreservationProjection> {
-  const [vault, preservation] = await Promise.all([
-    readEndpoint<VaultResponse>("/api/admin/media-vault", "media_vault"),
-    readEndpoint<PreservationResponse>("/api/admin/preservation", "preservation"),
-  ]);
+async function readPreservationProjection(assets: MediaPreservationAsset[], vaultRole: string): Promise<PreservationProjection> {
+  const preservation = await readEndpoint<PreservationResponse>("/api/admin/preservation", "preservation");
   return {
-    assets: Array.isArray(vault.assets) ? vault.assets : [],
+    assets,
     packages: Array.isArray(preservation.packages) ? preservation.packages : [],
-    role: preservation.role || vault.role || "",
+    role: preservation.role || vaultRole || "",
     preservationSummary: {
       aipCount: Number(preservation.summary?.aipCount || 0),
       dipCount: Number(preservation.summary?.dipCount || 0),
@@ -124,21 +123,20 @@ async function readConformanceProjection(): Promise<ConformanceProjection> {
 function loadErrorLabel(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   if (message.startsWith("preservation:")) return "تعذر تحميل سجل OAIS Preservation من واجهة الحفظ.";
-  if (message.startsWith("media_vault:")) return "تعذر ربط بيانات الأصل من Media Vault ببيانات الحفظ.";
   return "تعذر تحميل بيانات الحفظ حالياً.";
 }
 
-export function MediaPreservationStatusStrip() {
-  const [data, setData] = useState<PreservationProjection>(emptyPreservation);
+export function MediaPreservationProvider({ assets, role, children }: { assets: MediaPreservationAsset[]; role: string; children: ReactNode }) {
+  const [data, setData] = useState<PreservationProjection>({ assets, packages: [], role, preservationSummary: { aipCount: 0, dipCount: 0, failedFixity: 0 } });
   const [conformance, setConformance] = useState<ConformanceProjection>(emptyConformance);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const load = useCallback(async () => {
+  const refresh = useCallback(async () => {
     setState("loading");
     setErrorMessage("");
     const [preservationResult, conformanceResult] = await Promise.allSettled([
-      readPreservationProjection(),
+      readPreservationProjection(assets, role),
       readConformanceProjection(),
     ]);
     if (preservationResult.status === "rejected") {
@@ -149,15 +147,28 @@ export function MediaPreservationStatusStrip() {
     setData(preservationResult.value);
     setConformance(conformanceResult.status === "fulfilled" ? conformanceResult.value : emptyConformance);
     setState("ready");
-  }, []);
+  }, [assets, role]);
 
   useEffect(() => {
-    const handle = window.setTimeout(() => void load(), 0);
+    const handle = window.setTimeout(() => void refresh(), 0);
     return () => window.clearTimeout(handle);
-  }, [load]);
+  }, [refresh]);
+
+  const value = useMemo(() => ({ data, conformance, state, errorMessage, refresh }), [data, conformance, state, errorMessage, refresh]);
+  return <ProjectionContext.Provider value={value}>{children}</ProjectionContext.Provider>;
+}
+
+function useProjection() {
+  const value = useContext(ProjectionContext);
+  if (!value) throw new Error("MediaPreservationProvider is required");
+  return value;
+}
+
+export function MediaPreservationStatusStrip() {
+  const { data, conformance, state, errorMessage, refresh } = useProjection();
 
   if (state === "loading") return <div className="rounded-xl border border-[#dfd4c5] bg-white p-4 text-sm text-[#756b63]">جارٍ تحميل حالة الحفظ والحوكمة…</div>;
-  if (state === "error") return <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><span>{errorMessage}</span><button type="button" className="secondary" onClick={() => void load()}>إعادة المحاولة</button></div>;
+  if (state === "error") return <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><span>{errorMessage}</span><button type="button" className="secondary" onClick={() => void refresh()}>إعادة المحاولة</button></div>;
 
   const coverage = data.assets.filter((asset) => data.packages.some((item) => item.asset_id === asset.id && item.package_type === "AIP")).length;
   const conformanceTone = conformance.conformanceStatus === "CONFORMANT" ? "ready" : conformance.conformanceStatus === "NON_CONFORMANT" ? "blocked" : "neutral";
@@ -176,36 +187,20 @@ export function MediaPreservationStatusStrip() {
   </section>;
 }
 
-export function MediaPreservationInspectorPanel() {
-  const [data, setData] = useState<PreservationProjection>(emptyPreservation);
-  const [conformance, setConformance] = useState<ConformanceProjection>(emptyConformance);
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [selectedAssetId, setSelectedAssetId] = useState("");
+export function MediaPreservationInspectorPanel({ selectedAssetId }: { selectedAssetId: string }) {
+  const { data, conformance, state, errorMessage, refresh } = useProjection();
   const [observedSha256, setObservedSha256] = useState("");
   const [fixityNote, setFixityNote] = useState("");
   const [dipPurpose, setDipPurpose] = useState("");
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
 
-  const load = useCallback(async () => {
-    setErrorMessage("");
-    try {
-      const next = await readPreservationProjection();
-      setData(next);
-      setSelectedAssetId((current) => current && next.assets.some((asset) => asset.id === current) ? current : (next.assets[0]?.id || ""));
-      setState("ready");
-      void readConformanceProjection().then(setConformance).catch(() => setConformance(emptyConformance));
-    } catch (error) {
-      setErrorMessage(loadErrorLabel(error));
-      setState("error");
-    }
-  }, []);
-
   useEffect(() => {
-    const handle = window.setTimeout(() => void load(), 0);
-    return () => window.clearTimeout(handle);
-  }, [load]);
+    setObservedSha256("");
+    setFixityNote("");
+    setDipPurpose("");
+    setMessage("");
+  }, [selectedAssetId]);
 
   const selectedAsset = data.assets.find((asset) => asset.id === selectedAssetId);
   const selectedPackages = useMemo(() => data.packages.filter((item) => item.asset_id === selectedAssetId), [data.packages, selectedAssetId]);
@@ -240,25 +235,21 @@ export function MediaPreservationInspectorPanel() {
       setObservedSha256("");
       setFixityNote("");
       setDipPurpose("");
-      await load();
+      await refresh();
     } finally { setWorking(false); }
   };
 
+  if (!selectedAssetId) return <section className="mt-4 rounded-lg border border-[#eee4d8] bg-[#fffaf3] p-3 text-sm text-[#756b63]">حدد أصلاً واحداً في Media Vault لعرض OAIS / Fixity لنفس الأصل.</section>;
   if (state === "loading") return <section className="mt-4 rounded-lg border border-[#eee4d8] bg-[#fffaf3] p-3 text-sm text-[#756b63]">جارٍ تحميل OAIS Preservation…</section>;
-  if (state === "error") return <section className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><div>{errorMessage}</div><button type="button" className="secondary mt-3" onClick={() => { setState("loading"); void load(); }}>إعادة المحاولة</button></section>;
+  if (state === "error") return <section className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><div>{errorMessage}</div><button type="button" className="secondary mt-3" onClick={() => void refresh()}>إعادة المحاولة</button></section>;
 
   return <section className="mt-4 space-y-3 border-t border-[#eee4d8] pt-4" aria-label="Preservation & Governance" data-preservation-inspector>
-    <div><span className="text-xs font-black text-[#6d371e]">Preservation & Governance</span><h4 className="font-black">OAIS / Fixity</h4></div>
-    <label className="block text-xs font-bold">الأصل
-      <select className="mt-1 w-full rounded-md border border-[#dfd4c5] bg-white px-2 py-2 text-sm" value={selectedAssetId} onChange={(event) => { setSelectedAssetId(event.target.value); setMessage(""); }}>
-        {data.assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.original_filename}</option>)}
-      </select>
-    </label>
+    <div><span className="text-xs font-black text-[#6d371e]">Preservation & Governance</span><h4 className="font-black">OAIS / Fixity</h4>{selectedAsset ? <small className="text-[#756b63]">{selectedAsset.original_filename}</small> : null}</div>
 
     {selectedAsset ? <div className="space-y-2 rounded-lg border border-[#eee4d8] bg-[#fffaf3] p-3 text-xs">
       <div className="flex flex-wrap items-center justify-between gap-2"><b>Lifecycle</b><LifecycleBadge label={latestAip?.lifecycle_state || selectedAsset.lifecycle_state} canonicalPhase={latestAip?.canonical_phase} /></div>
       <div className="grid grid-cols-2 gap-2"><span>Canonical Phase</span><b className="text-left">{latestAip?.canonical_phase || "—"}</b><span>SHA-256</span><b className="text-left" dir="ltr">{shortHash(selectedAsset.sha256_hex)}</b><span>Active Links</span><b className="text-left">{activeLinks(selectedAsset)}</b><span>Legal Hold</span><b className="text-left">{selectedAsset.legal_hold ? "YES" : "NO"}</b></div>
-    </div> : null}
+    </div> : <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">الأصل المحدد لم يعد موجوداً في القراءة الحالية. حدّث Media Vault.</div>}
 
     <div className="rounded-lg border border-[#eee4d8] bg-white p-3 text-xs">
       <div className="flex items-center justify-between gap-2"><b>Archival Information Package (AIP)</b><span className={`rounded-full px-2 py-1 font-black ${latestAip ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>{latestAip ? `AIP v${latestAip.package_version}` : "Missing"}</span></div>
