@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { GovernedWorkspaceContractBanner, type GovernedWorkspaceKind } from "./GovernedWorkspace";
 import { MediaPreservationInspectorPanel, MediaPreservationStatusStrip } from "./MediaPreservationProjection";
+import { OperationsWorkspaceChrome } from "./OperationsWorkspaceChrome";
 
 type Host = { element: HTMLElement; mount: HTMLElement; kind: GovernedWorkspaceKind; title: string };
 type ProjectionMounts = { status: HTMLElement | null; inspector: HTMLElement | null };
@@ -102,6 +103,7 @@ export function GovernedOperationsBridge() {
   }, []);
 
   return <>
+    <OperationsWorkspaceChrome />
     {hosts.map((host) => createPortal(
       <GovernedWorkspaceContractBanner kind={host.kind} title={host.title} />,
       host.mount,
