@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const architecture = fs.readFileSync("app/ui/admin/governance/OperationsCenterArchitecture.tsx", "utf8");
-const bridge = fs.readFileSync("app/ui/admin/governance/GovernedOperationsBridge.tsx", "utf8");
-const platform = fs.readFileSync("app/ui/Platform.tsx", "utf8");
+const operationsRoute = fs.readFileSync("app/operations/page.tsx", "utf8");
+const shell = fs.readFileSync("app/ui/admin/OperationsWorkspaceShell.tsx", "utf8");
 
 test("operations center projects the enterprise architecture into four operator domains", () => {
   assert.match(architecture, /type ArchitectureGroup = "operate" \| "govern" \| "preserve" \| "administer"/);
@@ -29,7 +29,7 @@ test("all current Operations tabs are assigned an architectural purpose", () => 
     "الأرشيف",
     "التصنيفات والفلاتر",
   ]) {
-    assert.match(platform, new RegExp(label));
+    assert.match(shell, new RegExp(label));
     assert.match(architecture, new RegExp(label));
   }
 });
@@ -54,7 +54,7 @@ test("navigation remains behavior-preserving while gaining architectural metadat
   assert.match(architecture, /aria-description/);
   assert.doesNotMatch(architecture, /fetch\(/);
   assert.doesNotMatch(architecture, /method:\s*["']POST["']/);
-  assert.match(bridge, /<OperationsCenterArchitecture \/>/);
+  assert.match(operationsRoute, /<OperationsCenterArchitecture \/>/);
 });
 
 test("architecture projection has responsive desktop, tablet, and mobile contracts", () => {
