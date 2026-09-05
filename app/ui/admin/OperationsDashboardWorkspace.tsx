@@ -44,7 +44,7 @@ export function OperationsDashboardWorkspace({ checks, summary, suspects, onOpen
       {suspects.map((item) => <article key={item.id}>
         <div><span className={`quality-severity ${item.severity}`}>{item.severity}</span><b>{item.label}</b><small>{item.reason}{item.recommendedAction ? ` · المقترح: ${item.recommendedAction}` : ""}</small></div>
         <div className="quality-item-actions">
-          {item.issueDetails && <button type="button" onClick={() => onOpenIssue(item)}>عرض الملاحظة ومعالجتها</button>}
+          {Boolean(item.issueDetails) && <button type="button" onClick={() => onOpenIssue(item)}>عرض الملاحظة ومعالجتها</button>}
           {item.entityId && editableEntities.includes(item.entity) && <button type="button" onClick={() => onOpenRecord({ entity: item.entity, id: item.entityId! })}>فتح السجل دون تعديل تلقائي</button>}
         </div>
       </article>)}
