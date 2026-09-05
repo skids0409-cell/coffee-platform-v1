@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 const designSystem = await readFile(new URL("../app/ui/admin/governance/GovernedWorkspace.tsx", import.meta.url), "utf8");
 const bridge = await readFile(new URL("../app/ui/admin/governance/GovernedOperationsBridge.tsx", import.meta.url), "utf8");
 const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+const operationsRoute = await readFile(new URL("../app/operations/page.tsx", import.meta.url), "utf8");
 const platform = await readFile(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
 const mediaVault = await readFile(new URL("../app/ui/admin/MediaVaultWorkspace.tsx", import.meta.url), "utf8");
 const assetReview = await readFile(new URL("../app/ui/admin/PendingAssetReviewBridge.tsx", import.meta.url), "utf8");
@@ -30,8 +31,10 @@ test("Phase 5 exposes the shared governed workspace design system", () => {
   assert.match(designSystem, /data-governed-inspector/);
 });
 
-test("Phase 6 mounts one compatibility bridge for legacy operational workspaces", () => {
-  assert.match(layout, /GovernedOperationsBridge/);
+test("Phase 6 compatibility bridges are scoped to the dedicated Operations route", () => {
+  assert.doesNotMatch(layout, /GovernedOperationsBridge|PendingAssetReviewBridge/);
+  assert.match(operationsRoute, /GovernedOperationsBridge/);
+  assert.match(operationsRoute, /PendingAssetReviewBridge/);
   assert.match(bridge, /operations-published/);
   assert.match(bridge, /operations-review/);
   assert.match(bridge, /media-vault-assets/);
