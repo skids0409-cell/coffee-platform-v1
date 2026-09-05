@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MediaPreservationInspectorPanel, MediaPreservationStatusStrip } from "@/app/ui/admin/governance/MediaPreservationProjection";
+import { MediaPreservationInspectorPanel, MediaPreservationProvider, MediaPreservationStatusStrip } from "@/app/ui/admin/governance/MediaPreservationProjection";
 
 type VaultLink = {
   id: string;
@@ -322,133 +322,135 @@ export function MediaVaultWorkspace({
   ];
 
   return (
-    <section
-      className="space-y-5"
-      dir="rtl"
-      id="operations-media"
-      data-governed-workspace="media"
-      data-workspace-contract="master-detail-v1"
-    >
-      <MediaPreservationStatusStrip />
+    <MediaPreservationProvider assets={assets} role={role}>
+      <section
+        className="space-y-5"
+        dir="rtl"
+        id="operations-media"
+        data-governed-workspace="media"
+        data-workspace-contract="master-detail-v1"
+      >
+        <MediaPreservationStatusStrip />
 
-      <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-[#dfd4c5] bg-white p-5">
-        <div>
-          <span className="text-xs font-black tracking-wide text-[#6d371e]">Media Vault — خزنة الأصول</span>
-          <h2 className="mt-1 text-2xl font-black">الصور والملفات</h2>
-          <p className="mt-1 max-w-3xl text-sm text-[#756b63]">
-            دورة حياة الأصل المغلقة: تدقيق تقني، تفعيل، حجر/حجز قانوني، ثم إتلاف مضبوط. الفلاتر أدناه تقرأ الحالة الرسمية نفسها من قاعدة البيانات.
-          </p>
-          <p className="mt-2 text-xs font-bold text-[#6d371e]">لا يوجد حذف دائم مباشر من قائمة الأصول أو نتائج البحث.</p>
-        </div>
-        <div className={`rounded-lg border px-4 py-3 text-sm font-bold ${metrics.staleUiElements === 0 ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}>
-          سلامة حالة الواجهة: {metrics.staleUiElements === 0 ? "0 عناصر يتيمة" : `${metrics.staleUiElements} عناصر يتيمة`}
-        </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => (
-          <button key={card.key} onClick={() => setQueue(card.key)} className={`rounded-xl border p-4 text-right transition ${queue === card.key ? "border-[#6d371e] bg-[#f7f1e8]" : "border-[#dfd4c5] bg-white hover:border-[#c89152]"}`}>
-            <div className="text-xs font-black text-[#6d371e]">{card.title}</div>
-            <div className="mt-2 text-3xl font-black">{card.value}</div>
-            <div className="mt-1 text-xs text-[#756b63]">{card.note}</div>
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-2 rounded-xl border border-[#dfd4c5] bg-white p-4">
-        <button className={`secondary ${queue === "all" ? "bg-[#f7f1e8]" : ""}`} onClick={() => setQueue("all")}>كل الأصول ({assets.length})</button>
-        <button className={`secondary ${queue === "unlinked" ? "bg-[#f7f1e8]" : ""}`} onClick={() => setQueue("unlinked")}>غير مرتبطة بسجل ({metrics.unlinked})</button>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="بحث بالاسم أو SHA-256 أو السجل المرتبط" className="min-w-[260px] flex-1 rounded-md border border-[#dfd4c5] bg-white px-3 py-2" />
-      </div>
-
-      <div className="rounded-xl border border-[#dfd4c5] bg-[#fffaf3] p-4 text-xs text-[#756b63]">
-        <b className="text-[#3a1f12]">مسارات التدقيق المستقلة:</b>{" "}
-        {auditQueueContracts.map(([, label]) => label).join(" · ")}.
-        <span className="mr-2">تدقيق الأصول القديمة يتحقق من البايتات الفعلية ولا يخترع إثبات حقوق.</span>
-      </div>
-
-      {selectedAssets.length > 0 && (
-        <div className="rounded-xl border border-[#dfd4c5] bg-[#fffaf3] p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <b>{selectedAssets.length} أصل محدد</b>
-              <div className="mt-1 text-xs text-[#756b63]">الحجر والإتلاف محجوبان مسبقاً عند وجود روابط نشطة. قاعدة البيانات تبقى طبقة الحماية النهائية.</div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button className="secondary" disabled={working || !hasActiveLinks || role !== "admin"} onClick={() => void act("unlink")}>فصل الروابط</button>
-              <button className="secondary" disabled={working || quarantineBlockers.length > 0} onClick={() => void requestQuarantine()}>نقل إلى الحجر</button>
-              <button className="secondary" disabled={working || disposalBlockers.length > 0} onClick={() => void requestDisposal()}>طلب إتلاف</button>
-              {queue === "disposal" && role === "admin" && <button className="secondary" disabled={working} onClick={() => void reviewDisposal(true)}>اعتماد طلب الإتلاف</button>}
-              {queue === "disposal" && role === "admin" && <button className="secondary" disabled={working} onClick={() => void reviewDisposal(false)}>رفض طلب الإتلاف</button>}
-              {queue === "disposal" && role === "admin" && <button className="secondary" disabled={working || selectedAssets.length !== 1} onClick={() => void executeDisposal()}>تنفيذ الإتلاف النهائي</button>}
-            </div>
+        <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-[#dfd4c5] bg-white p-5">
+          <div>
+            <span className="text-xs font-black tracking-wide text-[#6d371e]">Media Vault — خزنة الأصول</span>
+            <h2 className="mt-1 text-2xl font-black">الصور والملفات</h2>
+            <p className="mt-1 max-w-3xl text-sm text-[#756b63]">
+              دورة حياة الأصل المغلقة: تدقيق تقني، تفعيل، حجر/حجز قانوني، ثم إتلاف مضبوط. الفلاتر أدناه تقرأ الحالة الرسمية نفسها من قاعدة البيانات.
+            </p>
+            <p className="mt-2 text-xs font-bold text-[#6d371e]">لا يوجد حذف دائم مباشر من قائمة الأصول أو نتائج البحث.</p>
           </div>
-          {(quarantineBlockers.length > 0 || disposalBlockers.length > 0) && (
-            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              {[...new Set([...quarantineBlockers, ...disposalBlockers])].join(" ")}
-            </div>
-          )}
-        </div>
-      )}
-
-      {message && <div className="rounded-lg border border-[#c89152] bg-[#f7f1e8] p-3 text-sm font-bold text-[#3a1f12]">{message}</div>}
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="media-vault-assets overflow-hidden rounded-xl border border-[#dfd4c5] bg-white" data-governed-master="true">
-          <div className="grid grid-cols-[42px_minmax(220px,1.5fr)_140px_120px_minmax(180px,1fr)_130px] gap-3 border-b border-[#dfd4c5] bg-[#f7f1e8] px-4 py-3 text-xs font-black text-[#6d371e]">
-            <span /><span>الأصل</span><span>الحالة</span><span>الروابط</span><span>الحجر / المؤقت</span><span>الحجم</span>
+          <div className={`rounded-lg border px-4 py-3 text-sm font-bold ${metrics.staleUiElements === 0 ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}>
+            سلامة حالة الواجهة: {metrics.staleUiElements === 0 ? "0 عناصر يتيمة" : `${metrics.staleUiElements} عناصر يتيمة`}
           </div>
-          {visible.length === 0 ? (
-            <div className="p-8 text-center text-[#756b63]">لا توجد أصول ضمن هذا المسار التشغيلي.</div>
-          ) : visible.map((asset) => {
-            const links = activeLinks(asset);
-            const remaining = retentionDaysRemaining(asset);
-            const quarantined = ["quarantine_retention", "legal_hold"].includes(asset.lifecycle_state) || asset.legal_hold;
-            return (
-              <div key={asset.id} className="grid grid-cols-[42px_minmax(220px,1.5fr)_140px_120px_minmax(180px,1fr)_130px] gap-3 border-b border-[#eee4d8] px-4 py-4 text-sm last:border-b-0">
-                <input type="checkbox" checked={selected.includes(asset.id)} onChange={() => toggleSelected(asset.id)} aria-label={`اختيار ${asset.original_filename}`} />
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border border-[#dfd4c5] bg-[#f7f1e8]">{asset.preview_url ? <img src={asset.preview_url} alt="" className="h-full w-full object-cover" /> : null}</div>
-                  <div className="min-w-0">
-                    <b className="block truncate">{asset.original_filename}</b>
-                    <span className="block truncate text-xs text-[#756b63]">{asset.sha256_hex ? `${asset.sha256_hex.slice(0, 16)}…` : "SHA-256 قيد الفحص"}</span>
-                  </div>
-                </div>
-                <div>
-                  <span className="rounded-full bg-[#efe7dc] px-2 py-1 text-xs font-bold text-[#6d371e]">{statusLabels[asset.lifecycle_state] || asset.lifecycle_state}</span>
-                  {asset.legal_hold && <div className="mt-2 text-xs font-black text-red-700">Legal Hold</div>}
-                </div>
-                <div>
-                  <b>{links.length}</b><div className="text-xs text-[#756b63]">روابط نشطة</div>
-                  {links[0] && <button className="mt-1 text-xs font-bold text-[#6d371e] underline" onClick={() => onOpen({ entity: links[0].entity_type, id: links[0].entity_id })}>{links[0].target_label || "فتح السجل"}</button>}
-                </div>
-                <div>
-                  {quarantined ? <>
-                    <b>{asset.legal_hold ? "متوقف بسبب الحجز القانوني" : `${remaining} يوم متبقٍ`}</b>
-                    <div className="mt-1 h-2 overflow-hidden rounded-full bg-[#eee4d8]"><div className="h-full bg-[#6d371e]" style={{ width: `${Math.max(0, Math.min(100, ((30 - remaining) / 30) * 100))}%` }} /></div>
-                    <div className="mt-1 text-xs text-[#756b63]">مدة احتفاظ قدرها 30 يوماً</div>
-                  </> : <span className="text-[#756b63]">—</span>}
-                </div>
-                <div><b>{formatBytes(asset.byte_size)}</b><div className="text-xs text-[#756b63]">{asset.detected_mime || asset.declared_mime}</div>{asset.width && asset.height ? <div className="text-xs text-[#756b63]">{asset.width}×{asset.height}</div> : null}</div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {cards.map((card) => (
+            <button key={card.key} onClick={() => setQueue(card.key)} className={`rounded-xl border p-4 text-right transition ${queue === card.key ? "border-[#6d371e] bg-[#f7f1e8]" : "border-[#dfd4c5] bg-white hover:border-[#c89152]"}`}>
+              <div className="text-xs font-black text-[#6d371e]">{card.title}</div>
+              <div className="mt-2 text-3xl font-black">{card.value}</div>
+              <div className="mt-1 text-xs text-[#756b63]">{card.note}</div>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-2 rounded-xl border border-[#dfd4c5] bg-white p-4">
+          <button className={`secondary ${queue === "all" ? "bg-[#f7f1e8]" : ""}`} onClick={() => setQueue("all")}>كل الأصول ({assets.length})</button>
+          <button className={`secondary ${queue === "unlinked" ? "bg-[#f7f1e8]" : ""}`} onClick={() => setQueue("unlinked")}>غير مرتبطة بسجل ({metrics.unlinked})</button>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="بحث بالاسم أو SHA-256 أو السجل المرتبط" className="min-w-[260px] flex-1 rounded-md border border-[#dfd4c5] bg-white px-3 py-2" />
+        </div>
+
+        <div className="rounded-xl border border-[#dfd4c5] bg-[#fffaf3] p-4 text-xs text-[#756b63]">
+          <b className="text-[#3a1f12]">مسارات التدقيق المستقلة:</b>{" "}
+          {auditQueueContracts.map(([, label]) => label).join(" · ")}.
+          <span className="mr-2">تدقيق الأصول القديمة يتحقق من البايتات الفعلية ولا يخترع إثبات حقوق.</span>
+        </div>
+
+        {selectedAssets.length > 0 && (
+          <div className="rounded-xl border border-[#dfd4c5] bg-[#fffaf3] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <b>{selectedAssets.length} أصل محدد</b>
+                <div className="mt-1 text-xs text-[#756b63]">الحجر والإتلاف محجوبان مسبقاً عند وجود روابط نشطة. قاعدة البيانات تبقى طبقة الحماية النهائية.</div>
               </div>
-            );
-          })}
-        </div>
-
-        <aside className="media-vault-inspector rounded-xl border border-[#dfd4c5] bg-white p-4" data-governed-inspector="true">
-          <h3 className="font-black">تفاصيل الأصل</h3>
-          {!inspected ? <p className="mt-3 text-sm text-[#756b63]">حدد أصلاً واحداً لعرض تفاصيل الحوكمة.</p> : <div className="mt-4 space-y-4 text-sm">
-            <div><b className="block">الكيانات المرتبطة</b><span className="text-[#756b63]">{activeLinks(inspected).length} روابط نشطة</span></div>
-            <div><b className="block">تدقيق الحقوق والمصدر</b><span className="text-[#756b63]">{inspected.rights?.length || 0} سجلات حقوق</span></div>
-            <div><b className="block">تعديل الوصف والبيانات</b><span className="text-[#756b63]">الوصف البديل المحفوظ: {inspected.links[0]?.alt_ar || "—"}. هذه العملية لا تشغّل الفحص التقني.</span></div>
-            <div><b className="block">سجل التدقيق</b><span className="text-[#756b63]">{inspected.events?.length || 0} أحداث محفوظة</span></div>
-            <div><b className="block">طلب الإتلاف</b><span className="text-[#756b63]">{purgeStatusLabels[inspected.purge_request_status || ""] || inspected.purge_request_status || "لا يوجد"}</span></div>
-          </div>}
-          <div className="mt-5 border-t border-[#eee4d8] pt-5">
-            <MediaPreservationInspectorPanel />
+              <div className="flex flex-wrap gap-2">
+                <button className="secondary" disabled={working || !hasActiveLinks || role !== "admin"} onClick={() => void act("unlink")}>فصل الروابط</button>
+                <button className="secondary" disabled={working || quarantineBlockers.length > 0} onClick={() => void requestQuarantine()}>نقل إلى الحجر</button>
+                <button className="secondary" disabled={working || disposalBlockers.length > 0} onClick={() => void requestDisposal()}>طلب إتلاف</button>
+                {queue === "disposal" && role === "admin" && <button className="secondary" disabled={working} onClick={() => void reviewDisposal(true)}>اعتماد طلب الإتلاف</button>}
+                {queue === "disposal" && role === "admin" && <button className="secondary" disabled={working} onClick={() => void reviewDisposal(false)}>رفض طلب الإتلاف</button>}
+                {queue === "disposal" && role === "admin" && <button className="secondary" disabled={working || selectedAssets.length !== 1} onClick={() => void executeDisposal()}>تنفيذ الإتلاف النهائي</button>}
+              </div>
+            </div>
+            {(quarantineBlockers.length > 0 || disposalBlockers.length > 0) && (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                {[...new Set([...quarantineBlockers, ...disposalBlockers])].join(" ")}
+              </div>
+            )}
           </div>
-        </aside>
-      </div>
-    </section>
+        )}
+
+        {message && <div className="rounded-lg border border-[#c89152] bg-[#f7f1e8] p-3 text-sm font-bold text-[#3a1f12]">{message}</div>}
+
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="media-vault-assets overflow-hidden rounded-xl border border-[#dfd4c5] bg-white" data-governed-master="true">
+            <div className="grid grid-cols-[42px_minmax(220px,1.5fr)_140px_120px_minmax(180px,1fr)_130px] gap-3 border-b border-[#dfd4c5] bg-[#f7f1e8] px-4 py-3 text-xs font-black text-[#6d371e]">
+              <span /><span>الأصل</span><span>الحالة</span><span>الروابط</span><span>الحجر / المؤقت</span><span>الحجم</span>
+            </div>
+            {visible.length === 0 ? (
+              <div className="p-8 text-center text-[#756b63]">لا توجد أصول ضمن هذا المسار التشغيلي.</div>
+            ) : visible.map((asset) => {
+              const links = activeLinks(asset);
+              const remaining = retentionDaysRemaining(asset);
+              const quarantined = ["quarantine_retention", "legal_hold"].includes(asset.lifecycle_state) || asset.legal_hold;
+              return (
+                <div key={asset.id} className="grid grid-cols-[42px_minmax(220px,1.5fr)_140px_120px_minmax(180px,1fr)_130px] gap-3 border-b border-[#eee4d8] px-4 py-4 text-sm last:border-b-0">
+                  <input type="checkbox" checked={selected.includes(asset.id)} onChange={() => toggleSelected(asset.id)} aria-label={`اختيار ${asset.original_filename}`} />
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border border-[#dfd4c5] bg-[#f7f1e8]">{asset.preview_url ? <img src={asset.preview_url} alt="" className="h-full w-full object-cover" /> : null}</div>
+                    <div className="min-w-0">
+                      <b className="block truncate">{asset.original_filename}</b>
+                      <span className="block truncate text-xs text-[#756b63]">{asset.sha256_hex ? `${asset.sha256_hex.slice(0, 16)}…` : "SHA-256 قيد الفحص"}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="rounded-full bg-[#efe7dc] px-2 py-1 text-xs font-bold text-[#6d371e]">{statusLabels[asset.lifecycle_state] || asset.lifecycle_state}</span>
+                    {asset.legal_hold && <div className="mt-2 text-xs font-black text-red-700">Legal Hold</div>}
+                  </div>
+                  <div>
+                    <b>{links.length}</b><div className="text-xs text-[#756b63]">روابط نشطة</div>
+                    {links[0] && <button className="mt-1 text-xs font-bold text-[#6d371e] underline" onClick={() => onOpen({ entity: links[0].entity_type, id: links[0].entity_id })}>{links[0].target_label || "فتح السجل"}</button>}
+                  </div>
+                  <div>
+                    {quarantined ? <>
+                      <b>{asset.legal_hold ? "متوقف بسبب الحجز القانوني" : `${remaining} يوم متبقٍ`}</b>
+                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-[#eee4d8]"><div className="h-full bg-[#6d371e]" style={{ width: `${Math.max(0, Math.min(100, ((30 - remaining) / 30) * 100))}%` }} /></div>
+                      <div className="mt-1 text-xs text-[#756b63]">مدة احتفاظ قدرها 30 يوماً</div>
+                    </> : <span className="text-[#756b63]">—</span>}
+                  </div>
+                  <div><b>{formatBytes(asset.byte_size)}</b><div className="text-xs text-[#756b63]">{asset.detected_mime || asset.declared_mime}</div>{asset.width && asset.height ? <div className="text-xs text-[#756b63]">{asset.width}×{asset.height}</div> : null}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <aside className="media-vault-inspector rounded-xl border border-[#dfd4c5] bg-white p-4" data-governed-inspector="true">
+            <h3 className="font-black">تفاصيل الأصل</h3>
+            {!inspected ? <p className="mt-3 text-sm text-[#756b63]">حدد أصلاً واحداً لعرض تفاصيل الحوكمة.</p> : <div className="mt-4 space-y-4 text-sm">
+              <div><b className="block">الكيانات المرتبطة</b><span className="text-[#756b63]">{activeLinks(inspected).length} روابط نشطة</span></div>
+              <div><b className="block">تدقيق الحقوق والمصدر</b><span className="text-[#756b63]">{inspected.rights?.length || 0} سجلات حقوق</span></div>
+              <div><b className="block">تعديل الوصف والبيانات</b><span className="text-[#756b63]">الوصف البديل المحفوظ: {inspected.links[0]?.alt_ar || "—"}. هذه العملية لا تشغّل الفحص التقني.</span></div>
+              <div><b className="block">سجل التدقيق</b><span className="text-[#756b63]">{inspected.events?.length || 0} أحداث محفوظة</span></div>
+              <div><b className="block">طلب الإتلاف</b><span className="text-[#756b63]">{purgeStatusLabels[inspected.purge_request_status || ""] || inspected.purge_request_status || "لا يوجد"}</span></div>
+            </div>}
+            <div className="mt-5 border-t border-[#eee4d8] pt-5">
+              <MediaPreservationInspectorPanel selectedAssetId={inspected?.id || ""} />
+            </div>
+          </aside>
+        </div>
+      </section>
+    </MediaPreservationProvider>
   );
 }
