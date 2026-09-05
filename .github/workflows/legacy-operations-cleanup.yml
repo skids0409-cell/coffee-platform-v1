@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - ".github/workflows/legacy-operations-cleanup.yml"
+      - "tests/operations-workspace-extraction.test.mjs"
 
 permissions:
   contents: write
