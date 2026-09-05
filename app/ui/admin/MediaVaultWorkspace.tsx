@@ -48,6 +48,7 @@ export function MediaVaultWorkspace({onOpen,onUnauthorized}:{onOpen:(record:{ent
   const [selected,setSelected]=useState<string[]>([]);
   const [inspectedId,setInspectedId]=useState("");
   const [working,setWorking]=useState(false);
+  const [reconciling,setReconciling]=useState(false);
   const [message,setMessage]=useState("");
   const [showMetadata,setShowMetadata]=useState(false);
 
@@ -122,12 +123,26 @@ export function MediaVaultWorkspace({onOpen,onUnauthorized}:{onOpen:(record:{ent
   const unlink=()=>{if(window.confirm("سيتم فصل الروابط فقط. لن يُحذف الأصل أو ملف التخزين. هل تتابع؟"))void act("unlink",{reason:"manual_unlink_from_independent_vault"});};
   const requestPurge=()=>{const reason=window.prompt("هذا طلب إتلاف فقط ولا يحذف الملف. اكتب السبب (10 أحرف على الأقل):");if(reason&&reason.trim().length>=10)void act("request_purge",{reason:reason.trim()});};
   const saveMetadata=(event:React.FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget);void act("update_metadata",{alt_ar:form.get("altAr"),caption_ar:form.get("captionAr"),operator_note:form.get("operatorNote")});};
+  const reconcileLegacy=async()=>{
+    setReconciling(true);setMessage("");
+    try{
+      const response=await fetch("/api/admin/media/reconcile-legacy",{method:"POST",headers:{"content-type":"application/json"},body:"{}"});
+      if(response.status===401){onUnauthorized();return;}
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.reason||"reconciliation_failed");
+      const counts=result.counts||{};
+      const summaryText=[counts.passed?`${counts.passed} سليم`:"",counts.duplicate?`${counts.duplicate} مكرر`:"",counts.rejected?`${counts.rejected} مرفوض`:""].filter(Boolean).join("، ")||"لا توجد أصول معلقة";
+      setMessage(`اكتمل التدقيق الفعلي: ${summaryText}${result.failed?.length?`، وتعذر ${result.failed.length}`:""}. لم تُنشأ ادعاءات حقوق تلقائية.`);
+      await load();setQueue(result.failed?.length?"validation":"all");
+    }catch(error){setMessage(`تعذر تشغيل تدقيق الأصول القديمة: ${error instanceof Error?error.message:"خطأ غير معروف"}`);}
+    finally{setReconciling(false);}
+  };
 
   if(state==="loading")return <section className="media-vault-shell"><p role="status">جارٍ تحميل الأصول من Media Vault…</p></section>;
   if(state==="error")return <section className="media-vault-shell directory-state"><h2>تعذر تحميل Media Vault</h2><p>لم تُعرض بيانات تخمينية. أعد المحاولة بعد فحص الاتصال.</p><button type="button" onClick={()=>{setState("loading");void load();}}>إعادة المحاولة</button></section>;
   return <section className="media-vault-shell" id="operations-media">
     <header className="media-vault-head"><div><span className="eyebrow">Independent DAM Workspace</span><h2>Media Vault — خزنة الأصول</h2><p>إدارة الملفات والحقوق والسلامة والروابط ودورة الحياة. التصنيف ليس الهيكل الرئيسي لهذه الخزنة.</p></div><div className="media-vault-view"><button type="button" className={layout==="grid"?"active":""} onClick={()=>setLayout("grid")}>شبكة</button><button type="button" className={layout==="list"?"active":""} onClick={()=>setLayout("list")}>قائمة</button></div></header>
-    <section className="media-vault-guide" aria-label="طريقة استخدام خزنة الأصول"><b>طريقة الاستخدام</b><ol><li>اختر صورة واحدة أو أكثر.</li><li>«تعديل الوصف والبيانات» يحفظ النصوص فقط ولا يفحص الملف.</li><li>«الحجر» يوقف استخدام الأصل ويبدأ مدة احتفاظ قدرها 30 يوماً.</li><li>بعد انتهاء المدة وغياب الروابط النشطة والحجز القانوني يمكن إنشاء طلب إتلاف؛ الطلب لا يحذف الملف مباشرة.</li></ol><p>حالة «بانتظار الفحص التقني» تعني أن الأصل القديم لم يدخل مسار الفحص الآلي بعد.</p></section>
+    <section className="media-vault-guide" aria-label="طريقة استخدام خزنة الأصول"><b>طريقة الاستخدام</b><ol><li>اختر صورة واحدة أو أكثر.</li><li>«تعديل الوصف والبيانات» يحفظ النصوص فقط ولا يفحص الملف.</li><li>«الحجر» يوقف استخدام الأصل ويبدأ مدة احتفاظ قدرها 30 يوماً.</li><li>بعد انتهاء المدة وغياب الروابط النشطة والحجز القانوني يمكن إنشاء طلب إتلاف؛ الطلب لا يحذف الملف مباشرة.</li></ol><p>حالة «بانتظار الفحص التقني» تعني أن الأصل القديم لم يدخل مسار الفحص الآلي بعد. التدقيق الفعلي يحسب النوع والأبعاد وSHA-256 وينشئ مشتقاً منزوعةً منه البيانات الوصفية؛ ولا يخترع إثبات حقوق.</p>{summary.technicalReview>0&&<button type="button" disabled={!canReview||reconciling||working} onClick={()=>void reconcileLegacy()}>{reconciling?"جارٍ تدقيق الأصول القديمة…":`تدقيق الأصول القديمة (${summary.technicalReview})`}</button>}</section>
     <div className="media-vault-stats"><span><b>{summary.total}</b>أصل</span><span><b>{summary.quarantined}</b>محجور</span><span><b>{summary.orphans}</b>بلا رابط</span><span><b>{summary.duplicates}</b>مكرر</span><span><b>{summary.missingRights}</b>حقوق ناقصة</span><span><b>{summary.technicalReview}</b>فحص تقني</span><span><b>{summary.legalHolds}</b>Legal hold</span></div>
     <nav className="media-vault-queues" aria-label="قوائم Media Vault">{queueLabels.map(([key,label,count])=><button type="button" key={key} className={queue===key?"active":""} onClick={()=>setQueue(key)}>{label}<b>{count?summary[count]:assets.filter((asset)=>asset.purge_requests.some((item)=>item.status==="pending")).length}</b></button>)}</nav>
     <div className="media-vault-filters"><label>بحث في الأصول<input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="اسم الملف، SHA-256، الجهة أو المصدر" /></label><label>نوع الملف<select value={mime} onChange={(event)=>setMime(event.target.value)}><option value="all">كل الأنواع</option>{mimes.map((value)=><option key={value}>{value}</option>)}</select></label><label>سلامة البيانات<select value={integrity} onChange={(event)=>setIntegrity(event.target.value)}><option value="all">كل حالات السلامة</option><option value="missing_checksum">بلا SHA-256</option><option value="missing_dimensions">بلا أبعاد</option><option value="rejected">فشل تقني</option><option value="legal_hold">Legal hold</option></select></label></div>
