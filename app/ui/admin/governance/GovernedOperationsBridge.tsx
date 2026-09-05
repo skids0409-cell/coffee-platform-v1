@@ -6,6 +6,7 @@ import { GovernedWorkspaceContractBanner, type GovernedWorkspaceKind } from "./G
 import { MediaPreservationInspectorPanel, MediaPreservationStatusStrip } from "./MediaPreservationProjection";
 import { OperationsWorkspaceChrome } from "./OperationsWorkspaceChrome";
 import { OperationsCenterArchitecture } from "./OperationsCenterArchitecture";
+import { OperationsWorkspaceComposition } from "./OperationsWorkspaceComposition";
 
 type Host = { element: HTMLElement; mount: HTMLElement; kind: GovernedWorkspaceKind; title: string };
 type ProjectionMounts = { status: HTMLElement | null; inspector: HTMLElement | null };
@@ -106,6 +107,7 @@ export function GovernedOperationsBridge() {
   return <>
     <OperationsWorkspaceChrome />
     <OperationsCenterArchitecture />
+    <OperationsWorkspaceComposition />
     {hosts.map((host) => createPortal(
       <GovernedWorkspaceContractBanner kind={host.kind} title={host.title} />,
       host.mount,
