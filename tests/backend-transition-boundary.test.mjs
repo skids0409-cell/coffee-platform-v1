@@ -33,8 +33,9 @@ test("Phase 2 centralizes audit and quality issue resolution", () => {
   assert.match(migration, /restore_record_revision/);
 });
 
-test("Phase 2 whitelist branches exclude lifecycle status mutation", () => {
-  const updateFunction = migration.split("create or replace function public.admin_restore_governed_record_revision")[0];
-  assert.doesNotMatch(updateFunction, /set\s+status\s*=/i);
-  assert.doesNotMatch(updateFunction, /publication_status\s*=/i);
+test("Phase 2 governed entity branches do not mutate lifecycle state", () => {
+  for (const table of ["organizations", "brands", "offers", "contents", "origin_claims"]) {
+    assert.doesNotMatch(migration, new RegExp(`update public\\.${table}[\\s\\S]{0,900}set\\s+status\\s*=`, "i"));
+  }
+  assert.doesNotMatch(migration, /publication_status\s*=/i);
 });
