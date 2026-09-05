@@ -19,8 +19,12 @@ test("Media Vault visibly projects OAIS preservation and architecture conformanc
 });
 
 test("preservation is directly composed inside governed Media Vault surfaces", () => {
+  assert.match(mediaVault, /MediaPreservationProvider/);
   assert.match(mediaVault, /MediaPreservationStatusStrip/);
   assert.match(mediaVault, /MediaPreservationInspectorPanel/);
+  assert.match(mediaVault, /assets=\{assets\}/);
+  assert.match(mediaVault, /role=\{role\}/);
+  assert.match(mediaVault, /selectedAssetId=\{inspected\?\.id \|\| ""\}/);
   assert.match(mediaVault, /id="operations-media"/);
   assert.match(mediaVault, /data-governed-workspace="media"/);
   assert.match(mediaVault, /data-workspace-contract="master-detail-v1"/);
@@ -30,12 +34,15 @@ test("preservation is directly composed inside governed Media Vault surfaces", (
   assert.doesNotMatch(mediaVault, /MutationObserver|createPortal/);
 });
 
-test("OAIS data loading is decoupled from optional architecture conformance", () => {
-  assert.match(projection, /readPreservationProjection/);
-  assert.match(projection, /readConformanceProjection/);
+test("Media Vault owns asset identity while OAIS provider performs only preservation and conformance reads", () => {
+  assert.match(projection, /export function MediaPreservationProvider/);
+  assert.match(projection, /readPreservationProjection\(assets, role\)/);
   assert.match(projection, /Promise\.allSettled/);
-  assert.match(projection, /void readConformanceProjection\(\)\.then\(setConformance\)\.catch/);
-  assert.doesNotMatch(projection, /if \(!vaultResponse\.ok \|\| !preservationResponse\.ok \|\| !conformanceResponse\.ok\)/);
+  assert.doesNotMatch(projection, /\/api\/admin\/media-vault/);
+  assert.match(projection, /\/api\/admin\/preservation/);
+  assert.match(projection, /\/api\/admin\/architecture-conformance/);
+  assert.doesNotMatch(projection, /setSelectedAssetId/);
+  assert.match(projection, /MediaPreservationInspectorPanel\(\{ selectedAssetId \}/);
   assert.match(projection, /التوافق المعماري يُقرأ بشكل مستقل ولا يعطل بيانات الحفظ/);
   assert.match(projection, /إعادة المحاولة/);
 });
@@ -63,7 +70,6 @@ test("preservation actions remain backend-authoritative and role governed", () =
 });
 
 test("output status is sourced from authoritative preservation and conformance APIs", () => {
-  assert.match(projection, /\/api\/admin\/media-vault/);
   assert.match(projection, /\/api\/admin\/preservation/);
   assert.match(projection, /\/api\/admin\/architecture-conformance/);
   assert.match(conformanceApi, /architecture_conformance_report/);
