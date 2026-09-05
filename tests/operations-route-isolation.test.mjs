@@ -5,6 +5,7 @@ import path from "node:path";
 
 const repoRoot = process.cwd();
 const operationsRoute = fs.readFileSync(path.join(repoRoot, "app/operations/page.tsx"), "utf8");
+const catchAllRoute = fs.readFileSync(path.join(repoRoot, "app/[...slug]/page.tsx"), "utf8");
 const controller = fs.readFileSync(path.join(repoRoot, "app/ui/admin/OperationsController.tsx"), "utf8");
 const shell = fs.readFileSync(path.join(repoRoot, "app/ui/admin/OperationsWorkspaceShell.tsx"), "utf8");
 
@@ -20,6 +21,12 @@ test("/operations is a dedicated route and never imports the legacy Platform hos
   assert.match(operationsRoute, /OperationsController/);
   assert.doesNotMatch(operationsRoute, /Platform/);
   assert.doesNotMatch(operationsRoute, /GovernedOperationsBridge|PendingAssetReviewBridge|MediaPreservationBridge/);
+});
+
+test("the catch-all route explicitly refuses to serve /operations through Platform", () => {
+  assert.match(catchAllRoute, /path === "\/operations"/);
+  assert.match(catchAllRoute, /redirect\("\/operations"\)/);
+  assert.match(catchAllRoute, /Platform/);
 });
 
 test("the operations controller owns all active workspaces through the governed shell", () => {
