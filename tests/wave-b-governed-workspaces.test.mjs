@@ -12,7 +12,7 @@ const recordsWorkspace = await readFile(new URL("../app/ui/admin/RecordsWorkspac
 const reviewWorkspace = await readFile(new URL("../app/ui/admin/ReviewWorkspace.tsx", import.meta.url), "utf8");
 const recordEditor = await readFile(new URL("../app/ui/admin/ReviewRecordEditor.tsx", import.meta.url), "utf8");
 const mediaVault = await readFile(new URL("../app/ui/admin/MediaVaultWorkspace.tsx", import.meta.url), "utf8");
-const assetReview = await readFile(new URL("../app/ui/admin/PendingAssetReviewBridge.tsx", import.meta.url), "utf8");
+const assetReview = await readFile(new URL("../app/ui/admin/PendingAssetReviewConsole.tsx", import.meta.url), "utf8");
 
 test("Phase 5 exposes the shared governed workspace design system", () => {
   for (const contract of [
