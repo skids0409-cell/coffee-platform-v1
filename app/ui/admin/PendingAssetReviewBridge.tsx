@@ -97,17 +97,20 @@ function PendingAssetReviewConsole() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const handle = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(handle);
   }, [load]);
 
   const selected = useMemo(() => assets.find((asset) => asset.id === selectedId) || null, [assets, selectedId]);
   const canReview = ["verifier", "admin"].includes(role);
+  const defaultAltAr = selected?.original_filename.replace(/\.[^.]+$/, "") || "";
 
-  useEffect(() => {
-    if (!selected) return;
-    setAltAr((current) => current || selected.original_filename.replace(/\.[^.]+$/, ""));
+  const selectAsset = (asset: PendingAsset) => {
+    setSelectedId(asset.id);
+    setAltAr("");
+    setRejectReason("");
     setMessage("");
-  }, [selected]);
+  };
 
   const act = async (action: "approve_assign" | "reject_quarantine") => {
     if (!selected) return;
@@ -115,12 +118,13 @@ function PendingAssetReviewConsole() {
       setMessage("هذه العملية تتطلب صلاحية مراجع/معتمد أو مدير.");
       return;
     }
+    const effectiveAltAr = altAr.trim() || defaultAltAr;
     if (action === "approve_assign") {
       if (!/^[0-9a-f-]{36}$/i.test(entityId.trim())) {
         setMessage("أدخل معرف UUID صحيحاً للسجل المستهدف قبل الاعتماد والإسناد.");
         return;
       }
-      if (altAr.trim().length < 2) {
+      if (effectiveAltAr.length < 2) {
         setMessage("الوصف البديل العربي مطلوب قبل الإسناد.");
         return;
       }
@@ -140,7 +144,7 @@ function PendingAssetReviewConsole() {
           assetId: selected.id,
           action,
           payload: action === "approve_assign"
-            ? { entity_type: entityType, entity_id: entityId.trim(), role: linkRole, alt_ar: altAr.trim() }
+            ? { entity_type: entityType, entity_id: entityId.trim(), role: linkRole, alt_ar: effectiveAltAr }
             : { reason: rejectReason.trim() },
         }),
       });
@@ -193,7 +197,7 @@ function PendingAssetReviewConsole() {
               <button
                 type="button"
                 key={asset.id}
-                onClick={() => setSelectedId(asset.id)}
+                onClick={() => selectAsset(asset)}
                 className={`w-full rounded-lg border p-3 text-right ${selectedId === asset.id ? "border-[#6d371e] bg-[#f7f1e8]" : "border-[#dfd4c5] bg-white"}`}
               >
                 <b className="block truncate">{asset.original_filename}</b>
@@ -233,7 +237,7 @@ function PendingAssetReviewConsole() {
                   <label className="block text-sm">نوع السجل<select className="mt-1 w-full rounded-md border p-2" value={entityType} onChange={(event) => setEntityType(event.target.value)}>{Object.entries(entityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                   <label className="mt-2 block text-sm">معرف السجل المستهدف<input className="mt-1 w-full rounded-md border p-2" value={entityId} onChange={(event) => setEntityId(event.target.value)} placeholder="UUID" /></label>
                   <label className="mt-2 block text-sm">دور الصورة<select className="mt-1 w-full rounded-md border p-2" value={linkRole} onChange={(event) => setLinkRole(event.target.value)}>{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-                  <label className="mt-2 block text-sm">الوصف البديل<input className="mt-1 w-full rounded-md border p-2" value={altAr} onChange={(event) => setAltAr(event.target.value)} /></label>
+                  <label className="mt-2 block text-sm">الوصف البديل<input className="mt-1 w-full rounded-md border p-2" value={altAr} onChange={(event) => setAltAr(event.target.value)} placeholder={defaultAltAr} /></label>
                   <button type="button" className="primary mt-3" onClick={() => void act("approve_assign")}>Approve & Assign</button>
                 </fieldset>
 
@@ -259,10 +263,13 @@ export function PendingAssetReviewBridge() {
 
   useEffect(() => {
     const sync = () => setHost(document.getElementById("operations-review"));
-    sync();
+    const handle = window.setTimeout(sync, 0);
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    return () => {
+      window.clearTimeout(handle);
+      observer.disconnect();
+    };
   }, []);
 
   return host ? createPortal(<PendingAssetReviewConsole />, host) : null;
