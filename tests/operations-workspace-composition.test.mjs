@@ -3,22 +3,22 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const composition = fs.readFileSync("app/ui/admin/governance/OperationsWorkspaceComposition.tsx", "utf8");
-const operationsRoute = fs.readFileSync("app/operations/page.tsx", "utf8");
+const shell = fs.readFileSync("app/ui/admin/OperationsWorkspaceShell.tsx", "utf8");
 
 test("all Operations workspaces receive an explicit operator composition", () => {
-  for (const label of [
-    "نظرة عامة",
-    "إدارة السجلات",
-    "إضافة سجل",
-    "المراجعة والاعتماد",
-    "طلبات الجهات",
-    "الصور والملفات",
-    "استيراد الجهات المشاركة",
-    "قاموس البحث",
-    "الطلبات والمساعدة",
-    "الأرشيف",
-    "التصنيفات والفلاتر",
-  ]) assert.match(composition, new RegExp(label));
+  for (const workspace of [
+    "dashboard",
+    "records",
+    "entry",
+    "review",
+    "partners",
+    "media",
+    "imports",
+    "search",
+    "requests",
+    "archive",
+    "taxonomy",
+  ]) assert.match(composition, new RegExp(`${workspace}:`));
 });
 
 test("workspace composition exposes the standard command-to-action operating path", () => {
@@ -34,18 +34,18 @@ test("workspace composition exposes the standard command-to-action operating pat
 });
 
 test("visual normalization is scoped to the Operations center root", () => {
-  assert.match(composition, /parent\.dataset\.operationsCenterRoot = "true"/);
-  assert.match(composition, /parent\.dataset\.workspaceCompositionContract = "command-master-inspector-v1"/);
+  assert.match(shell, /data-operations-center-root="true"/);
+  assert.match(shell, /data-workspace-composition-contract="command-master-inspector-v1"/);
   assert.match(composition, /\[data-operations-center-root="true"\]/);
   assert.match(composition, /data-workspace-composition="command-master-inspector-v1"/);
 });
 
-test("composition projection remains presentation-only and preserves existing handlers", () => {
+test("composition is state-driven and presentation-only", () => {
   assert.doesNotMatch(composition, /fetch\(/);
   assert.doesNotMatch(composition, /method:\s*["'](?:POST|PATCH|DELETE)["']/);
-  assert.doesNotMatch(composition, /setWorkspace\(/);
-  assert.match(composition, /button\.active/);
-  assert.match(operationsRoute, /<OperationsWorkspaceComposition \/>/);
+  assert.doesNotMatch(composition, /MutationObserver|createPortal|document\./);
+  assert.match(composition, /workspace: OperationsWorkspaceId/);
+  assert.match(shell, /<OperationsWorkspaceComposition workspace=\{workspace\} \/>/);
 });
 
 test("composition contract has responsive tablet and mobile layouts", () => {
