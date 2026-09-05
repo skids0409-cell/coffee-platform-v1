@@ -1,72 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import type { OperationsWorkspaceId } from "@/app/ui/admin/OperationsWorkspaceShell";
 
 type CompositionDescriptor = {
-  label: string;
   eyebrow: string;
   title: string;
   description: string;
   flow: string[];
 };
 
-const descriptors: CompositionDescriptor[] = [
-  { label: "نظرة عامة", eyebrow: "Command", title: "لوحة القيادة التشغيلية", description: "قراءة موحدة لحالة مركز البيانات، جودة التشغيل، ومسارات العمل التي تحتاج انتباهاً.", flow: ["Command Summary", "Queues", "Exceptions", "Governed Actions"] },
-  { label: "إدارة السجلات", eyebrow: "Govern", title: "السجلات والكيانات المحكومة", description: "إدارة السجل الرئيسي ضمن دورة حياة موحدة، مع Inspector وعلاقات وتاريخ قرارات واضح.", flow: ["Master List", "Inspector", "Relationships", "Audit", "Governed Actions"] },
-  { label: "إضافة سجل", eyebrow: "Operate", title: "الإدخال المحكوم", description: "إدخال بيانات جديدة عبر عقود الحقول والتحقق الحالية بدون تجاوز حدود الانتقال الخلفية.", flow: ["Input", "Validation", "Preview", "Submit"] },
-  { label: "المراجعة والاعتماد", eyebrow: "Govern", title: "المراجعة والقرارات", description: "صفوف مراجعة واضحة تقود إلى Inspector ثم قرار موثق ومقيد بالصلاحيات.", flow: ["Review Queue", "Inspector", "Evidence", "Decision", "Audit"] },
-  { label: "طلبات الجهات", eyebrow: "Operate", title: "مدخلات الجهات الخارجية", description: "فصل الطلب الخارجي عن السجل الرئيسي حتى اكتمال التحقق والقبول البشري.", flow: ["Intake", "Triage", "Evidence", "Decision"] },
-  { label: "الصور والملفات", eyebrow: "Preserve", title: "Media Vault والحفظ الرقمي", description: "إدارة الأصل الرقمي، علاقاته، Fixity، AIP/DIP، الاحتفاظ والتصرف ضمن واجهة واحدة.", flow: ["Asset Master", "Inspector", "Relationships", "Preservation", "Disposition"] },
-  { label: "استيراد الجهات المشاركة", eyebrow: "Operate", title: "الإدخال الدفعي", description: "استقبال الدفعات، التحقق من الصفوف، عزل الاستثناءات ثم ترقية البيانات القابلة للاعتماد.", flow: ["Batch Intake", "Validation", "Exceptions", "Import"] },
-  { label: "قاموس البحث", eyebrow: "Govern", title: "حوكمة البحث والاكتشاف", description: "إدارة مفردات البحث والإشارات التصحيحية كبيانات محكومة لا كقواعد مخفية داخل الواجهة.", flow: ["Terms", "Signals", "Review", "Apply"] },
-  { label: "الطلبات والمساعدة", eyebrow: "Operate", title: "مكتب الطلبات التشغيلية", description: "فرز الطلبات والمساعدة إلى حالات قابلة للتتبع ثم إغلاقها بقرار موثق.", flow: ["Queue", "Context", "Action", "Resolution"] },
-  { label: "الأرشيف", eyebrow: "Preserve", title: "الاحتفاظ والتصرف", description: "عرض السجلات المحتفظ بها وحالات المنع/الاحتفاظ قبل أي تصرف نهائي.", flow: ["Retained", "Hold Check", "Disposition Review", "Audit"] },
-  { label: "التصنيفات والفلاتر", eyebrow: "Administer", title: "المفردات والتصنيفات المحكومة", description: "إدارة taxonomy وcontrolled vocabularies مع فصل صلاحيات الإدارة عن الاستخدام التشغيلي.", flow: ["Vocabulary", "Definition", "Governed Change", "Published Use"] },
-];
+const descriptors: Record<OperationsWorkspaceId, CompositionDescriptor> = {
+  dashboard: { eyebrow: "Command", title: "لوحة القيادة التشغيلية", description: "قراءة موحدة لحالة مركز البيانات، جودة التشغيل، ومسارات العمل التي تحتاج انتباهاً.", flow: ["Command Summary", "Queues", "Exceptions", "Governed Actions"] },
+  records: { eyebrow: "Govern", title: "السجلات والكيانات المحكومة", description: "إدارة السجل الرئيسي ضمن دورة حياة موحدة، مع Inspector وعلاقات وتاريخ قرارات واضح.", flow: ["Master List", "Inspector", "Relationships", "Audit", "Governed Actions"] },
+  entry: { eyebrow: "Operate", title: "الإدخال المحكوم", description: "إدخال بيانات جديدة عبر عقود الحقول والتحقق الحالية بدون تجاوز حدود الانتقال الخلفية.", flow: ["Input", "Validation", "Preview", "Submit"] },
+  review: { eyebrow: "Govern", title: "المراجعة والقرارات", description: "صفوف مراجعة واضحة تقود إلى Inspector ثم قرار موثق ومقيد بالصلاحيات.", flow: ["Review Queue", "Inspector", "Evidence", "Decision", "Audit"] },
+  partners: { eyebrow: "Operate", title: "مدخلات الجهات الخارجية", description: "فصل الطلب الخارجي عن السجل الرئيسي حتى اكتمال التحقق والقبول البشري.", flow: ["Intake", "Triage", "Evidence", "Decision"] },
+  media: { eyebrow: "Preserve", title: "Media Vault والحفظ الرقمي", description: "إدارة الأصل الرقمي، علاقاته، Fixity، AIP/DIP، الاحتفاظ والتصرف ضمن واجهة واحدة.", flow: ["Asset Master", "Inspector", "Relationships", "Preservation", "Disposition"] },
+  imports: { eyebrow: "Operate", title: "الإدخال الدفعي", description: "استقبال الدفعات، التحقق من الصفوف، عزل الاستثناءات ثم ترقية البيانات القابلة للاعتماد.", flow: ["Batch Intake", "Validation", "Exceptions", "Import"] },
+  search: { eyebrow: "Govern", title: "حوكمة البحث والاكتشاف", description: "إدارة مفردات البحث والإشارات التصحيحية كبيانات محكومة لا كقواعد مخفية داخل الواجهة.", flow: ["Terms", "Signals", "Review", "Apply"] },
+  requests: { eyebrow: "Operate", title: "مكتب الطلبات التشغيلية", description: "فرز الطلبات والمساعدة إلى حالات قابلة للتتبع ثم إغلاقها بقرار موثق.", flow: ["Queue", "Context", "Action", "Resolution"] },
+  archive: { eyebrow: "Preserve", title: "الاحتفاظ والتصرف", description: "عرض السجلات المحتفظ بها وحالات المنع/الاحتفاظ قبل أي تصرف نهائي.", flow: ["Retained", "Hold Check", "Disposition Review", "Audit"] },
+  taxonomy: { eyebrow: "Administer", title: "المفردات والتصنيفات المحكومة", description: "إدارة taxonomy وcontrolled vocabularies مع فصل صلاحيات الإدارة عن الاستخدام التشغيلي.", flow: ["Vocabulary", "Definition", "Governed Change", "Published Use"] },
+};
 
-function descriptorFor(label: string) {
-  return descriptors.find((item) => item.label === label.trim()) || null;
-}
-
-function ensureCompositionHost(nav: HTMLElement) {
-  const parent = nav.parentElement;
-  if (!parent) return null;
-  parent.dataset.operationsCenterRoot = "true";
-  parent.dataset.workspaceCompositionContract = "command-master-inspector-v1";
-  const existing = parent.querySelector<HTMLElement>(":scope > [data-workspace-composition-host]");
-  if (existing) return existing;
-  const host = document.createElement("div");
-  host.dataset.workspaceCompositionHost = "true";
-  nav.insertAdjacentElement("afterend", host);
-  return host;
-}
-
-export function OperationsWorkspaceComposition() {
-  const [host, setHost] = useState<HTMLElement | null>(null);
-  const [active, setActive] = useState<CompositionDescriptor | null>(null);
-
-  useEffect(() => {
-    const sync = () => {
-      const nav = document.querySelector<HTMLElement>(".operations-workspace-nav");
-      if (!nav) return;
-      const button = nav.querySelector<HTMLButtonElement>("button.active");
-      if (button) setActive(descriptorFor(button.textContent || ""));
-      setHost(ensureCompositionHost(nav));
-    };
-    const handle = window.setTimeout(sync, 0);
-    const observer = new MutationObserver(sync);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
-    return () => {
-      window.clearTimeout(handle);
-      observer.disconnect();
-    };
-  }, []);
+export function OperationsWorkspaceComposition({ workspace }: { workspace: OperationsWorkspaceId }) {
+  const active = descriptors[workspace];
 
   return <>
     <style>{`
-      [data-workspace-composition-host] { margin: 0 0 16px; }
-      .ops-composition { display:grid; grid-template-columns:minmax(240px,1.25fr) minmax(0,2fr); gap:14px; padding:15px 17px; border:1px solid #e5d9cc; border-radius:14px; background:#fff; box-shadow:0 7px 22px rgba(58,31,18,.045); }
+      .governed-operations-surface { --operations-center-root:true; }
+      .ops-composition { display:grid; grid-template-columns:minmax(240px,1.25fr) minmax(0,2fr); gap:14px; margin:0 0 16px; padding:15px 17px; border:1px solid #e5d9cc; border-radius:14px; background:#fff; box-shadow:0 7px 22px rgba(58,31,18,.045); }
       .ops-composition__copy { display:grid; gap:4px; align-content:center; }
       .ops-composition__copy small { color:#8a6a46; font-size:10px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; }
       .ops-composition__copy strong { color:#3a1f12; font-size:17px; }
@@ -101,15 +64,11 @@ export function OperationsWorkspaceComposition() {
       @media (max-width: 820px) { .ops-composition { grid-template-columns:1fr; } }
       @media (max-width: 520px) { .ops-composition { padding:12px; } .ops-composition__flow { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); overflow:visible; } .ops-composition__step { min-width:0; } .ops-composition__step::after { display:none; } }
     `}</style>
-    {host && active ? createPortal(
-      <section className="ops-composition" aria-label="Workspace operating model" data-workspace-composition="command-master-inspector-v1">
-        <div className="ops-composition__copy"><small>{active.eyebrow}</small><strong>{active.title}</strong><p>{active.description}</p></div>
-        <div className="ops-composition__flow" aria-label="Operational path">
-          {active.flow.map((step) => <span className="ops-composition__step" key={step}>{step}</span>)}
-        </div>
-      </section>,
-      host,
-      "operations-workspace-composition",
-    ) : null}
+    <section className="ops-composition" aria-label="Workspace operating model" data-workspace-composition="command-master-inspector-v1">
+      <div className="ops-composition__copy"><small>{active.eyebrow}</small><strong>{active.title}</strong><p>{active.description}</p></div>
+      <div className="ops-composition__flow" aria-label="Operational path">
+        {active.flow.map((step) => <span className="ops-composition__step" key={step}>{step}</span>)}
+      </div>
+    </section>
   </>;
 }
