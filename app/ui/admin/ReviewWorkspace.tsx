@@ -1,5 +1,7 @@
 "use client";
 
+import { PendingAssetReviewConsole } from "@/app/ui/admin/PendingAssetReviewBridge";
+
 export type ReviewQueueRow = {
   id: string;
   label: string;
@@ -49,6 +51,7 @@ export function ReviewWorkspace({
   const canVerify = ["verifier", "admin"].includes(role);
 
   return <div className="review-queues" id="operations-review" data-workspace-contract="master-detail-v1">
+    <PendingAssetReviewConsole />
     {queueSections.filter(([key]) => (queues[key]?.length || 0) > 0).map(([key, label]) => (
       <section key={key} data-governed-master="true">
         <h3>{label} <span>{queues[key]?.length || 0}</span></h3>
