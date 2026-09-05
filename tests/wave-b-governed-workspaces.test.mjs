@@ -39,7 +39,7 @@ test("Phase 6 mounts one compatibility bridge for legacy operational workspaces"
 });
 
 test("Records and Entities share one governed operational contract", () => {
-  assert.match(bridge, /data\.entityWorkspace = "true"/);
+  assert.match(bridge, /dataset\.entityWorkspace = "true"/);
   assert.match(bridge, /Governed Records & Entities Workspace/);
   assert.match(platform, /id="operations-published"/);
   assert.match(platform, /published-record-list/);
@@ -57,7 +57,7 @@ test("Review and Media retain their working inspectors and governed actions", ()
 test("Legacy record editor is projected as the contextual inspector during incremental extraction", () => {
   assert.match(platform, /className="record-editor"/);
   assert.match(bridge, /\.record-editor/);
-  assert.match(bridge, /data\.governedInspector = "true"/);
+  assert.match(bridge, /dataset\.governedInspector = "true"/);
 });
 
 test("Wave B does not duplicate or bypass backend lifecycle mutation contracts", () => {
