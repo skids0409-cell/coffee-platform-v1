@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const projection = fs.readFileSync("app/ui/admin/governance/MediaPreservationProjection.tsx", "utf8");
-const bridge = fs.readFileSync("app/ui/admin/governance/MediaPreservationBridge.tsx", "utf8");
+const mediaVault = fs.readFileSync("app/ui/admin/MediaVaultWorkspace.tsx", "utf8");
 const operationsRoute = fs.readFileSync("app/operations/page.tsx", "utf8");
 const chrome = fs.readFileSync("app/ui/admin/governance/OperationsWorkspaceChrome.tsx", "utf8");
 const preservationApi = fs.readFileSync("app/api/admin/preservation/route.ts", "utf8");
@@ -17,13 +17,16 @@ test("Media Vault visibly projects OAIS preservation and architecture conformanc
   assert.match(projection, /wave-c\.phase8\.v1/);
 });
 
-test("preservation projection is mounted inside governed Media Vault surfaces", () => {
-  assert.match(bridge, /MediaPreservationStatusStrip/);
-  assert.match(bridge, /MediaPreservationInspectorPanel/);
-  assert.match(bridge, /media-vault-inspector/);
-  assert.match(bridge, /preservationStatusHost/);
-  assert.match(bridge, /preservationInspectorHost/);
-  assert.doesNotMatch(bridge, /GovernedWorkspaceContractBanner/);
+test("preservation is directly composed inside governed Media Vault surfaces", () => {
+  assert.match(mediaVault, /MediaPreservationStatusStrip/);
+  assert.match(mediaVault, /MediaPreservationInspectorPanel/);
+  assert.match(mediaVault, /id="operations-media"/);
+  assert.match(mediaVault, /data-governed-workspace="media"/);
+  assert.match(mediaVault, /data-workspace-contract="master-detail-v1"/);
+  assert.match(mediaVault, /data-governed-master="true"/);
+  assert.match(mediaVault, /data-governed-inspector="true"/);
+  assert.doesNotMatch(operationsRoute, /MediaPreservationBridge/);
+  assert.doesNotMatch(mediaVault, /MutationObserver|createPortal/);
 });
 
 test("OAIS data loading is decoupled from optional architecture conformance", () => {
@@ -68,7 +71,6 @@ test("output status is sourced from authoritative preservation and conformance A
 
 test("operations navigation uses the unified governed workspace chrome", () => {
   assert.match(operationsRoute, /OperationsWorkspaceChrome/);
-  assert.doesNotMatch(bridge, /OperationsWorkspaceChrome/);
   assert.match(chrome, /\.operations-workspace-nav/);
   assert.match(chrome, /border-radius: 14px/);
   assert.match(chrome, /background: #3a1f12/);
