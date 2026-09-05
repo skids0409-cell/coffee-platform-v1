@@ -1,6 +1,6 @@
 "use client";
 
-import { PendingAssetReviewConsole } from "@/app/ui/admin/PendingAssetReviewBridge";
+import { PendingAssetReviewConsole } from "@/app/ui/admin/PendingAssetReviewConsole";
 
 export type ReviewQueueRow = {
   id: string;
