@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { MediaPreservationInspectorPanel, MediaPreservationStatusStrip } from "@/app/ui/admin/governance/MediaPreservationProjection";
 
 type VaultLink = {
   id: string;
@@ -75,7 +76,6 @@ const purgeStatusLabels: Record<string, string> = {
   failed: "فشل التنفيذ",
 };
 
-// Keep the independent Phase 4 operational audit queues discoverable alongside the Phase 5 lifecycle lanes.
 const auditQueueContracts = [
   ["quarantine", "الحجر"],
   ["orphan", "غير المرتبطة"],
@@ -322,7 +322,15 @@ export function MediaVaultWorkspace({
   ];
 
   return (
-    <section className="space-y-5" dir="rtl">
+    <section
+      className="space-y-5"
+      dir="rtl"
+      id="operations-media"
+      data-governed-workspace="media"
+      data-workspace-contract="master-detail-v1"
+    >
+      <MediaPreservationStatusStrip />
+
       <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-[#dfd4c5] bg-white p-5">
         <div>
           <span className="text-xs font-black tracking-wide text-[#6d371e]">Media Vault — خزنة الأصول</span>
@@ -386,7 +394,7 @@ export function MediaVaultWorkspace({
       {message && <div className="rounded-lg border border-[#c89152] bg-[#f7f1e8] p-3 text-sm font-bold text-[#3a1f12]">{message}</div>}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="media-vault-assets overflow-hidden rounded-xl border border-[#dfd4c5] bg-white">
+        <div className="media-vault-assets overflow-hidden rounded-xl border border-[#dfd4c5] bg-white" data-governed-master="true">
           <div className="grid grid-cols-[42px_minmax(220px,1.5fr)_140px_120px_minmax(180px,1fr)_130px] gap-3 border-b border-[#dfd4c5] bg-[#f7f1e8] px-4 py-3 text-xs font-black text-[#6d371e]">
             <span /><span>الأصل</span><span>الحالة</span><span>الروابط</span><span>الحجر / المؤقت</span><span>الحجم</span>
           </div>
@@ -427,7 +435,7 @@ export function MediaVaultWorkspace({
           })}
         </div>
 
-        <aside className="media-vault-inspector rounded-xl border border-[#dfd4c5] bg-white p-4">
+        <aside className="media-vault-inspector rounded-xl border border-[#dfd4c5] bg-white p-4" data-governed-inspector="true">
           <h3 className="font-black">تفاصيل الأصل</h3>
           {!inspected ? <p className="mt-3 text-sm text-[#756b63]">حدد أصلاً واحداً لعرض تفاصيل الحوكمة.</p> : <div className="mt-4 space-y-4 text-sm">
             <div><b className="block">الكيانات المرتبطة</b><span className="text-[#756b63]">{activeLinks(inspected).length} روابط نشطة</span></div>
@@ -436,6 +444,9 @@ export function MediaVaultWorkspace({
             <div><b className="block">سجل التدقيق</b><span className="text-[#756b63]">{inspected.events?.length || 0} أحداث محفوظة</span></div>
             <div><b className="block">طلب الإتلاف</b><span className="text-[#756b63]">{purgeStatusLabels[inspected.purge_request_status || ""] || inspected.purge_request_status || "لا يوجد"}</span></div>
           </div>}
+          <div className="mt-5 border-t border-[#eee4d8] pt-5">
+            <MediaPreservationInspectorPanel />
+          </div>
         </aside>
       </div>
     </section>
