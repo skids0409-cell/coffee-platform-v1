@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const designSystem = await readFile(new URL("../app/ui/admin/governance/GovernedWorkspace.tsx", import.meta.url), "utf8");
-const preservationBridge = await readFile(new URL("../app/ui/admin/governance/MediaPreservationBridge.tsx", import.meta.url), "utf8");
 const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const operationsRoute = await readFile(new URL("../app/operations/page.tsx", import.meta.url), "utf8");
 const recordsWorkspace = await readFile(new URL("../app/ui/admin/RecordsWorkspace.tsx", import.meta.url), "utf8");
@@ -33,16 +32,12 @@ test("Phase 5 exposes the shared governed workspace design system", () => {
   assert.match(designSystem, /data-governed-inspector/);
 });
 
-test("Phase 6 compatibility projection is limited to Media Preservation", () => {
-  assert.doesNotMatch(layout, /MediaPreservationBridge|PendingAssetReviewBridge/);
-  assert.match(operationsRoute, /MediaPreservationBridge/);
-  assert.doesNotMatch(operationsRoute, /PendingAssetReviewBridge/);
+test("Phase 6 operational workspaces no longer depend on compatibility bridges", () => {
+  assert.doesNotMatch(layout, /GovernedOperationsBridge|MediaPreservationBridge|PendingAssetReviewBridge/);
+  assert.doesNotMatch(operationsRoute, /GovernedOperationsBridge|MediaPreservationBridge|PendingAssetReviewBridge/);
   assert.match(operationsRoute, /OperationsWorkspaceChrome/);
   assert.match(operationsRoute, /OperationsCenterArchitecture/);
   assert.match(operationsRoute, /OperationsWorkspaceComposition/);
-  assert.match(preservationBridge, /media-vault-assets/);
-  assert.match(preservationBridge, /master-detail-v1/);
-  assert.doesNotMatch(preservationBridge, /operations-published|operations-review/);
 });
 
 test("Records and Entities use the direct governed workspace contract", () => {
@@ -52,7 +47,7 @@ test("Records and Entities use the direct governed workspace contract", () => {
   assert.match(recordsWorkspace, /published-record-list/);
 });
 
-test("Review directly owns pending asset audit and Media retains governed actions", () => {
+test("Review directly owns pending asset audit and Media directly owns preservation", () => {
   assert.match(reviewWorkspace, /id="operations-review"/);
   assert.match(reviewWorkspace, /data-workspace-contract="master-detail-v1"/);
   assert.match(reviewWorkspace, /PendingAssetReviewConsole/);
@@ -60,21 +55,24 @@ test("Review directly owns pending asset audit and Media retains governed action
   assert.match(assetReview, /Contextual Inspector/);
   assert.match(assetReview, /Approve & Assign/);
   assert.match(assetReview, /Reject & Quarantine/);
-  assert.match(mediaVault, /media-vault-inspector/);
+  assert.match(mediaVault, /id="operations-media"/);
+  assert.match(mediaVault, /MediaPreservationStatusStrip/);
+  assert.match(mediaVault, /MediaPreservationInspectorPanel/);
+  assert.match(mediaVault, /data-governed-master="true"/);
+  assert.match(mediaVault, /data-governed-inspector="true"/);
   assert.match(mediaVault, /request_purge/);
   assert.match(mediaVault, /legal_hold/);
+  assert.doesNotMatch(mediaVault, /MutationObserver|createPortal/);
 });
 
 test("Record editor is now a direct contextual inspector", () => {
   assert.match(recordEditor, /className="record-editor"/);
   assert.match(recordEditor, /data-workspace-contract="command-master-inspector-v1"/);
   assert.match(recordEditor, /data-governed-inspector="true"/);
-  assert.doesNotMatch(preservationBridge, /\.record-editor/);
 });
 
 test("Wave B does not duplicate or bypass backend lifecycle mutation contracts", () => {
   assert.doesNotMatch(designSystem, /fetch\(/);
-  assert.doesNotMatch(preservationBridge, /fetch\(/);
   assert.match(mediaVault, /\/api\/admin\/media-vault/);
   assert.match(assetReview, /\/api\/admin\/media-vault\/review/);
 });
