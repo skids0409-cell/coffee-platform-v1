@@ -17,6 +17,18 @@ type ControllerProps = {
   onCreated: () => Promise<void>;
 };
 
+type DraftResponse = {
+  reason?: string;
+  id?: string;
+  created?: { id?: string };
+  existing?: { status?: string };
+};
+
+type MediaValidationResponse = {
+  reason?: string;
+  receivedBytes?: number;
+};
+
 const statusLabel: Record<string, string> = { draft: "مسودة", in_review: "قيد المراجعة", published: "منشور", rejected: "مرفوض" };
 const mediaEntityMap: Record<string, string> = { organization: "organizations", brand: "brands", product: "products", content: "contents", offer: "offers", origin: "origin_claims" };
 
@@ -29,7 +41,7 @@ export function useCatalogDraftController({ onCreated }: ControllerProps) {
     setWorking(true);
     setMessage("");
     let response: Response;
-    let result: Record<string, any>;
+    let result: DraftResponse;
     try {
       response = await fetch("/api/admin/data-center", {
         method: "POST",
@@ -44,7 +56,7 @@ export function useCatalogDraftController({ onCreated }: ControllerProps) {
           sourceConfirmed: true,
         }),
       });
-      result = await response.json();
+      result = await response.json() as DraftResponse;
     } catch {
       setWorking(false);
       setMessage("تعذر الاتصال بقاعدة البيانات. لم تُنشأ المسودة؛ حدّث الصفحة وسجّل دخول الإدارة ثم حاول مجدداً.");
@@ -52,12 +64,14 @@ export function useCatalogDraftController({ onCreated }: ControllerProps) {
     }
     setWorking(false);
     if (!response.ok) {
+      const existingStatus = result.existing?.status || "";
+      const existingStatusLabel = statusLabel[existingStatus] || existingStatus;
       setMessage(result.reason === "contract_revision_stale" ? "تغير عقد التصنيف أثناء الإدخال. أعد فتح النموذج وراجع الفئة قبل الحفظ."
         : result.reason === "category_kind_mismatch" ? "الفئة المختارة لا تنتمي إلى نوع المنتج. اختر فئة من القائمة المفلترة."
         : result.reason === "brand_kind_mismatch" ? "العلامة المختارة مسجلة لعائلة منتجات مختلفة."
-        : result.reason === "duplicate_product" ? `يوجد منتج بهذا الاسم مسبقاً وحالته «${statusLabel[result.existing?.status] || result.existing?.status}». افتحه من السجلات بدلاً من إنشاء نسخة مكررة.`
-        : result.reason === "duplicate_brand" ? `هذه العلامة موجودة مسبقاً وحالتها «${statusLabel[result.existing?.status] || result.existing?.status}». راجع السجل الموجود.`
-        : result.reason === "duplicate_offer" ? `يوجد عرض سابق لهذا المنتج لدى البائع نفسه وحالته «${statusLabel[result.existing?.status] || result.existing?.status}». عدّله من السجلات بدلاً من تكراره.`
+        : result.reason === "duplicate_product" ? `يوجد منتج بهذا الاسم مسبقاً وحالته «${existingStatusLabel}». افتحه من السجلات بدلاً من إنشاء نسخة مكررة.`
+        : result.reason === "duplicate_brand" ? `هذه العلامة موجودة مسبقاً وحالتها «${existingStatusLabel}». راجع السجل الموجود.`
+        : result.reason === "duplicate_offer" ? `يوجد عرض سابق لهذا المنتج لدى البائع نفسه وحالته «${existingStatusLabel}». عدّله من السجلات بدلاً من تكراره.`
         : "تعذر إنشاء المسودة. تحقق من الحقول والمصدر والعلاقات المطلوبة.");
       return { ok: false as const };
     }
@@ -73,7 +87,7 @@ export function useCatalogDraftController({ onCreated }: ControllerProps) {
         return { ok: true as const, createdId, mediaAttached: false };
       }
       if (!mediaResponse.ok) {
-        const mediaResult = await mediaResponse.json().catch(() => ({}));
+        const mediaResult = await mediaResponse.json().catch(() => ({})) as MediaValidationResponse;
         setMessage(`تم إنشاء المسودة، لكن الصورة لم تُحفظ: ${mediaErrorMessage(mediaResult.reason, mediaResult.receivedBytes)} افتح السجل من الطابور ولا تنشئ منتجاً ثانياً.`);
         await onCreated();
         return { ok: true as const, createdId, mediaAttached: false };
