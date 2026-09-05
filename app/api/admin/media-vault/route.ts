@@ -4,7 +4,18 @@ import { adminRest } from "@/lib/supabase-admin";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ACTIONS = new Set(["quarantine", "restore", "unlink", "update_metadata", "request_purge"]);
+const ACTIONS = new Set(["quarantine", "restore", "unlink", "update_metadata", "request_purge", "approve_purge", "reject_purge"]);
+
+type LifecycleRow = {
+  asset_id: string;
+  lifecycle_state: string;
+  quarantine_started_at: string | null;
+  retention_expires_at: string | null;
+  retention_days_remaining: number | null;
+  purge_request_id: string | null;
+  purge_request_status: string | null;
+  public_eligible: boolean;
+};
 
 type VaultLink = {
   id: string;
@@ -104,13 +115,18 @@ export async function GET(request: Request) {
   const admin = await requireStaff(request).catch(() => null);
   if (!admin) return Response.json({ authenticated: false }, { status: 401 });
   try {
-    const assets = await adminRest<VaultAsset[]>(admin.token,
-      "media_assets?select=id,purpose,original_storage_path,sanitized_storage_path,published_storage_path,original_filename,declared_mime,detected_mime,byte_size,width,height,pixel_count,page_count,sha256_hex,duplicate_of_asset_id,technical_status,publication_status,rejection_codes,technical_report,legal_hold,uploaded_by,validated_at,approved_at,published_at,restricted_at,created_at,updated_at,links:media_asset_links(id,entity_type,entity_id,role,is_primary,sort_order,alt_ar,alt_en,caption_ar,caption_en,link_status,linked_at),rights:media_rights_assertions(id,rights_basis,copyright_owner,source_url,license_url,territory,expires_at,commercial_use_allowed,modification_allowed,attestation_version,attested_at,review_status,review_note,created_at),events:media_ingestion_events(id,event_type,previous_state,next_state,actor_user_id,service_actor,policy_version,technical_report,created_at),purge_requests:media_purge_requests(id,reason,status,requested_by,requested_at,reviewed_at,review_note)&order=created_at.desc&limit=500"
-    );
+    const [assets,lifecycleRows] = await Promise.all([
+      adminRest<VaultAsset[]>(admin.token,
+        "media_assets?select=id,purpose,original_storage_path,sanitized_storage_path,published_storage_path,original_filename,declared_mime,detected_mime,byte_size,width,height,pixel_count,page_count,sha256_hex,duplicate_of_asset_id,technical_status,publication_status,rejection_codes,technical_report,legal_hold,uploaded_by,validated_at,approved_at,published_at,restricted_at,quarantine_started_at,retention_expires_at,created_at,updated_at,links:media_asset_links(id,entity_type,entity_id,role,is_primary,sort_order,alt_ar,alt_en,caption_ar,caption_en,link_status,linked_at),rights:media_rights_assertions(id,rights_basis,copyright_owner,source_url,license_url,territory,expires_at,commercial_use_allowed,modification_allowed,attestation_version,attested_at,review_status,review_note,created_at),events:media_ingestion_events(id,event_type,previous_state,next_state,actor_user_id,service_actor,policy_version,technical_report,created_at),purge_requests:media_purge_requests(id,reason,status,requested_by,requested_at,reviewed_at,review_note,execution_started_at)&order=created_at.desc&limit=500"
+      ),
+      adminRest<LifecycleRow[]>(admin.token,"media_asset_lifecycle?select=asset_id,lifecycle_state,quarantine_started_at,retention_expires_at,retention_days_remaining,purge_request_id,purge_request_status,public_eligible"),
+    ]);
+    const lifecycleByAsset = new Map(lifecycleRows.map((row)=>[row.asset_id,row]));
     const allLinks = assets.flatMap((asset) => asset.links || []);
     const labels = await targetLabels(admin.token, allLinks);
     const hydrated = await Promise.all(assets.map(async (asset) => ({
       ...asset,
+      ...lifecycleByAsset.get(asset.id),
       links: (asset.links || []).map((link) => ({
         ...link,
         target_label: labels.get(`${link.entity_type}:${link.entity_id}`) || `${link.entity_type} · ${link.entity_id.slice(0, 8)}`,
@@ -134,6 +150,10 @@ export async function GET(request: Request) {
         missingRights: hydrated.filter((asset) => !latestRights(asset)).length,
         technicalReview: hydrated.filter((asset) => asset.technical_status === "validating").length,
         legalHolds: hydrated.filter((asset) => asset.legal_hold).length,
+        active: hydrated.filter((asset) => asset.lifecycle_state === "active").length,
+        retention: hydrated.filter((asset) => asset.lifecycle_state === "quarantine_retention").length,
+        disposalEligible: hydrated.filter((asset) => asset.lifecycle_state === "disposal_eligible").length,
+        disposalQueue: hydrated.filter((asset) => ["disposal_requested","disposal_approved","disposal_executing"].includes(String(asset.lifecycle_state))).length,
       },
     }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
@@ -162,7 +182,7 @@ export async function POST(request: Request) {
     return Response.json({ updated: true, result });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const known = ["admin_required", "reviewer_required", "asset_not_found", "asset_not_quarantined", "metadata_required", "invalid_alt_text", "purge_reason_required", "legal_hold_blocks_purge", "quarantine_required_before_purge", "retention_period_active", "active_links_block_purge"]
+    const known = ["admin_required", "reviewer_required", "asset_not_found", "asset_not_quarantined", "metadata_required", "invalid_alt_text", "quarantine_reason_required", "purge_reason_required", "legal_hold_blocks_purge", "legal_hold_blocks_restore", "quarantine_required_before_purge", "retention_period_active", "active_record_links_block_quarantine", "active_links_block_purge", "dependent_duplicates_block_purge", "pending_purge_request_missing", "asset_not_disposal_eligible", "review_note_required"]
       .find((code) => message.includes(code));
     return Response.json({ updated: false, reason: known || mapMediaError(error) }, { status: known?.includes("required") || known?.includes("blocked") || known === "asset_not_quarantined" ? 409 : 502 });
   }
