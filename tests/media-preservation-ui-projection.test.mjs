@@ -5,6 +5,7 @@ import fs from "node:fs";
 const projection = fs.readFileSync("app/ui/admin/governance/MediaPreservationProjection.tsx", "utf8");
 const mediaVault = fs.readFileSync("app/ui/admin/MediaVaultWorkspace.tsx", "utf8");
 const operationsRoute = fs.readFileSync("app/operations/page.tsx", "utf8");
+const shell = fs.readFileSync("app/ui/admin/OperationsWorkspaceShell.tsx", "utf8");
 const chrome = fs.readFileSync("app/ui/admin/governance/OperationsWorkspaceChrome.tsx", "utf8");
 const preservationApi = fs.readFileSync("app/api/admin/preservation/route.ts", "utf8");
 const conformanceApi = fs.readFileSync("app/api/admin/architecture-conformance/route.ts", "utf8");
@@ -69,8 +70,9 @@ test("output status is sourced from authoritative preservation and conformance A
   assert.match(conformanceApi, /conformanceStatus/);
 });
 
-test("operations navigation uses the unified governed workspace chrome", () => {
-  assert.match(operationsRoute, /OperationsWorkspaceChrome/);
+test("operations shell owns the unified governed workspace chrome", () => {
+  assert.match(shell, /OperationsWorkspaceChrome/);
+  assert.doesNotMatch(operationsRoute, /OperationsWorkspaceChrome/);
   assert.match(chrome, /\.operations-workspace-nav/);
   assert.match(chrome, /border-radius: 14px/);
   assert.match(chrome, /background: #3a1f12/);
