@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
+import type { OperationsWorkspaceId } from "@/app/ui/admin/OperationsWorkspaceShell";
 
-type ArchitectureGroup = "operate" | "govern" | "preserve" | "administer";
+export type ArchitectureGroup = "operate" | "govern" | "preserve" | "administer";
 
 type WorkspaceDescriptor = {
   label: string;
@@ -11,19 +10,19 @@ type WorkspaceDescriptor = {
   purpose: string;
 };
 
-const workspaceDescriptors: WorkspaceDescriptor[] = [
-  { label: "نظرة عامة", group: "operate", purpose: "Operational command view" },
-  { label: "إدارة السجلات", group: "govern", purpose: "Governed records & entities" },
-  { label: "إضافة سجل", group: "operate", purpose: "Controlled ingestion" },
-  { label: "المراجعة والاعتماد", group: "govern", purpose: "Review & lifecycle decisions" },
-  { label: "طلبات الجهات", group: "operate", purpose: "External intake" },
-  { label: "الصور والملفات", group: "preserve", purpose: "Media Vault & OAIS preservation" },
-  { label: "استيراد الجهات المشاركة", group: "operate", purpose: "Batch intake" },
-  { label: "قاموس البحث", group: "govern", purpose: "Metadata & discovery governance" },
-  { label: "الطلبات والمساعدة", group: "operate", purpose: "Operational requests" },
-  { label: "الأرشيف", group: "preserve", purpose: "Retention & disposition" },
-  { label: "التصنيفات والفلاتر", group: "administer", purpose: "Controlled vocabularies" },
-];
+export const operationsWorkspaceDescriptors: Record<OperationsWorkspaceId, WorkspaceDescriptor> = {
+  dashboard: { label: "نظرة عامة", group: "operate", purpose: "Operational command view" },
+  records: { label: "إدارة السجلات", group: "govern", purpose: "Governed records & entities" },
+  entry: { label: "إضافة سجل", group: "operate", purpose: "Controlled ingestion" },
+  review: { label: "المراجعة والاعتماد", group: "govern", purpose: "Review & lifecycle decisions" },
+  partners: { label: "طلبات الجهات", group: "operate", purpose: "External intake" },
+  media: { label: "الصور والملفات", group: "preserve", purpose: "Media Vault & OAIS preservation" },
+  imports: { label: "استيراد الجهات المشاركة", group: "operate", purpose: "Batch intake" },
+  search: { label: "قاموس البحث", group: "govern", purpose: "Metadata & discovery governance" },
+  requests: { label: "الطلبات والمساعدة", group: "operate", purpose: "Operational requests" },
+  archive: { label: "الأرشيف", group: "preserve", purpose: "Retention & disposition" },
+  taxonomy: { label: "التصنيفات والفلاتر", group: "administer", purpose: "Controlled vocabularies" },
+};
 
 const groupLabels: Record<ArchitectureGroup, { ar: string; en: string }> = {
   operate: { ar: "التشغيل", en: "Operate" },
@@ -32,82 +31,16 @@ const groupLabels: Record<ArchitectureGroup, { ar: string; en: string }> = {
   administer: { ar: "الإدارة", en: "Administer" },
 };
 
-function descriptorFor(label: string) {
-  return workspaceDescriptors.find((item) => item.label === label.trim());
-}
+const groups: ArchitectureGroup[] = ["operate", "govern", "preserve", "administer"];
 
-function ensureHost(nav: HTMLElement) {
-  const existing = nav.parentElement?.querySelector<HTMLElement>(":scope > [data-operations-architecture-host]");
-  if (existing) return existing;
-  const host = document.createElement("div");
-  host.dataset.operationsArchitectureHost = "true";
-  nav.parentElement?.insertBefore(host, nav);
-  return host;
-}
-
-function markWorkspaceSurfaces() {
-  const rules: Array<[string, string]> = [
-    ["#operations-published", "records"],
-    ["#operations-review", "review"],
-    ["#operations-media", "preservation"],
-    [".operations-dashboard", "command"],
-    [".data-center-imports", "ingestion"],
-    [".taxonomy-workspace", "metadata"],
-    [".media-vault-assets", "master"],
-    [".media-vault-inspector", "inspector"],
-    [".published-record-list", "master"],
-    [".record-editor", "inspector"],
-    [".quality-desk", "quality"],
-    [".media-backlog", "queue"],
-  ];
-  rules.forEach(([selector, role]) => {
-    document.querySelectorAll<HTMLElement>(selector).forEach((element) => {
-      element.dataset.architectureSurface = role;
-      element.dataset.governedVisualContract = "operations-center-v2";
-    });
-  });
-}
-
-export function OperationsCenterArchitecture() {
-  const [host, setHost] = useState<HTMLElement | null>(null);
-  const [active, setActive] = useState<WorkspaceDescriptor | null>(null);
-
-  useEffect(() => {
-    const sync = () => {
-      const nav = document.querySelector<HTMLElement>(".operations-workspace-nav");
-      if (!nav) return;
-      nav.dataset.architectureNavigation = "true";
-      nav.dataset.governedVisualContract = "operations-center-v2";
-      nav.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
-        const descriptor = descriptorFor(button.textContent || "");
-        if (!descriptor) return;
-        button.dataset.architectureGroup = descriptor.group;
-        button.dataset.architecturePurpose = descriptor.purpose;
-        button.setAttribute("aria-description", `${groupLabels[descriptor.group].en} · ${descriptor.purpose}`);
-        if (button.classList.contains("active")) setActive(descriptor);
-      });
-      setHost(ensureHost(nav));
-      markWorkspaceSurfaces();
-    };
-
-    const handle = window.setTimeout(sync, 0);
-    const observer = new MutationObserver(sync);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
-    return () => {
-      window.clearTimeout(handle);
-      observer.disconnect();
-    };
-  }, []);
-
-  const activeGroup = active?.group || "operate";
-  const groups = useMemo(() => (["operate", "govern", "preserve", "administer"] as ArchitectureGroup[]), []);
+export function OperationsCenterArchitecture({ workspace }: { workspace: OperationsWorkspaceId }) {
+  const active = operationsWorkspaceDescriptors[workspace];
 
   return <>
     <style>{`
-      [data-operations-architecture-host] { margin: 16px 0 8px; }
       .operations-architecture-rail {
         display:grid; grid-template-columns:minmax(220px,1.35fr) minmax(0,2fr); gap:14px;
-        padding:16px 18px; border:1px solid #dfd4c5; border-radius:16px;
+        margin:16px 0 8px; padding:16px 18px; border:1px solid #dfd4c5; border-radius:16px;
         background:linear-gradient(135deg,#fffdf9,#f7f1e8); box-shadow:0 10px 30px rgba(58,31,18,.07);
       }
       .operations-architecture-rail__title { display:grid; gap:3px; align-content:center; }
@@ -141,19 +74,13 @@ export function OperationsCenterArchitecture() {
       }
       .operations-workspace-nav[data-architecture-navigation="true"] button.active::before { background:#c89152; }
 
-      [data-governed-visual-contract="operations-center-v2"][data-architecture-surface] {
-        --ops-surface-border:#dfd4c5;
-      }
-      [data-architecture-surface="command"], [data-architecture-surface="records"], [data-architecture-surface="review"],
-      [data-architecture-surface="preservation"], [data-architecture-surface="ingestion"], [data-architecture-surface="metadata"] {
-        border-radius:16px; overflow:clip;
-      }
-      [data-architecture-surface="master"], [data-architecture-surface="inspector"], [data-architecture-surface="quality"], [data-architecture-surface="queue"] {
+      #operations-published, #operations-review, #operations-media, .operations-dashboard, .data-center-imports, .taxonomy-workspace { border-radius:16px; overflow:clip; }
+      .media-vault-assets, .media-vault-inspector, .published-record-list, .record-editor, .quality-desk, .media-backlog {
         border-radius:12px !important; border-color:#dfd4c5 !important; box-shadow:0 8px 24px rgba(58,31,18,.05);
       }
-      [data-architecture-surface="inspector"] { background:#fffdf9 !important; }
-      [data-architecture-surface="quality"] { border-inline-start:4px solid #315f78 !important; }
-      [data-architecture-surface="queue"] { border-inline-start:4px solid #56745e !important; }
+      .media-vault-inspector, .record-editor { background:#fffdf9 !important; }
+      .quality-desk { border-inline-start:4px solid #315f78 !important; }
+      .media-backlog { border-inline-start:4px solid #56745e !important; }
 
       @media (max-width: 980px) {
         .operations-architecture-rail { grid-template-columns:1fr; }
@@ -167,21 +94,17 @@ export function OperationsCenterArchitecture() {
         .operations-workspace-nav[data-architecture-navigation="true"] { grid-template-columns:1fr !important; }
       }
     `}</style>
-    {host ? createPortal(
-      <section className="operations-architecture-rail" aria-label="Operations architecture context" data-operations-architecture-rail>
-        <div className="operations-architecture-rail__title">
-          <small>Governed Operations Center</small>
-          <b>{active?.label || "مركز التشغيل والبيانات"}</b>
-          <span>DAMA-DMBOK · ISO 15489 · OAIS · master-detail-v1</span>
-        </div>
-        <div className="operations-architecture-rail__groups">
-          {groups.map((group) => <div key={group} className={`operations-architecture-domain ${group === activeGroup ? "active" : ""}`} data-domain={group}>
-            <strong>{groupLabels[group].ar}</strong><span>{groupLabels[group].en}</span>
-          </div>)}
-        </div>
-      </section>,
-      host,
-      "operations-architecture-rail",
-    ) : null}
+    <section className="operations-architecture-rail" aria-label="Operations architecture context" data-operations-architecture-rail>
+      <div className="operations-architecture-rail__title">
+        <small>Governed Operations Center</small>
+        <b>{active.label}</b>
+        <span>DAMA-DMBOK · ISO 15489 · OAIS · master-detail-v1</span>
+      </div>
+      <div className="operations-architecture-rail__groups">
+        {groups.map((group) => <div key={group} className={`operations-architecture-domain ${group === active.group ? "active" : ""}`} data-domain={group}>
+          <strong>{groupLabels[group].ar}</strong><span>{groupLabels[group].en}</span>
+        </div>)}
+      </div>
+    </section>
   </>;
 }
