@@ -34,8 +34,8 @@ test("workspace composition exposes the standard command-to-action operating pat
 });
 
 test("visual normalization is scoped to the Operations center root", () => {
-  assert.match(composition, /data\.operationsCenterRoot = "true"/);
-  assert.match(composition, /data\.workspaceCompositionContract = "command-master-inspector-v1"/);
+  assert.match(composition, /parent\.dataset\.operationsCenterRoot = "true"/);
+  assert.match(composition, /parent\.dataset\.workspaceCompositionContract = "command-master-inspector-v1"/);
   assert.match(composition, /\[data-operations-center-root="true"\]/);
   assert.match(composition, /data-workspace-composition="command-master-inspector-v1"/);
 });
