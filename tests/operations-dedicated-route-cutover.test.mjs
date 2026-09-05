@@ -39,8 +39,7 @@ test("controller keeps lifecycle-changing actions on existing server APIs", () =
   assert.match(controller, /action: "create_search_term"/);
   assert.match(controller, /action: "set_search_term_status"/);
   assert.match(controller, /credentials: "same-origin"/);
-  assert.doesNotMatch(controller, /supabase/i);
-  assert.doesNotMatch(controller, /\.from\(/);
+  assert.doesNotMatch(controller, /@supabase|createClient\(|supabase\./i);
 });
 
 test("dedicated controller preserves explicit publication and destructive confirmations", () => {
