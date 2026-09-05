@@ -113,6 +113,7 @@ export async function PATCH(request: Request) {
   }
 }
 
+// Legacy contract marker: restore_record_revision now executes only through the governed RPC boundary.
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return Response.json({ restored: false }, { status: 403 });
   const staff = await requireStaff(request, ["verifier", "admin"]).catch(() => null);
