@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 const projection = fs.readFileSync("app/ui/admin/governance/MediaPreservationProjection.tsx", "utf8");
 const bridge = fs.readFileSync("app/ui/admin/governance/GovernedOperationsBridge.tsx", "utf8");
+const operationsRoute = fs.readFileSync("app/operations/page.tsx", "utf8");
 const chrome = fs.readFileSync("app/ui/admin/governance/OperationsWorkspaceChrome.tsx", "utf8");
 const preservationApi = fs.readFileSync("app/api/admin/preservation/route.ts", "utf8");
 const conformanceApi = fs.readFileSync("app/api/admin/architecture-conformance/route.ts", "utf8");
@@ -22,6 +23,7 @@ test("preservation projection is mounted inside governed Media Vault surfaces", 
   assert.match(bridge, /media-vault-inspector/);
   assert.match(bridge, /preservationStatusHost/);
   assert.match(bridge, /preservationInspectorHost/);
+  assert.doesNotMatch(bridge, /GovernedWorkspaceContractBanner/);
 });
 
 test("OAIS data loading is decoupled from optional architecture conformance", () => {
@@ -65,7 +67,8 @@ test("output status is sourced from authoritative preservation and conformance A
 });
 
 test("operations navigation uses the unified governed workspace chrome", () => {
-  assert.match(bridge, /OperationsWorkspaceChrome/);
+  assert.match(operationsRoute, /OperationsWorkspaceChrome/);
+  assert.doesNotMatch(bridge, /OperationsWorkspaceChrome/);
   assert.match(chrome, /\.operations-workspace-nav/);
   assert.match(chrome, /border-radius: 14px/);
   assert.match(chrome, /background: #3a1f12/);
