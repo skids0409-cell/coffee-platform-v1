@@ -49,8 +49,8 @@ test("major data-center surfaces are projected under operations-center-v2", () =
 });
 
 test("navigation remains behavior-preserving while gaining architectural metadata", () => {
-  assert.match(architecture, /data\.architectureGroup/);
-  assert.match(architecture, /data\.architecturePurpose/);
+  assert.match(architecture, /dataset\.architectureGroup/);
+  assert.match(architecture, /dataset\.architecturePurpose/);
   assert.match(architecture, /aria-description/);
   assert.doesNotMatch(architecture, /fetch\(/);
   assert.doesNotMatch(architecture, /method:\s*["']POST["']/);
