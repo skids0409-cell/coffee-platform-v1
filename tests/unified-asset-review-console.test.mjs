@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+const operationsRoute = readFileSync(new URL("../app/operations/page.tsx", import.meta.url), "utf8");
 const ui = readFileSync(new URL("../app/ui/admin/PendingAssetReviewBridge.tsx", import.meta.url), "utf8");
 const api = readFileSync(new URL("../app/api/admin/media-vault/review/route.ts", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../supabase/migrations/045_unified_asset_review_console.sql", import.meta.url), "utf8");
 
 test("Review & Approval exposes a dedicated pending asset audit sub-view", () => {
-  assert.match(layout, /PendingAssetReviewBridge/);
+  assert.doesNotMatch(layout, /PendingAssetReviewBridge/);
+  assert.match(operationsRoute, /PendingAssetReviewBridge/);
   assert.match(ui, /operations-review/);
   assert.match(ui, /الأصول بانتظار الاعتماد وتقارير الفحص/);
   assert.match(ui, /Pending Technical Audit/);
