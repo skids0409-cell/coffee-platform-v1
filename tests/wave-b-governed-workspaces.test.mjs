@@ -6,7 +6,9 @@ const designSystem = await readFile(new URL("../app/ui/admin/governance/Governed
 const bridge = await readFile(new URL("../app/ui/admin/governance/GovernedOperationsBridge.tsx", import.meta.url), "utf8");
 const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const operationsRoute = await readFile(new URL("../app/operations/page.tsx", import.meta.url), "utf8");
-const platform = await readFile(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
+const recordsWorkspace = await readFile(new URL("../app/ui/admin/RecordsWorkspace.tsx", import.meta.url), "utf8");
+const reviewWorkspace = await readFile(new URL("../app/ui/admin/ReviewWorkspace.tsx", import.meta.url), "utf8");
+const recordEditor = await readFile(new URL("../app/ui/admin/ReviewRecordEditor.tsx", import.meta.url), "utf8");
 const mediaVault = await readFile(new URL("../app/ui/admin/MediaVaultWorkspace.tsx", import.meta.url), "utf8");
 const assetReview = await readFile(new URL("../app/ui/admin/PendingAssetReviewBridge.tsx", import.meta.url), "utf8");
 
@@ -31,24 +33,28 @@ test("Phase 5 exposes the shared governed workspace design system", () => {
   assert.match(designSystem, /data-governed-inspector/);
 });
 
-test("Phase 6 compatibility bridges are scoped to the dedicated Operations route", () => {
+test("Phase 6 compatibility projections are scoped to the dedicated Operations route", () => {
   assert.doesNotMatch(layout, /GovernedOperationsBridge|PendingAssetReviewBridge/);
   assert.match(operationsRoute, /GovernedOperationsBridge/);
   assert.match(operationsRoute, /PendingAssetReviewBridge/);
-  assert.match(bridge, /operations-published/);
-  assert.match(bridge, /operations-review/);
+  assert.match(operationsRoute, /OperationsWorkspaceChrome/);
+  assert.match(operationsRoute, /OperationsCenterArchitecture/);
+  assert.match(operationsRoute, /OperationsWorkspaceComposition/);
   assert.match(bridge, /media-vault-assets/);
   assert.match(bridge, /master-detail-v1/);
+  assert.doesNotMatch(bridge, /operations-published|operations-review/);
 });
 
-test("Records and Entities share one governed operational contract", () => {
-  assert.match(bridge, /dataset\.entityWorkspace = "true"/);
-  assert.match(bridge, /Governed Records & Entities Workspace/);
-  assert.match(platform, /id="operations-published"/);
-  assert.match(platform, /published-record-list/);
+test("Records and Entities use the direct governed workspace contract", () => {
+  assert.match(recordsWorkspace, /id="operations-published"/);
+  assert.match(recordsWorkspace, /data-workspace-contract="master-detail-v1"/);
+  assert.match(recordsWorkspace, /data-governed-master="true"/);
+  assert.match(recordsWorkspace, /published-record-list/);
 });
 
 test("Review and Media retain their working inspectors and governed actions", () => {
+  assert.match(reviewWorkspace, /id="operations-review"/);
+  assert.match(reviewWorkspace, /data-workspace-contract="master-detail-v1"/);
   assert.match(assetReview, /Contextual Inspector/);
   assert.match(assetReview, /Approve & Assign/);
   assert.match(assetReview, /Reject & Quarantine/);
@@ -57,10 +63,11 @@ test("Review and Media retain their working inspectors and governed actions", ()
   assert.match(mediaVault, /legal_hold/);
 });
 
-test("Legacy record editor is projected as the contextual inspector during incremental extraction", () => {
-  assert.match(platform, /className="record-editor"/);
-  assert.match(bridge, /\.record-editor/);
-  assert.match(bridge, /dataset\.governedInspector = "true"/);
+test("Record editor is now a direct contextual inspector", () => {
+  assert.match(recordEditor, /className="record-editor"/);
+  assert.match(recordEditor, /data-workspace-contract="command-master-inspector-v1"/);
+  assert.match(recordEditor, /data-governed-inspector="true"/);
+  assert.doesNotMatch(bridge, /\.record-editor/);
 });
 
 test("Wave B does not duplicate or bypass backend lifecycle mutation contracts", () => {
@@ -68,5 +75,4 @@ test("Wave B does not duplicate or bypass backend lifecycle mutation contracts",
   assert.doesNotMatch(bridge, /fetch\(/);
   assert.match(mediaVault, /\/api\/admin\/media-vault/);
   assert.match(assetReview, /\/api\/admin\/media-vault\/review/);
-  assert.match(platform, /\/api\/admin\/records/);
 });
