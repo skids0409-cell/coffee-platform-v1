@@ -1,7 +1,6 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 
 type AuditEvent = {
   id: number;
@@ -66,7 +65,7 @@ const bytes = (value: number | null) => {
   return `${Math.max(1, Math.ceil(value / 1024))} KB`;
 };
 
-function PendingAssetReviewConsole() {
+export function PendingAssetReviewConsole() {
   const [assets, setAssets] = useState<PendingAsset[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [role, setRole] = useState("");
@@ -177,7 +176,7 @@ function PendingAssetReviewConsole() {
   if (state === "error") return <section className="pending-asset-review-console"><div className="directory-state compact"><h3>تعذر تحميل طابور تدقيق الأصول</h3><button type="button" onClick={() => void load()}>إعادة المحاولة</button></div></section>;
 
   return (
-    <section className="pending-asset-review-console priority-section" aria-label="الأصول بانتظار الاعتماد وتقارير الفحص">
+    <section className="pending-asset-review-console priority-section" aria-label="الأصول بانتظار الاعتماد وتقارير الفحص" data-governed-master="true">
       <div className="section-head">
         <div>
           <span className="eyebrow">Unified Asset Review</span>
@@ -208,7 +207,7 @@ function PendingAssetReviewConsole() {
           </div>
 
           {selected && (
-            <aside className="rounded-xl border border-[#dfd4c5] bg-white p-5" aria-label="Contextual Inspector">
+            <aside className="rounded-xl border border-[#dfd4c5] bg-white p-5" aria-label="Contextual Inspector" data-governed-inspector="true">
               <div className="flex flex-wrap items-start gap-4">
                 <div className="h-28 w-28 shrink-0 overflow-hidden rounded-lg border border-[#dfd4c5] bg-[#f7f1e8]">
                   {selected.preview_url ? <img src={selected.preview_url} alt="" className="h-full w-full object-cover" /> : null}
@@ -256,21 +255,4 @@ function PendingAssetReviewConsole() {
       )}
     </section>
   );
-}
-
-export function PendingAssetReviewBridge() {
-  const [host, setHost] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    const sync = () => setHost(document.getElementById("operations-review"));
-    const handle = window.setTimeout(sync, 0);
-    const observer = new MutationObserver(sync);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => {
-      window.clearTimeout(handle);
-      observer.disconnect();
-    };
-  }, []);
-
-  return host ? createPortal(<PendingAssetReviewConsole />, host) : null;
 }
