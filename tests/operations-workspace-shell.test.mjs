@@ -12,6 +12,9 @@ test("operations shell owns the unified governed navigation contract", async () 
   assert.match(source, /aria-current=/);
   assert.match(source, /Governed Operations Center/);
   assert.match(source, /حاجز النشر مفعّل/);
+  assert.match(source, /OperationsWorkspaceChrome/);
+  assert.match(source, /OperationsCenterArchitecture/);
+  assert.match(source, /OperationsWorkspaceComposition/);
 });
 
 test("operations shell keeps taxonomy role-gated and never performs backend mutations", async () => {
@@ -36,8 +39,15 @@ test("operations shell exposes every current operations workspace without silent
     "requests",
     "archive",
     "taxonomy",
-  ]) {
-    assert.match(source, new RegExp(`\\[\\"${workspace}\\"`));
-  }
+  ]) assert.match(source, new RegExp(`"${workspace}"`));
   assert.match(source, /لم تُحذف أي وظيفة/);
+});
+
+test("shell emits architecture metadata directly without DOM discovery", async () => {
+  const source = await readFile(shellPath, "utf8");
+  assert.match(source, /data-architecture-navigation="true"/);
+  assert.match(source, /data-architecture-group/);
+  assert.match(source, /data-architecture-purpose/);
+  assert.match(source, /data-operations-center-root="true"/);
+  assert.doesNotMatch(source, /MutationObserver|createPortal|document\./);
 });
