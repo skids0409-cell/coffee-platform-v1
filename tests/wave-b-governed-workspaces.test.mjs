@@ -5,6 +5,9 @@ import { readFile } from "node:fs/promises";
 const designSystem = await readFile(new URL("../app/ui/admin/governance/GovernedWorkspace.tsx", import.meta.url), "utf8");
 const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const operationsRoute = await readFile(new URL("../app/operations/page.tsx", import.meta.url), "utf8");
+const shell = await readFile(new URL("../app/ui/admin/OperationsWorkspaceShell.tsx", import.meta.url), "utf8");
+const architecture = await readFile(new URL("../app/ui/admin/governance/OperationsCenterArchitecture.tsx", import.meta.url), "utf8");
+const composition = await readFile(new URL("../app/ui/admin/governance/OperationsWorkspaceComposition.tsx", import.meta.url), "utf8");
 const recordsWorkspace = await readFile(new URL("../app/ui/admin/RecordsWorkspace.tsx", import.meta.url), "utf8");
 const reviewWorkspace = await readFile(new URL("../app/ui/admin/ReviewWorkspace.tsx", import.meta.url), "utf8");
 const recordEditor = await readFile(new URL("../app/ui/admin/ReviewRecordEditor.tsx", import.meta.url), "utf8");
@@ -32,12 +35,15 @@ test("Phase 5 exposes the shared governed workspace design system", () => {
   assert.match(designSystem, /data-governed-inspector/);
 });
 
-test("Phase 6 operational workspaces no longer depend on compatibility bridges", () => {
+test("Operations route and workspaces no longer depend on compatibility bridges", () => {
   assert.doesNotMatch(layout, /GovernedOperationsBridge|MediaPreservationBridge|PendingAssetReviewBridge/);
   assert.doesNotMatch(operationsRoute, /GovernedOperationsBridge|MediaPreservationBridge|PendingAssetReviewBridge/);
-  assert.match(operationsRoute, /OperationsWorkspaceChrome/);
-  assert.match(operationsRoute, /OperationsCenterArchitecture/);
-  assert.match(operationsRoute, /OperationsWorkspaceComposition/);
+  assert.match(operationsRoute, /OperationsController/);
+  assert.match(shell, /OperationsWorkspaceChrome/);
+  assert.match(shell, /OperationsCenterArchitecture/);
+  assert.match(shell, /OperationsWorkspaceComposition/);
+  assert.doesNotMatch(architecture, /MutationObserver|createPortal|document\./);
+  assert.doesNotMatch(composition, /MutationObserver|createPortal|document\./);
 });
 
 test("Records and Entities use the direct governed workspace contract", () => {
