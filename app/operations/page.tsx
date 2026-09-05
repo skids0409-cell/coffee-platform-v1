@@ -1,5 +1,4 @@
 import { OperationsController } from "@/app/ui/admin/OperationsController";
-import { PendingAssetReviewBridge } from "@/app/ui/admin/PendingAssetReviewBridge";
 import { MediaPreservationBridge } from "@/app/ui/admin/governance/MediaPreservationBridge";
 import { OperationsWorkspaceChrome } from "@/app/ui/admin/governance/OperationsWorkspaceChrome";
 import { OperationsCenterArchitecture } from "@/app/ui/admin/governance/OperationsCenterArchitecture";
@@ -17,7 +16,6 @@ export default function OperationsPage() {
       <OperationsCenterArchitecture />
       <OperationsWorkspaceComposition />
       <MediaPreservationBridge />
-      <PendingAssetReviewBridge />
     </main>
   );
 }
