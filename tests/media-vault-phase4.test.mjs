@@ -9,6 +9,10 @@ const migration = readFileSync(new URL("../supabase/migrations/039_phase4_indepe
 const backfill = readFileSync(new URL("../supabase/migrations/038_phase3_legacy_entity_media_backfill.sql", import.meta.url), "utf8");
 const reconciliation = readFileSync(new URL("../supabase/migrations/042_phase4_legacy_media_reconciliation.sql", import.meta.url), "utf8");
 const reconciliationApi = readFileSync(new URL("../app/api/admin/media/reconcile-legacy/route.ts", import.meta.url), "utf8");
+const lifecycle = readFileSync(new URL("../supabase/migrations/043_closed_loop_media_asset_lifecycle.sql", import.meta.url), "utf8");
+const disposalHardening = readFileSync(new URL("../supabase/migrations/044_media_disposal_security_hardening.sql", import.meta.url), "utf8");
+const purgeApi = readFileSync(new URL("../app/api/admin/media-vault/purge/route.ts", import.meta.url), "utf8");
+const legacyMediaApi = readFileSync(new URL("../app/api/admin/media/route.ts", import.meta.url), "utf8");
 
 test("Phase 4 activates an independent asset-centric Media Vault", () => {
   assert.match(platform, /workspace === "media" && <MediaVaultWorkspace/);
@@ -84,4 +88,49 @@ test("legacy reconciliation validates real bytes and never fabricates rights", (
   assert.doesNotMatch(reconciliation, /insert into public\.media_rights_assertions/i);
   assert.match(ui, /تدقيق الأصول القديمة/);
   assert.match(ui, /لا يخترع إثبات حقوق/);
+});
+
+test("Migration 043 defines one time-aware lifecycle projection",()=>{
+  assert.match(lifecycle,/media_asset_lifecycle with \(security_invoker=true\)/);
+  for(const state of ["pending_technical_audit","active","quarantine_retention","legal_hold","disposal_eligible","disposal_requested","disposal_approved"]){
+    assert.match(lifecycle,new RegExp(`'${state}'`));
+  }
+  assert.match(lifecycle,/retention_expires_at>now\(\)/);
+  assert.match(lifecycle,/interval '30 days'/);
+  assert.match(ui,/دورة حياة الأصل المغلقة/);
+  assert.match(ui,/الفلاتر أدناه تقرأ الحالة الرسمية نفسها/);
+});
+
+test("active records and unsafe assets cannot cross lifecycle boundaries",()=>{
+  assert.match(lifecycle,/active_record_links_block_quarantine/);
+  assert.match(lifecycle,/asset_not_active_or_target_not_published/);
+  assert.match(lifecycle,/media_entity_is_public/);
+  assert.match(lifecycle,/technical_status='passed'/);
+  assert.match(lifecycle,/review_status='accepted'/);
+  assert.match(lifecycle,/link_status='active'/);
+  assert.match(lifecycle,/delete from public\.entity_media where asset_id=v_asset/);
+});
+
+test("permanent deletion is two-phase, approved and audit-preserving",()=>{
+  assert.match(lifecycle,/admin_media_prepare_purge/);
+  assert.match(lifecycle,/status='executing'/);
+  assert.match(lifecycle,/admin_media_finalize_purge/);
+  assert.match(lifecycle,/media_asset_disposal_audit/);
+  assert.match(lifecycle,/permanent_media_asset_purge/);
+  assert.match(purgeApi,/admin_media_prepare_purge/);
+  assert.match(purgeApi,/admin_media_finalize_purge/);
+  assert.match(purgeApi,/method:"DELETE"/);
+  assert.match(ui,/تنفيذ الإتلاف النهائي/);
+  assert.match(disposalHardening,/admin_media_finalize_purge[\s\S]*security invoker/);
+  assert.match(disposalHardening,/private\.finalize_media_purge_trigger/);
+  assert.match(disposalHardening,/revoke all on function private\.finalize_media_purge_trigger\(\) from public,anon,authenticated/);
+  assert.match(disposalHardening,/media_asset_disposal_audit_disposed_by_idx/);
+});
+
+test("legacy record editor can only unlink, never purge storage",()=>{
+  assert.match(legacyMediaApi,/p_action:"unlink"/);
+  assert.match(legacyMediaApi,/permanentDeletion:false/);
+  assert.doesNotMatch(legacyMediaApi,/object\/public-media|storageRequest/);
+  assert.match(platform,/فصل الصورة/);
+  assert.match(platform,/الإتلاف النهائي يتم فقط من Media Vault/);
 });
