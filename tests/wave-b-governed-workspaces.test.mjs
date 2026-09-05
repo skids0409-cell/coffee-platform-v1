@@ -33,10 +33,10 @@ test("Phase 5 exposes the shared governed workspace design system", () => {
   assert.match(designSystem, /data-governed-inspector/);
 });
 
-test("Phase 6 compatibility projections are scoped to the dedicated Operations route", () => {
+test("Phase 6 compatibility projection is limited to Media Preservation", () => {
   assert.doesNotMatch(layout, /MediaPreservationBridge|PendingAssetReviewBridge/);
   assert.match(operationsRoute, /MediaPreservationBridge/);
-  assert.match(operationsRoute, /PendingAssetReviewBridge/);
+  assert.doesNotMatch(operationsRoute, /PendingAssetReviewBridge/);
   assert.match(operationsRoute, /OperationsWorkspaceChrome/);
   assert.match(operationsRoute, /OperationsCenterArchitecture/);
   assert.match(operationsRoute, /OperationsWorkspaceComposition/);
@@ -52,9 +52,11 @@ test("Records and Entities use the direct governed workspace contract", () => {
   assert.match(recordsWorkspace, /published-record-list/);
 });
 
-test("Review and Media retain their working inspectors and governed actions", () => {
+test("Review directly owns pending asset audit and Media retains governed actions", () => {
   assert.match(reviewWorkspace, /id="operations-review"/);
   assert.match(reviewWorkspace, /data-workspace-contract="master-detail-v1"/);
+  assert.match(reviewWorkspace, /PendingAssetReviewConsole/);
+  assert.doesNotMatch(assetReview, /MutationObserver|createPortal/);
   assert.match(assetReview, /Contextual Inspector/);
   assert.match(assetReview, /Approve & Assign/);
   assert.match(assetReview, /Reject & Quarantine/);
