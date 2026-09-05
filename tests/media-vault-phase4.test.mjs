@@ -7,6 +7,8 @@ const platform = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url)
 const api = readFileSync(new URL("../app/api/admin/media-vault/route.ts", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../supabase/migrations/039_phase4_independent_media_vault.sql", import.meta.url), "utf8");
 const backfill = readFileSync(new URL("../supabase/migrations/038_phase3_legacy_entity_media_backfill.sql", import.meta.url), "utf8");
+const reconciliation = readFileSync(new URL("../supabase/migrations/042_phase4_legacy_media_reconciliation.sql", import.meta.url), "utf8");
+const reconciliationApi = readFileSync(new URL("../app/api/admin/media/reconcile-legacy/route.ts", import.meta.url), "utf8");
 
 test("Phase 4 activates an independent asset-centric Media Vault", () => {
   assert.match(platform, /workspace === "media" && <MediaVaultWorkspace/);
@@ -52,9 +54,34 @@ test("unlink and purge remain separate and search results cannot delete files", 
   assert.match(ui, /لا يوجد حذف دائم مباشر/);
 });
 
+test("Vault explains metadata, validation, retention and purge outcomes", () => {
+  assert.match(ui, /تعديل الوصف والبيانات/);
+  assert.match(ui, /هذه العملية لا تشغّل الفحص التقني/);
+  assert.match(ui, /بانتظار الفحص التقني/);
+  assert.match(ui, /مدة احتفاظ قدرها 30 يوماً/);
+  assert.match(ui, /طلب الإتلاف غير متاح/);
+  assert.match(ui, /انتقلت إلى قائمة طلبات الإتلاف/);
+  assert.match(ui, /الوصف البديل المحفوظ/);
+  assert.match(ui, /purgeStatusLabels/);
+});
+
 test("Migration 038 remains in source and preserves legacy media", () => {
   assert.match(backfill, /legacy_source_and_storage_object_untouched/);
   assert.match(backfill, /insert into public\.media_assets/i);
   assert.match(backfill, /insert into public\.media_asset_links/i);
   assert.doesNotMatch(backfill, /delete\s+from\s+public\.entity_media/i);
+});
+
+test("legacy reconciliation validates real bytes and never fabricates rights", () => {
+  assert.match(reconciliationApi, /validateMedia\(bytes/);
+  assert.match(reconciliationApi, /object\/public-media/);
+  assert.match(reconciliationApi, /media-derivatives/);
+  assert.match(reconciliationApi, /admin_media_complete_legacy_reconciliation/);
+  assert.match(reconciliation, /security invoker/g);
+  assert.match(reconciliation, /legacy_technical_reconciliation/);
+  assert.match(reconciliation, /sha256_hex=v_sha/);
+  assert.match(reconciliation, /rights_assertion_created',false/);
+  assert.doesNotMatch(reconciliation, /insert into public\.media_rights_assertions/i);
+  assert.match(ui, /تدقيق الأصول القديمة/);
+  assert.match(ui, /لا يخترع إثبات حقوق/);
 });
