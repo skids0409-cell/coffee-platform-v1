@@ -26,7 +26,7 @@ function projectionMount(
 function discoverPreservationMounts(): ProjectionMounts {
   const mediaMaster = document.querySelector<HTMLElement>(".media-vault-assets");
   const mediaRoot = mediaMaster?.closest<HTMLElement>("section");
-  if (!mediaRoot) return { status: null, inspector: null };
+  if (!mediaMaster || !mediaRoot) return { status: null, inspector: null };
 
   mediaRoot.id ||= "operations-media";
   mediaRoot.dataset.governedWorkspace = "media";
