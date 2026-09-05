@@ -4,7 +4,8 @@ import fs from "node:fs";
 
 const records = fs.readFileSync("app/ui/admin/RecordsWorkspace.tsx", "utf8");
 const review = fs.readFileSync("app/ui/admin/ReviewWorkspace.tsx", "utf8");
-const platform = fs.readFileSync("app/ui/Platform.tsx", "utf8");
+const operationsRoute = fs.readFileSync("app/operations/page.tsx", "utf8");
+const controller = fs.readFileSync("app/ui/admin/OperationsController.tsx", "utf8");
 
 test("Records presentation is available as an independent governed workspace", () => {
   assert.match(records, /export function RecordsWorkspace/);
@@ -47,9 +48,9 @@ test("Extracted workspaces remain presentation-only", () => {
   assert.doesNotMatch(review, /method:\s*["'](?:POST|PATCH|DELETE)["']/);
 });
 
-test("legacy host is still present until the final Platform integration step", () => {
-  assert.match(platform, /workspace === "records"/);
-  assert.match(platform, /workspace === "review"/);
-  assert.match(platform, /published-records-admin priority-section/);
-  assert.match(platform, /review-queues/);
+test("dedicated operations route owns the extracted runtime contract", () => {
+  assert.match(operationsRoute, /OperationsController/);
+  assert.doesNotMatch(operationsRoute, /Platform/);
+  assert.match(controller, /RecordsWorkspace/);
+  assert.match(controller, /ReviewWorkspace/);
 });
