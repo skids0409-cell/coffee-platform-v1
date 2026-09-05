@@ -188,19 +188,16 @@ export function MediaPreservationStatusStrip() {
 }
 
 export function MediaPreservationInspectorPanel({ selectedAssetId }: { selectedAssetId: string }) {
+  return <MediaPreservationInspectorPanelContent key={selectedAssetId || "none"} selectedAssetId={selectedAssetId} />;
+}
+
+function MediaPreservationInspectorPanelContent({ selectedAssetId }: { selectedAssetId: string }) {
   const { data, conformance, state, errorMessage, refresh } = useProjection();
   const [observedSha256, setObservedSha256] = useState("");
   const [fixityNote, setFixityNote] = useState("");
   const [dipPurpose, setDipPurpose] = useState("");
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    setObservedSha256("");
-    setFixityNote("");
-    setDipPurpose("");
-    setMessage("");
-  }, [selectedAssetId]);
 
   const selectedAsset = data.assets.find((asset) => asset.id === selectedAssetId);
   const selectedPackages = useMemo(() => data.packages.filter((item) => item.asset_id === selectedAssetId), [data.packages, selectedAssetId]);
