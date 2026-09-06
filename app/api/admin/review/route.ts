@@ -1,6 +1,7 @@
 import { adminRest, requireStaff, sameOrigin } from "@/lib/supabase-admin";
 import { normalizeSearchText, type SearchEntityType, type SearchIntent } from "@/lib/search-governance";
 import { projectReviewLifecycle, type ReviewLifecycleProjection } from "@/lib/review-lifecycle-projection";
+import { projectRightsLifecycle, type RightsLifecycleProjection } from "@/lib/rights-lifecycle-projection";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -15,6 +16,7 @@ type QueueRow = {
   blockers: string[];
   warnings: string[];
   lifecycle?: ReviewLifecycleProjection;
+  rightsLifecycle?: RightsLifecycleProjection;
 };
 
 type LinkRow = { entity_table: string; entity_id: string };
@@ -217,6 +219,10 @@ async function loadQueue(token: string, role: string) {
     beta: betaFeedback.map((row) => ({ id: row.id, label: row.feedback_text, status: row.status, evidence: `${row.public_reference} · ${row.task_code} · ${row.outcome} · ${row.severity} · ${row.page_path}`, updated_at: row.created_at, ready: false, blockers: [], warnings: [`الجهاز: ${row.device_type}`] })),
     support: supportRequests.map((row) => ({ id: row.id, label: row.subject, status: row.status, evidence: `${row.public_reference} · ${row.request_type} · ${row.preferred_channel} · ${row.page_path}`, updated_at: row.created_at, ready: false, blockers: [], warnings: [row.message] })),
   };
+  rows.rights = rows.rights.map((row) => ({
+    ...row,
+    rightsLifecycle: projectRightsLifecycle({ status: row.status, role }),
+  }));
   const governedReviewKeys = ["products", "brands", "organizations", "offers", "contents", "origins"] as const;
   for (const key of governedReviewKeys) {
     rows[key] = rows[key].map((row) => ({
