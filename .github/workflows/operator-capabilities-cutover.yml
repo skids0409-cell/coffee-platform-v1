@@ -1,0 +1,35 @@
+name: Operator Capabilities Cutover
+
+on:
+  push:
+    branches:
+      - phase2/operator-capabilities-projection
+    paths:
+      - "scripts/apply-operator-capabilities-projection.mjs"
+      - ".github/workflows/operator-capabilities-cutover.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  cutover:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: phase2/operator-capabilities-projection
+          fetch-depth: 1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.19.0
+      - name: Apply operator capabilities projection
+        run: node scripts/apply-operator-capabilities-projection.mjs
+      - name: Commit cutover
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/api/admin/review/route.ts app/ui/admin/OperationsController.tsx app/ui/admin/ArchiveWorkspace.tsx
+          git commit -m "feat(governance): consume operator capabilities from server projection"
+          git push origin HEAD:phase2/operator-capabilities-projection
