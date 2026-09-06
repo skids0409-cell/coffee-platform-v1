@@ -7,14 +7,17 @@ import { allowedMediaExtension, mediaErrorMessage, uploadCatalogMedia } from "@/
 
 type IssueUpdate = { id: string; status: string; resolutionNote: string };
 
+export type RecordEditorConfirmationRequest = { title: string; description: string; confirmLabel: string; tone?: "default" | "danger" };
+
 type ControllerProps = {
   entity: string;
   id: string;
   onSaved: () => Promise<void>;
   onClose: () => void;
+  requestConfirmation: (request: RecordEditorConfirmationRequest) => Promise<boolean>;
 };
 
-export function useReviewRecordEditorController({ entity, id, onSaved, onClose }: ControllerProps) {
+export function useReviewRecordEditorController({ entity, id, onSaved, onClose, requestConfirmation }: ControllerProps) {
   const [data, setData] = useState<any>(null);
   const [attributes, setAttributes] = useState<Record<string, string>>({});
   const [editorContract, setEditorContract] = useState<RecordCapabilityContract | null>(null);
@@ -48,7 +51,7 @@ export function useReviewRecordEditorController({ entity, id, onSaved, onClose }
 
   const save = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (data?.record?.status === "published" && !window.confirm("هذا السجل منشور حالياً، وأي تعديل سيظهر مباشرةً للمستخدمين بعد الحفظ. هل تريد المتابعة؟")) return;
+    if (data?.record?.status === "published" && !(await requestConfirmation({ title: "تأكيد تعديل سجل منشور", description: "هذا السجل منشور حالياً، وأي تعديل سيظهر مباشرةً للمستخدمين بعد الحفظ.", confirmLabel: "حفظ التعديل" }))) return;
     const fields = Object.fromEntries(new FormData(event.currentTarget).entries());
     if (entity === "products" && !editorContract) { setMessage("تعذر تحميل عقد التصنيف المعتمد. أغلق السجل وافتحه مجدداً قبل الحفظ."); return; }
     setWorking(true);
@@ -117,7 +120,7 @@ export function useReviewRecordEditorController({ entity, id, onSaved, onClose }
   };
 
   const deleteMedia = async (mediaId: string) => {
-    if (!window.confirm("سيُفصل ارتباط الصورة بهذا السجل فقط. لن يُحذف ملف الأصل من Media Vault. هل تريد المتابعة؟")) return;
+    if (!(await requestConfirmation({ title: "فصل الصورة عن السجل", description: "سيُفصل ارتباط الصورة بهذا السجل فقط. لن يُحذف ملف الأصل من Media Vault.", confirmLabel: "فصل الصورة", tone: "danger" }))) return;
     setMediaWorking(mediaId);
     setMessage("");
     const response = await fetch("/api/admin/media", { method: "DELETE", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: mediaId }) });
@@ -128,7 +131,7 @@ export function useReviewRecordEditorController({ entity, id, onSaved, onClose }
   };
 
   const restoreRevision = async (eventId: string) => {
-    if (!window.confirm("سيُعاد محتوى الحقول الأساسية إلى النسخة السابقة، مع الاحتفاظ بسجل كامل للعملية. العلاقات والصور لا تُحذف. هل تريد المتابعة؟")) return;
+    if (!(await requestConfirmation({ title: "استعادة نسخة سابقة", description: "سيُعاد محتوى الحقول الأساسية إلى النسخة السابقة، مع الاحتفاظ بسجل كامل للعملية. العلاقات والصور لا تُحذف.", confirmLabel: "استعادة النسخة", tone: "danger" }))) return;
     setWorking(true);
     setMessage("جارٍ استعادة النسخة السابقة…");
     const response = await fetch("/api/admin/records", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "restore_revision", entity, id, eventId }) });
