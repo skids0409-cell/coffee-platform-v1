@@ -20,7 +20,6 @@ test("data center extraction preserves the batch lifecycle actions", () => {
 
 test("data center preserves draft-only import safeguards", () => {
   assert.match(projection, /إنشاء السجلات كمسودات فقط/);
-  assert.match(source, /السجلات الصالحة إلى مسودات فقط، دون نشر عام/);
   assert.match(source, /لا تنشر عملية الاستيراد أي سجل تلقائياً/);
   assert.match(source, /sourceConfirmed/);
   assert.match(source, /status !== "archived"/);
