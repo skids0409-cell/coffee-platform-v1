@@ -363,7 +363,7 @@ export async function POST(request: Request) {
   const admin = await requireStaff(request).catch(() => null);
   if (!admin) return Response.json({ updated: false }, { status: 401 });
   const body = (await request.json().catch(() => null)) as
-    | { table?: string; id?: string; status?: string; action?: string; canonicalTermAr?: string; canonicalTermEn?: string; aliases?: string[]; intent?: string; entityScope?: string[]; matchMode?: string; weight?: number; sourceBasis?: string; priority?: string; assignedTo?: string | null; internalNotes?: string; resolutionNote?: string; technicalReference?: string; overrideReason?: string; targetEntity?: string; targetId?: string }
+    | { table?: string; id?: string; status?: string; action?: string; canonicalTermAr?: string; canonicalTermEn?: string; aliases?: string[]; intent?: string; entityScope?: string[]; matchMode?: string; weight?: number; sourceBasis?: string; priority?: string; assignedTo?: string | null; internalNotes?: string; resolutionNote?: string; technicalReference?: string; technicalTaskId?: string | null; overrideReason?: string; targetEntity?: string; targetId?: string }
     | null;
   const canVerify = ["verifier", "admin"].includes(admin.profile.role);
   const isOwnerAdmin = admin.profile.role === "admin";
