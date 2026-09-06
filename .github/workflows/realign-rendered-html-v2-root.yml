@@ -1,0 +1,27 @@
+name: One-shot V2 Root Rendered HTML Realignment
+on:
+  push:
+    branches: [hotfix/data-center-v2-root-cutover]
+    paths: [scripts/realign-rendered-html-v2-root.mjs]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: hotfix/data-center-v2-root-cutover
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.19.0
+      - run: node scripts/realign-rendered-html-v2-root.mjs
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/rendered-html.test.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m "test(data-center-v2): align rendered HTML with root cutover"
+          git push origin HEAD:hotfix/data-center-v2-root-cutover
