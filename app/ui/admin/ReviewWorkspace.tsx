@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { PendingAssetReviewConsole } from "@/app/ui/admin/PendingAssetReviewConsole";
 import type { ReviewLifecycleAction, ReviewLifecycleProjection } from "@/lib/review-lifecycle-projection";
+import type { RightsLifecycleAction, RightsLifecycleProjection } from "@/lib/rights-lifecycle-projection";
 
 export type ReviewQueueRow = {
   id: string;
@@ -13,6 +14,7 @@ export type ReviewQueueRow = {
   blockers: string[];
   warnings: string[];
   lifecycle?: ReviewLifecycleProjection;
+  rightsLifecycle?: RightsLifecycleProjection;
 };
 
 export type ReviewQueues = Record<string, ReviewQueueRow[]>;
@@ -55,8 +57,6 @@ export function ReviewWorkspace({
   onProcessRights,
   onDeleteRecord,
 }: ReviewWorkspaceProps) {
-  const canVerify = ["verifier", "admin"].includes(role);
-
   useEffect(() => {
     if (!focusId) return;
     const handle = window.setTimeout(() => document.getElementById(`review-queue-${focusId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
@@ -84,7 +84,11 @@ export function ReviewWorkspace({
     }
   };
 
-  return <div className="review-queues" id="operations-review" data-workspace-contract="master-detail-v1">
+  const runProjectedRightsAction = (row: ReviewQueueRow, action: RightsLifecycleAction) => {
+    if (action.enabled) onProcessRights(row.id, action.targetStatus);
+  };
+
+  return <div className="review-queues" id="operations-review" data-workspace-contract="master-detail-v1" data-review-role={role}>
     <PendingAssetReviewConsole />
     {queueSections.filter(([key]) => (queues[key]?.length || 0) > 0).map(([key, label]) => (
       <section key={key} data-governed-master="true">
@@ -107,10 +111,19 @@ export function ReviewWorkspace({
             <button type="button" disabled={workingId === row.id} onClick={() => onSetStatus("beta_feedback", row.id, "duplicate")}>مكرر</button>
           </div>}
 
-          {key === "rights" && canVerify && <div className="queue-actions rights-actions">
-            {row.status !== "in_review" && <button type="button" disabled={workingId === row.id} onClick={() => onProcessRights(row.id, "in_review")}>{row.status === "submitted" ? "بدء المراجعة" : "استئناف المراجعة بعد وصول الدليل"}</button>}
-            {row.status !== "needs_evidence" && <button type="button" disabled={workingId === row.id} onClick={() => onProcessRights(row.id, "needs_evidence")}>طلب دليل إضافي</button>}
-            {row.status === "in_review" && <><button type="button" disabled={workingId === row.id} onClick={() => onProcessRights(row.id, "approved")}>قبول وإغلاق</button><button type="button" disabled={workingId === row.id} onClick={() => onProcessRights(row.id, "rejected")}>رفض مع السبب</button></>}
+          {key === "rights" && <div className="queue-actions rights-actions" data-lifecycle-revision={row.rightsLifecycle?.contractRevision || "missing"}>
+            {(row.rightsLifecycle?.availableActions || []).map((action) => (
+              <button
+                key={action.action}
+                type="button"
+                disabled={workingId === row.id || !action.enabled}
+                title={action.blockedReason || ""}
+                data-confirmation-mode={action.confirmationMode}
+                onClick={() => runProjectedRightsAction(row, action)}
+              >
+                {action.label}
+              </button>
+            ))}
           </div>}
 
           {!["rights", "beta", "support"].includes(key) && <div className="queue-actions" data-lifecycle-revision={row.lifecycle?.contractRevision || "missing"}>
