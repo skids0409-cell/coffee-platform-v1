@@ -4,6 +4,7 @@ import { projectReviewLifecycle, type ReviewLifecycleProjection } from "@/lib/re
 import { projectRightsLifecycle, type RightsLifecycleProjection } from "@/lib/rights-lifecycle-projection";
 import { projectBetaLifecycle, type BetaLifecycleProjection } from "@/lib/beta-lifecycle-projection";
 import { projectSupportLifecycle } from "@/lib/support-lifecycle-projection";
+import { projectSearchTermLifecycle } from "@/lib/search-term-lifecycle-projection";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -324,7 +325,7 @@ async function loadQueue(token: string, role: string) {
       staff: staffProfiles,
     },
     searchGovernance: {
-      terms: searchTerms,
+      terms: searchTerms.map((term) => ({ ...term, lifecycle: projectSearchTermLifecycle({ status: term.status, role }) })),
       weakQueries,
       totalEventsReviewed: searchEvents.length,
       activeTerms: searchTerms.filter((term) => term.status === "active").length,
