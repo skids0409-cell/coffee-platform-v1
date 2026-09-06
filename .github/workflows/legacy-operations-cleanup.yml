@@ -12,6 +12,7 @@ on:
       - "app/api/admin/review/route.ts"
       - "supabase/migrations/**"
       - "scripts/phase1-review-wrapup.mjs"
+      - "scripts/phase1-test-realignment.mjs"
       - "tests/**"
 
 permissions:
@@ -41,12 +42,15 @@ jobs:
       - name: Apply guarded Review and Approval wrap-up
         run: node scripts/phase1-review-wrapup.mjs
 
+      - name: Realign regression tests to extracted architecture
+        run: node scripts/phase1-test-realignment.mjs
+
       - name: Persist wrap-up changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/ui/admin/OperationsController.tsx app/api/admin/review/route.ts tests/operations-workspace-extraction.test.mjs
-          git commit -m "refactor(review): standardize confirmations and atomic transition boundary"
+          git add app/ui/admin/OperationsController.tsx app/api/admin/review/route.ts tests/operations-workspace-extraction.test.mjs tests/rendered-html.test.mjs tests/media-vault-phase4.test.mjs tests/operations-center-architecture.test.mjs
+          git commit -m "refactor(review): standardize transitions and realign extraction regressions"
           git push origin HEAD:phase1/legacy-operations-cleanup
 
       - name: Verify legacy cleanup and partner isolation
@@ -61,6 +65,7 @@ jobs:
           grep -q 'export default function Platform' app/ui/Platform.tsx
           ! grep -q 'window.prompt' app/ui/admin/ReviewWorkspace.tsx
           ! grep -q 'window.confirm' app/ui/admin/ReviewWorkspace.tsx
+          grep -q 'StandardConfirmDialog' app/ui/admin/OperationsController.tsx
           grep -q 'rpc/admin_transition_review_record' app/api/admin/review/route.ts
 
       - name: Lint
