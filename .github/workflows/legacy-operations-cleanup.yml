@@ -52,29 +52,29 @@ jobs:
           grep -q 'StandardConfirmDialog' app/ui/admin/OperationsController.tsx
           grep -q 'rpc/admin_transition_review_record' app/api/admin/review/route.ts
 
-      - name: Lint with captured diagnostics
-        id: lint
-        shell: bash
-        run: |
-          set +e
-          npm run lint > ci-lint.log 2>&1
-          code=$?
-          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
-          cat ci-lint.log
-          exit 0
-
-      - name: Persist lint diagnostics on failure
-        if: steps.lint.outputs.exit_code != '0'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ci-lint.log
-          git commit -m "ci: capture phase1 lint diagnostics" || true
-          git push origin HEAD:phase1/legacy-operations-cleanup
-          exit 1
+      - name: Lint
+        run: npm run lint
 
       - name: Build
         run: npm run build
 
-      - name: Tests
-        run: node --test tests/*.test.mjs
+      - name: Tests with captured diagnostics
+        id: tests
+        shell: bash
+        run: |
+          set +e
+          node --test tests/*.test.mjs > ci-tests.log 2>&1
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          cat ci-tests.log
+          exit 0
+
+      - name: Persist test diagnostics on failure
+        if: steps.tests.outputs.exit_code != '0'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ci-tests.log
+          git commit -m "ci: capture phase1 test diagnostics" || true
+          git push origin HEAD:phase1/legacy-operations-cleanup
+          exit 1
