@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PartnerPortal } from "@/app/ui/partner/PartnerPortal";
 import {
@@ -1326,6 +1327,7 @@ function usePublicProducts(category?: string, slug?: string, kind?: string, navi
   return state;
 }
 function Header() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const status = usePlatformStatus();
   const comparison = useStoredItems("coffee-platform-v1-comparison");
@@ -1333,7 +1335,7 @@ function Header() {
   const launchOn = status?.publicLaunch === true;
   const goBack = () => {
     if (window.history.length > 1) window.history.back();
-    else window.location.assign("/");
+    else router.push("/");
   };
   const closeMenu = () => setOpen(false);
   return (

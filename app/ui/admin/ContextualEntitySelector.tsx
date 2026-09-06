@@ -40,10 +40,10 @@ export function ContextualEntitySelector({
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<ResolverOption[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const selectedEntityType = value?.entityType || "";
 
   useEffect(() => {
     let cancelled = false;
-    setState("loading");
     const params = new URLSearchParams({ context });
     if (role) params.set("role", role);
     fetch(`/api/admin/entity-resolver?${params.toString()}`, { cache: "no-store", credentials: "same-origin" })
@@ -52,16 +52,16 @@ export function ContextualEntitySelector({
         if (!response.ok || !result.contract) throw new Error(result.reason || "resolver_failed");
         if (cancelled) return;
         setContract(result.contract);
-        const nextType = result.contract.allowedEntityTypes.some((item) => item.entityType === value?.entityType)
-          ? String(value?.entityType || "")
+        const nextType = result.contract.allowedEntityTypes.some((item) => item.entityType === selectedEntityType)
+          ? selectedEntityType
           : result.contract.allowedEntityTypes[0]?.entityType || "";
         setEntityType(nextType);
-        if (value && value.entityType !== nextType) onChange(null);
+        if (selectedEntityType && selectedEntityType !== nextType) onChange(null);
         setState("ready");
       })
       .catch(() => { if (!cancelled) setState("error"); });
     return () => { cancelled = true; };
-  }, [context, role]);
+  }, [context, onChange, role, selectedEntityType]);
 
   useEffect(() => {
     if (!entityType || state !== "ready") return;

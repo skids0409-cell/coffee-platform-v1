@@ -33,10 +33,13 @@ export function SupportWorkspace({ data, focusId = "", onUpdated }: SupportWorks
   }, [focusId]);
 
   useEffect(() => {
-    const task = selected?.technical_task;
-    setTechnicalTarget(task?.id ? { entityType: "technical_tasks", id: task.id, label: `${task.task_code} — ${task.title}` } : null);
-    setNewTaskTitle("");
-  }, [selected?.id, selected?.technical_task?.id]);
+    const handle = window.setTimeout(() => {
+      const task = selected?.technical_task;
+      setTechnicalTarget(task?.id ? { entityType: "technical_tasks", id: task.id, label: `${task.task_code} — ${task.title}` } : null);
+      setNewTaskTitle("");
+    }, 0);
+    return () => window.clearTimeout(handle);
+  }, [selected?.id, selected?.technical_task]);
 
   if (!data.requests.length) return <section className="support-workspace" id="operations-support"><h2>معالجة طلبات المساعدة</h2><p>لا توجد طلبات حالياً.</p></section>;
 
