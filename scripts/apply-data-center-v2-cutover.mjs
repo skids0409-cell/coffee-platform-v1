@@ -1,4 +1,5 @@
 // one-shot cutover helper; remove before final PR
+// trigger: apply default-route cutover
 import fs from 'node:fs';
 
 const controllerPath = 'app/ui/admin/OperationsController.tsx';
