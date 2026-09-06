@@ -429,10 +429,12 @@ test("data center identifies Baghdad as the only current test market", () => {
 
 test("operations center v2 covers editing, support processing, and all MVP data families", () => {
   const source = readPlatformAndOperationsSource();
+  const supportWorkspace = readFileSync(new URL("../app/ui/admin/SupportWorkspace.tsx", import.meta.url), "utf8");
   assert.match(source, /فتح وتدقيق/);
   assert.match(source, /حفظ التعديل/);
   assert.match(source, /معالجة طلبات المساعدة/);
-  assert.match(source, /مرجع فني/);
+  assert.match(supportWorkspace, /ContextualEntitySelector context="support_technical_reference"/);
+  assert.match(supportWorkspace, /إنشاء مهمة تقنية/);
   assert.match(source, /مدخل بيانات موحّد/);
   assert.match(source, /القهوة المحمصة/);
   assert.match(source, /التعلم والمعرفة/);
@@ -518,7 +520,9 @@ test("operations center v5 separates product master data from seller offers", ()
   assert.match(cleanup, /delete from public\.product_attribute_values/);
   assert.match(source, /متجر البائع داخل قهوتنا/);
   assert.doesNotMatch(recordForm, /name="price"|name="availability"/);
-  assert.match(source, /المرفوضات والأرشيف/);
+  const archiveWorkspace = readFileSync(new URL("../app/ui/admin/ArchiveWorkspace.tsx", import.meta.url), "utf8");
+  assert.match(archiveWorkspace, /سجلات الكتالوج المرفوضة والمؤرشفة/);
+  assert.match(archiveWorkspace, /سجل كتالوج/);
 });
 
 test("catalog media requires governed attestation and accessible alternative text", () => {

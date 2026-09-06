@@ -63,6 +63,7 @@ export function OperationsWorkspaceShell({
       className="operations governed-operations-shell"
       data-workspace-contract="command-master-inspector-v1"
       data-operations-shell="governed-v1"
+      data-current-workspace={workspace}
     >
       <OperationsWorkspaceChrome />
       <div className="operations-status-strip" aria-label="حالة النشر">

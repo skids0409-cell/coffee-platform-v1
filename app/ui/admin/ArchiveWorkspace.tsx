@@ -20,9 +20,9 @@ type ArchiveWorkspaceProps = {
 
 export function ArchiveWorkspace({ items, canDelete, workingId, onOpen, onRestoreDraft, onDelete, importArchive }: ArchiveWorkspaceProps) {
   return <>
-    <section className="inactive-catalog" data-workspace-contract="command-master-inspector-v1">
-      <div className="section-head"><div><span className="eyebrow">Archive</span><h2>المرفوضات والأرشيف</h2></div><span>{items.length} سجل</span></div>
-      <p>الأرشفة هي الإجراء اليومي الآمن. الحذف النهائي متاح للمدير الأعلى فقط وبعد التأكيد.</p>
+    <section className="inactive-catalog" data-workspace-contract="command-master-inspector-v1" data-archive-domain="catalog-records">
+      <div className="section-head"><div><span className="eyebrow">Catalog Archive</span><h2>سجلات الكتالوج المرفوضة والمؤرشفة</h2></div><span>{items.length} سجل كتالوج</span></div>
+      <p>هذا العداد يخص سجلات الكتالوج فقط. دفعات الاستيراد لها سجل وعداد مستقلان أدناه. الأرشفة هي الإجراء اليومي الآمن، والحذف النهائي متاح للمدير الأعلى فقط وبعد التأكيد.</p>
       <div data-governed-master="true">
         {items.map((item) => <article key={`${item.entity}-${item.id}`}>
           <div><b>{item.label}</b><span>{item.status === "rejected" ? "مرفوض" : "مؤرشف"} · {new Date(item.updated_at).toLocaleDateString("ar-IQ")}</span></div>
@@ -32,7 +32,7 @@ export function ArchiveWorkspace({ items, canDelete, workingId, onOpen, onRestor
             {canDelete && <button type="button" className="danger-action" disabled={workingId === item.id} onClick={() => onDelete(item.entity, item.id, item.label)}>حذف نهائي</button>}
           </div>
         </article>)}
-        {!items.length && <p>لا توجد سجلات مؤرشفة أو مرفوضة حالياً.</p>}
+        {!items.length && <p>لا توجد سجلات كتالوج مؤرشفة أو مرفوضة حالياً.</p>}
       </div>
     </section>
     {importArchive}

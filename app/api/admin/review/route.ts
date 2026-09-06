@@ -88,9 +88,9 @@ async function loadQueue(token: string, role: string) {
       token,
       "beta_feedback?select=id,public_reference,page_path,task_code,outcome,device_type,severity,feedback_text,status,created_at&status=neq.resolved&order=created_at.desc&limit=100",
     ),
-    adminRest<Array<{ id: string; public_reference: string; request_type: string; page_path: string; subject: string; message: string; preferred_channel: string; requester_name: string | null; requester_phone: string | null; requester_email: string | null; status: string; priority: string; assigned_to: string | null; internal_notes: string | null; resolution_note: string | null; technical_reference: string | null; escalated_at: string | null; customer_replied_at: string | null; archived_at: string | null; created_at: string; updated_at: string }>>(
+    adminRest<Array<{ id: string; public_reference: string; request_type: string; page_path: string; subject: string; message: string; preferred_channel: string; requester_name: string | null; requester_phone: string | null; requester_email: string | null; status: string; priority: string; assigned_to: string | null; internal_notes: string | null; resolution_note: string | null; technical_reference: string | null; technical_task_id: string | null; technical_task: { id: string; task_code: string; title: string; status: string } | null; escalated_at: string | null; customer_replied_at: string | null; archived_at: string | null; created_at: string; updated_at: string }>>(
       token,
-      "support_requests?select=id,public_reference,request_type,page_path,subject,message,preferred_channel,requester_name,requester_phone,requester_email,status,priority,assigned_to,internal_notes,resolution_note,technical_reference,escalated_at,customer_replied_at,archived_at,created_at,updated_at&order=created_at.desc&limit=200",
+      "support_requests?select=id,public_reference,request_type,page_path,subject,message,preferred_channel,requester_name,requester_phone,requester_email,status,priority,assigned_to,internal_notes,resolution_note,technical_reference,technical_task_id,technical_task:technical_tasks(id,task_code,title,status),escalated_at,customer_replied_at,archived_at,created_at,updated_at&order=created_at.desc&limit=200",
     ),
     adminRest<Array<{ id: string; display_name: string | null; role: string }>>(token, "profiles?select=id,display_name,role&is_active=eq.true&role=in.(editor,verifier,admin)&order=display_name.asc"),
     adminRest<Array<{ product_id: string; category_id: string }>>(token, "product_categories?select=product_id,category_id&is_primary=eq.true"),
@@ -363,7 +363,7 @@ export async function POST(request: Request) {
   const admin = await requireStaff(request).catch(() => null);
   if (!admin) return Response.json({ updated: false }, { status: 401 });
   const body = (await request.json().catch(() => null)) as
-    | { table?: string; id?: string; status?: string; action?: string; canonicalTermAr?: string; canonicalTermEn?: string; aliases?: string[]; intent?: string; entityScope?: string[]; matchMode?: string; weight?: number; sourceBasis?: string; priority?: string; assignedTo?: string | null; internalNotes?: string; resolutionNote?: string; technicalReference?: string; overrideReason?: string; targetEntity?: string; targetId?: string }
+    | { table?: string; id?: string; status?: string; action?: string; canonicalTermAr?: string; canonicalTermEn?: string; aliases?: string[]; intent?: string; entityScope?: string[]; matchMode?: string; weight?: number; sourceBasis?: string; priority?: string; assignedTo?: string | null; internalNotes?: string; resolutionNote?: string; technicalReference?: string; technicalTaskId?: string | null; overrideReason?: string; targetEntity?: string; targetId?: string }
     | null;
   const canVerify = ["verifier", "admin"].includes(admin.profile.role);
   const isOwnerAdmin = admin.profile.role === "admin";
@@ -504,7 +504,7 @@ export async function POST(request: Request) {
   if (body?.action === "update_support_request") {
     if (!body.id || !/^[0-9a-f-]{36}$/i.test(body.id) || !supportStatuses.includes(body.status || "") || !["low", "normal", "high", "urgent"].includes(body.priority || "")) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
     try {
-      await adminRest(admin.token, "rpc/admin_update_support_request", {
+      await adminRest(admin.token, "rpc/admin_update_support_request_v2", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -514,13 +514,16 @@ export async function POST(request: Request) {
           p_assigned_to: body.assignedTo && /^[0-9a-f-]{36}$/i.test(body.assignedTo) ? body.assignedTo : null,
           p_internal_notes: String(body.internalNotes || "").trim().slice(0, 4000) || null,
           p_resolution_note: String(body.resolutionNote || "").trim().slice(0, 4000) || null,
-          p_technical_reference: String(body.technicalReference || "").trim().slice(0, 300) || null,
+          p_technical_task_id: body.technicalTaskId && /^[0-9a-f-]{36}$/i.test(body.technicalTaskId) ? body.technicalTaskId : null,
         }),
       });
       return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (message.includes("support_request_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
+      if (message.includes("invalid_support_assignee")) return Response.json({ updated: false, reason: "invalid_support_assignee" }, { status: 409 });
+      if (message.includes("technical_task_not_found")) return Response.json({ updated: false, reason: "technical_task_not_found" }, { status: 404 });
+      if (message.includes("closed_technical_task_not_assignable")) return Response.json({ updated: false, reason: "closed_technical_task_not_assignable" }, { status: 409 });
       if (message.includes("invalid_support_")) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
       throw error;
     }

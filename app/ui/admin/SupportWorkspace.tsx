@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { StandardConfirmDialog } from "@/app/ui/admin/StandardConfirmDialog";
+import { ContextualEntitySelector, type ResolvedEntityTarget } from "@/app/ui/admin/ContextualEntitySelector";
 import type { SupportLifecycleProjection, SupportWorkflowAction } from "@/lib/support-lifecycle-projection";
 
 type SupportRequest = { lifecycle?: SupportLifecycleProjection; [key: string]: any };
@@ -19,6 +20,9 @@ export function SupportWorkspace({ data, focusId = "", onUpdated }: SupportWorks
   const [view, setView] = useState<"open" | "closed" | "archived" | "all">("open");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [technicalTarget, setTechnicalTarget] = useState<ResolvedEntityTarget | null>(null);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [taskBusy, setTaskBusy] = useState(false);
   const filtered = data.requests.filter((request: SupportRequest) => view === "all" || (view === "archived" ? request.status === "archived" : view === "closed" ? ["resolved", "closed", "spam"].includes(request.status) : !["resolved", "closed", "spam", "archived"].includes(request.status)));
   const selected = filtered.find((request: SupportRequest) => request.id === selectedId) || filtered[0];
 
@@ -27,6 +31,15 @@ export function SupportWorkspace({ data, focusId = "", onUpdated }: SupportWorks
     const handle = window.setTimeout(() => { setView("open"); setSelectedId(focusId); }, 0);
     return () => window.clearTimeout(handle);
   }, [focusId]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const task = selected?.technical_task;
+      setTechnicalTarget(task?.id ? { entityType: "technical_tasks", id: task.id, label: `${task.task_code} — ${task.title}` } : null);
+      setNewTaskTitle("");
+    }, 0);
+    return () => window.clearTimeout(handle);
+  }, [selected?.id, selected?.technical_task]);
 
   if (!data.requests.length) return <section className="support-workspace" id="operations-support"><h2>معالجة طلبات المساعدة</h2><p>لا توجد طلبات حالياً.</p></section>;
 
@@ -45,13 +58,43 @@ export function SupportWorkspace({ data, focusId = "", onUpdated }: SupportWorks
         assignedTo: form.get("assignedTo"),
         internalNotes: form.get("internalNotes"),
         resolutionNote: form.get("resolutionNote"),
-        technicalReference: form.get("technicalReference"),
+        technicalTaskId: technicalTarget?.id || null,
       }),
     });
     const result = await response.json();
-    if (!response.ok) { setMessage("تعذر حفظ المعالجة."); return; }
+    if (!response.ok) {
+      const labels: Record<string, string> = {
+        invalid_support_assignee: "المسؤول المختار غير نشط أو غير مخول.",
+        technical_task_not_found: "المهمة التقنية المختارة لم تعد موجودة.",
+        closed_technical_task_not_assignable: "لا يمكن إسناد الطلب إلى مهمة تقنية مغلقة.",
+      };
+      setMessage(labels[String(result.reason)] || "تعذر حفظ المعالجة.");
+      return;
+    }
     onUpdated(result);
     setMessage("حُفظت المعالجة وسجل القرار.");
+  };
+
+  const createTechnicalTask = async () => {
+    const title = newTaskTitle.trim();
+    if (title.length < 3) { setMessage("اكتب عنواناً واضحاً للمهمة التقنية."); return; }
+    setTaskBusy(true);
+    setMessage("جارٍ إنشاء المهمة التقنية وربطها بالطلب…");
+    try {
+      const response = await fetch("/api/admin/technical-tasks", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ requestId: selected.id, title }),
+      });
+      const result = await response.json().catch(() => ({})) as { task?: { id?: string; task_code?: string; title?: string }; reason?: string };
+      if (!response.ok || !result.task?.id) { setMessage("تعذر إنشاء المهمة التقنية."); return; }
+      setTechnicalTarget({ entityType: "technical_tasks", id: result.task.id, label: `${result.task.task_code || "مهمة"} — ${result.task.title || title}` });
+      setNewTaskTitle("");
+      setMessage("تم إنشاء مهمة تقنية canonical وربطها بالطلب وتسجيل العملية في سجل التدقيق.");
+    } finally {
+      setTaskBusy(false);
+    }
   };
 
   const workflowAction = async (action: "mark_support_escalated" | "mark_support_reply" | "delete_support_request", openUrl?: string) => {
@@ -81,7 +124,7 @@ export function SupportWorkspace({ data, focusId = "", onUpdated }: SupportWorks
         assignedTo: selected.assigned_to,
         internalNotes: selected.internal_notes,
         resolutionNote: selected.resolution_note,
-        technicalReference: selected.technical_reference,
+        technicalTaskId: selected.technical_task_id,
       }),
     });
     const result = await response.json().catch(() => ({}));
@@ -95,7 +138,8 @@ export function SupportWorkspace({ data, focusId = "", onUpdated }: SupportWorks
   const runProjectedAction = (action: SupportWorkflowAction) => {
     if (!action.enabled) return;
     if (action.action === "escalate") {
-      const url = `mailto:?subject=${encodeURIComponent(`إحالة دعم ${selected.public_reference}: ${selected.subject}`)}&body=${encodeURIComponent(`المرجع: ${selected.public_reference}\nالنوع: ${selected.request_type}\nالصفحة: ${selected.page_path}\nالتقرير: ${selected.message}\nالملاحظات الداخلية: ${selected.internal_notes || "—"}\nالمرجع الفني: ${selected.technical_reference || "—"}`)}`;
+      const taskLabel = technicalTarget?.label || selected.technical_task?.task_code || selected.technical_reference || "غير مرتبط";
+      const url = `mailto:?subject=${encodeURIComponent(`إحالة دعم ${selected.public_reference}: ${selected.subject}`)}&body=${encodeURIComponent(`المرجع: ${selected.public_reference}\nالنوع: ${selected.request_type}\nالصفحة: ${selected.page_path}\nالتقرير: ${selected.message}\nالملاحظات الداخلية: ${selected.internal_notes || "—"}\nالمهمة التقنية: ${taskLabel}`)}`;
       void workflowAction("mark_support_escalated", url);
       return;
     }
@@ -113,7 +157,7 @@ export function SupportWorkspace({ data, focusId = "", onUpdated }: SupportWorks
 
   return <section className="support-workspace" id="operations-support" data-workspace-contract="command-master-inspector-v1">
     <div className="section-head"><div><span className="eyebrow">Support Desk</span><h2>معالجة طلبات المساعدة</h2></div><span>من الاستلام إلى الإغلاق</span></div>
-    <p>هذا مكتب معالجة فعلي داخل المنصة. التقرير الأصلي محفوظ أدناه، وكل تغيير في المسؤول أو الحالة أو الحل يُحفظ في قاعدة البيانات وسجل التدقيق. الربط بأداة فنية خارجية اختياري لاحقاً عبر «المرجع الفني».</p>
+    <p>مكتب المعالجة مرتبط الآن بمهام تقنية canonical وبقائمة المشرفين النشطين من الخادم؛ لا يقبل مرجعاً فنياً نصياً حراً.</p>
     <div className="support-tabs">
       <button type="button" className={view === "open" ? "active" : ""} onClick={() => { setView("open"); setSelectedId(""); }}>المفتوحة</button>
       <button type="button" className={view === "closed" ? "active" : ""} onClick={() => { setView("closed"); setSelectedId(""); }}>المحلولة والمغلقة</button>
@@ -130,13 +174,21 @@ export function SupportWorkspace({ data, focusId = "", onUpdated }: SupportWorks
         <section className="support-original-report"><h3>التقرير الأصلي المحفوظ</h3><dl><div><dt>المرجع</dt><dd>{selected.public_reference}</dd></div><div><dt>تاريخ الاستلام</dt><dd>{new Date(selected.created_at).toLocaleString("ar-IQ")}</dd></div><div><dt>نوع الطلب</dt><dd>{selected.request_type}</dd></div><div><dt>الصفحة</dt><dd>{selected.page_path}</dd></div><div><dt>قناة التواصل</dt><dd>{selected.preferred_channel}</dd></div><div><dt>المستخدم</dt><dd>{selected.requester_name || "غير مسجل"}</dd></div><div><dt>واتساب</dt><dd>{selected.requester_phone || "غير مسجل"}</dd></div><div><dt>البريد</dt><dd>{selected.requester_email || "غير مسجل"}</dd></div></dl><h4>{selected.subject}</h4><p>{selected.message}</p></section>
         <label>الحالة<select name="status" defaultValue={selected.status}>{(selected.lifecycle?.statusOptions || []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         <label>الأولوية<select name="priority" defaultValue={selected.priority || "normal"}><option value="low">منخفضة</option><option value="normal">عادية</option><option value="high">عالية</option><option value="urgent">عاجلة</option></select></label>
-        <label>المسؤول<select name="assignedTo" defaultValue={selected.assigned_to || ""}><option value="">غير معيّن</option>{data.staff.map((profile: any) => <option key={profile.id} value={profile.id}>{profile.display_name || profile.role}</option>)}</select></label>
-        <label>مرجع فني<input name="technicalReference" defaultValue={selected.technical_reference || ""} placeholder="رقم مشكلة أو رابط مهمة فنية" /></label>
+        <label>المسؤول<select name="assignedTo" defaultValue={selected.assigned_to || ""} data-staff-source="active-server-projection"><option value="">غير معيّن</option>{data.staff.map((profile: any) => <option key={profile.id} value={profile.id}>{profile.display_name || profile.role}</option>)}</select></label>
+        <section className="wide rounded-lg border border-[#dfd4c5] p-3" data-support-technical-reference="canonical-task-only">
+          <b className="block mb-2">المهمة التقنية</b>
+          <ContextualEntitySelector context="support_technical_reference" value={technicalTarget} onChange={setTechnicalTarget} disabled={taskBusy} />
+          <div className="mt-2 flex gap-2">
+            <input className="min-w-0 flex-1" value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} placeholder="عنوان مهمة تقنية جديدة" disabled={taskBusy} />
+            <button type="button" onClick={() => void createTechnicalTask()} disabled={taskBusy || newTaskTitle.trim().length < 3}>إنشاء وربط</button>
+          </div>
+          {selected.technical_reference && !selected.technical_task_id && <small className="mt-2 block text-[#756b63]">مرجع تاريخي غير قابل للتعديل: {selected.technical_reference}</small>}
+        </section>
         <label className="wide">ملاحظات داخلية<textarea name="internalNotes" rows={5} defaultValue={selected.internal_notes || ""} /></label>
         <label className="wide">نتيجة الحل<textarea name="resolutionNote" rows={4} defaultValue={selected.resolution_note || ""} /></label>
         {selected.history?.length > 0 && <details className="support-history wide"><summary>سجل المعالجة ({selected.history.length})</summary>{selected.history.map((event: any, index: number) => <p key={`${event.created_at}-${index}`}><b>{new Date(event.created_at).toLocaleString("ar-IQ")}</b> · {event.action}</p>)}</details>}
         <button className="primary" type="submit">حفظ المعالجة</button>
-        <div className="support-handoff wide"><b>التصنيف والإحالة ثم الرد</b><p>احفظ نوع المشكلة والملاحظات الداخلية أولاً، ثم أحِلها إلى فريق الدعم بالبريد. بعد اكتمال الحل احفظ «نتيجة الحل» وافتح الرد الجاهز إلى المستخدم عبر واتساب.</p><div className="queue-actions">{(selected.lifecycle?.availableActions || []).map((action) => <button key={action.action} type="button" className={action.action === "delete" ? "danger-action" : undefined} disabled={!action.enabled} title={action.blockedReason || ""} data-confirmation-mode={action.confirmationMode} onClick={() => runProjectedAction(action)}>{action.label}</button>)}</div><small>{selected.escalated_at ? `آخر إحالة مسجلة: ${new Date(selected.escalated_at).toLocaleString("ar-IQ")}` : "لم تسجل إحالة بعد"} · {selected.customer_replied_at ? `آخر رد مسجل: ${new Date(selected.customer_replied_at).toLocaleString("ar-IQ")}` : "لم يسجل رد للمستخدم بعد"}</small></div>
+        <div className="support-handoff wide"><b>التصنيف والإحالة ثم الرد</b><p>احفظ نوع المشكلة والملاحظات واربطها بمهمة تقنية canonical، ثم أحِلها إلى فريق الدعم. بعد اكتمال الحل احفظ «نتيجة الحل» وافتح الرد الجاهز إلى المستخدم عبر واتساب.</p><div className="queue-actions">{(selected.lifecycle?.availableActions || []).map((action) => <button key={action.action} type="button" className={action.action === "delete" ? "danger-action" : undefined} disabled={!action.enabled} title={action.blockedReason || ""} data-confirmation-mode={action.confirmationMode} onClick={() => runProjectedAction(action)}>{action.label}</button>)}</div><small>{selected.escalated_at ? `آخر إحالة مسجلة: ${new Date(selected.escalated_at).toLocaleString("ar-IQ")}` : "لم تسجل إحالة بعد"} · {selected.customer_replied_at ? `آخر رد مسجل: ${new Date(selected.customer_replied_at).toLocaleString("ar-IQ")}` : "لم يسجل رد للمستخدم بعد"}</small></div>
       </form>}
     </div>
     <StandardConfirmDialog

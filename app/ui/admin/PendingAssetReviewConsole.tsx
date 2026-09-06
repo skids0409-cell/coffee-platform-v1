@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PendingAssetReviewCapabilities } from "@/lib/pending-asset-review-capabilities";
+import { ContextualEntitySelector, type ResolvedEntityTarget } from "@/app/ui/admin/ContextualEntitySelector";
 
 type AuditEvent = {
   id: number;
@@ -43,15 +44,6 @@ type ReviewResponse = {
   reason?: string;
 };
 
-const entityLabels: Record<string, string> = {
-  products: "منتج",
-  offers: "عرض",
-  organizations: "جهة",
-  brands: "علامة تجارية",
-  contents: "محتوى",
-  origin_claims: "مصدر قهوة",
-};
-
 const roleLabels: Record<string, string> = {
   primary: "رئيسية",
   gallery: "معرض",
@@ -75,8 +67,7 @@ export function PendingAssetReviewConsole() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);
-  const [entityType, setEntityType] = useState("products");
-  const [entityId, setEntityId] = useState("");
+  const [entityTarget, setEntityTarget] = useState<ResolvedEntityTarget | null>(null);
   const [linkRole, setLinkRole] = useState("gallery");
   const [altAr, setAltAr] = useState("");
   const [rejectReason, setRejectReason] = useState("");
@@ -107,6 +98,7 @@ export function PendingAssetReviewConsole() {
 
   const selectAsset = (asset: PendingAsset) => {
     setSelectedId(asset.id);
+    setEntityTarget(null);
     setAltAr("");
     setRejectReason("");
     setMessage("");
@@ -120,8 +112,8 @@ export function PendingAssetReviewConsole() {
     }
     const effectiveAltAr = altAr.trim() || defaultAltAr;
     if (action === "approve_assign") {
-      if (!/^[0-9a-f-]{36}$/i.test(entityId.trim())) {
-        setMessage("أدخل معرف UUID صحيحاً للسجل المستهدف قبل الاعتماد والإسناد.");
+      if (!entityTarget) {
+        setMessage("اختر السجل المستهدف من الباحث السياقي المعتمد قبل الاعتماد والإسناد.");
         return;
       }
       if (effectiveAltAr.length < 2) {
@@ -144,7 +136,7 @@ export function PendingAssetReviewConsole() {
           assetId: selected.id,
           action,
           payload: action === "approve_assign"
-            ? { entity_type: entityType, entity_id: entityId.trim(), role: linkRole, alt_ar: effectiveAltAr }
+            ? { entity_type: entityTarget?.entityType, entity_id: entityTarget?.id, role: linkRole, alt_ar: effectiveAltAr }
             : { reason: rejectReason.trim() },
         }),
       });
@@ -163,7 +155,7 @@ export function PendingAssetReviewConsole() {
         setMessage(labels[String(result.reason)] || `تعذر تنفيذ القرار: ${String(result.reason || "خطأ غير معروف")}`);
         return;
       }
-      setEntityId("");
+      setEntityTarget(null);
       setRejectReason("");
       setAltAr("");
       setMessage(action === "approve_assign" ? "تم اعتماد الفحص وإسناد الأصل مع تسجيل القرار." : "تم رفض الأصل ونقله إلى الحجر مع بدء مؤقت 30 يوماً.");
@@ -234,8 +226,7 @@ export function PendingAssetReviewConsole() {
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <fieldset className="rounded-lg border border-emerald-200 bg-emerald-50 p-4" disabled={working || !capabilities.canDecide}>
                   <legend className="px-2 font-black">Approve & Assign · اعتماد وإسناد</legend>
-                  <label className="block text-sm">نوع السجل<select className="mt-1 w-full rounded-md border p-2" value={entityType} onChange={(event) => setEntityType(event.target.value)}>{Object.entries(entityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-                  <label className="mt-2 block text-sm">معرف السجل المستهدف<input className="mt-1 w-full rounded-md border p-2" value={entityId} onChange={(event) => setEntityId(event.target.value)} placeholder="UUID" /></label>
+                  <ContextualEntitySelector context="media_pending_review" role={linkRole} value={entityTarget} onChange={setEntityTarget} disabled={working || !capabilities.canDecide} />
                   <label className="mt-2 block text-sm">دور الصورة<select className="mt-1 w-full rounded-md border p-2" value={linkRole} onChange={(event) => setLinkRole(event.target.value)}>{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                   <label className="mt-2 block text-sm">الوصف البديل<input className="mt-1 w-full rounded-md border p-2" value={altAr} onChange={(event) => setAltAr(event.target.value)} placeholder={defaultAltAr} /></label>
                   <button type="button" className="primary mt-3" onClick={() => void act("approve_assign")}>Approve & Assign</button>
