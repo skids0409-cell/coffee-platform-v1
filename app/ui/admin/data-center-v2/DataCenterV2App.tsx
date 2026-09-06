@@ -320,7 +320,7 @@ export function DataCenterV2App() {
             </div>
             <div className={styles.heroActions}>
               <button className={styles.secondary} type="button" onClick={() => void load().catch(() => setMessage("تعذر تحديث البيانات."))}>تحديث</button>
-              <Link className={styles.secondary} href="/operations?workspace=dashboard">مركز العمليات</Link>
+              <Link className={styles.secondary} href="/operations/data-center-v2?view=overview">لوحة مركز البيانات V2</Link>
             </div>
           </header>
 

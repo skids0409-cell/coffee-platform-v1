@@ -40,9 +40,10 @@ test("operations controller composes governed modules and cuts Data Center over 
   assert.match(rollback, /rollback-only/);
 });
 
-test("V2 links back to the explicit operations dashboard instead of the redirected root", () => {
-  assert.match(v2, /href="\/operations\?workspace=dashboard"/);
-  assert.doesNotMatch(v2, /href="\/operations"/);
+test("V2 primary navigation never drops the operator into the legacy dashboard", () => {
+  assert.match(v2, /href="\/operations\/data-center-v2\?view=overview"/);
+  assert.doesNotMatch(v2, />مركز العمليات<\/Link>/);
+  assert.doesNotMatch(v2, /href="\/operations\?workspace=dashboard">مركز العمليات/);
 });
 
 test("controller keeps lifecycle-changing actions on existing server APIs", () => {
