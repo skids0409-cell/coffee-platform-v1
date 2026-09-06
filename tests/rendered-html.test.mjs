@@ -930,8 +930,9 @@ test("catalog entry supports checkbox multi-values and persists new-record media
   const recordForm = readFileSync(new URL("../app/ui/admin/RecordForm.tsx", import.meta.url), "utf8");
   assert.match(recordForm, /function MultiValue/);
   assert.match(recordForm, /type="checkbox" checked=\{selected\.includes\(option\)\}/);
-  assert.match(source, /result\.created\?\.id \|\| result\.id/);
-  assert.match(source, /uploadCatalogMedia\(entityMap\[pendingEntityType\], createdId/);
+  const draftController = readFileSync(new URL("../app/ui/admin/useCatalogDraftController.ts", import.meta.url), "utf8");
+  assert.match(draftController, /const createdId = String\(result\.created\?\.id \|\| result\.id \|\| ""\)/);
+  assert.match(draftController, /uploadCatalogMedia\(mediaEntityMap\[entityType\], createdId/);
   assert.doesNotMatch(source, /يمكن اختيار أكثر من قيمة باستخدام Ctrl/);
 });
 
@@ -963,13 +964,15 @@ test("media intake bypasses the Sites body limit through signed private quaranti
   const api = readFileSync(new URL("../app/api/admin/media/route.ts", import.meta.url), "utf8");
   const validator = readFileSync(new URL("../app/api/admin/media/validate/route.ts", import.meta.url), "utf8");
   const ui = readPlatformAndOperationsSource();
+  const mediaClient = readFileSync(new URL("../app/ui/admin/catalog-media-client.ts", import.meta.url), "utf8");
   assert.match(api, /object\/upload\/sign\/media-quarantine/);
   assert.match(api, /reason: "alt_required"/);
   assert.match(api, /reason: "rights_required"/);
   assert.match(api, /reason: "attestation_required"/);
   assert.match(validator, /validateMedia/);
   assert.match(validator, /media-derivatives/);
-  assert.match(ui, /signedUploadUrl/);
+  assert.match(mediaClient, /signedUploadUrl/);
+  assert.match(mediaClient, /fetch\(intent\.signedUploadUrl, \{ method: "PUT"/);
   assert.doesNotMatch(ui, /createImageBitmap\(file\)/);
   assert.match(ui, /className="entity-media-upload" onSubmit=\{addMedia\} noValidate/);
   assert.match(ui, /Media Vault/);
@@ -980,8 +983,9 @@ test("seller catalog is prioritized and published records use aligned dropdown f
   const sellerCatalogIndex = ui.indexOf("seller-catalog seller-catalog-priority");
   const rolesIndex = ui.indexOf("الأدوار والخدمات", sellerCatalogIndex);
   assert.ok(sellerCatalogIndex > 0 && rolesIndex > sellerCatalogIndex);
-  assert.match(ui, /قسم السجل<select value=\{publishedType\}/);
-  assert.match(ui, /الفئة المتوافقة<select value=\{publishedGroup\}/);
+  const recordsWorkspace = readFileSync(new URL("../app/ui/admin/RecordsWorkspace.tsx", import.meta.url), "utf8");
+  assert.match(recordsWorkspace, /<select value=\{publishedType\}/);
+  assert.match(recordsWorkspace, /<select value=\{publishedGroup\}/);
   assert.match(ui, /option value="consumables">مستهلكات/);
   assert.match(ui, /product\.product_kind === "roasted_coffee" \? "coffee" : "equipment"/);
   assert.match(ui, /قسم السجل<select value=\{entrySection\}/);
@@ -1021,7 +1025,8 @@ test("catalog drafts report the exact missing field and allow manual brand intak
   const ui = readPlatformAndOperationsSource();
   assert.match(ui, /className="catalog-draft-form" onSubmit=\{submit\} noValidate/);
   assert.match(ui, /لا يمكن حفظ المسودة: أكمل حقل/);
-  assert.match(ui, /تعذر الاتصال بقاعدة البيانات\. لم تُنشأ المسودة/);
+  const draftController = readFileSync(new URL("../app/ui/admin/useCatalogDraftController.ts", import.meta.url), "utf8");
+  assert.match(draftController, /تعذر الاتصال بقاعدة البيانات\. لم تُنشأ المسودة/);
   assert.match(ui, /إدخال علامة جديدة يدوياً/);
 });
 
@@ -1034,10 +1039,10 @@ test("global navigation exposes working menu back and contextual comparison", ()
 });
 
 test("catalog originals are quarantined before server-side validation", () => {
-  const ui = readPlatformAndOperationsSource();
+  const mediaClient = readFileSync(new URL("../app/ui/admin/catalog-media-client.ts", import.meta.url), "utf8");
   const migration = readFileSync(new URL("../supabase/migrations/036_phase3_media_vault_ingestion.sql", import.meta.url), "utf8");
-  assert.match(ui, /signedUploadUrl/);
-  assert.match(ui, /\/api\/admin\/media\/validate/);
+  assert.match(mediaClient, /signedUploadUrl/);
+  assert.match(mediaClient, /\/api\/admin\/media\/validate/);
   assert.match(migration, /'media-quarantine','media-quarantine',false/);
   assert.match(migration, /public_media_vault_insert/);
 });
@@ -1140,7 +1145,10 @@ test("STEP2 taxonomy input validation rejects malformed and duplicate definition
 test("STEP2 TaxonomyWorkspace is restricted to admins and has no delete workflow", () => {
   const platform = readPlatformAndOperationsSource();
   const workspace = readFileSync(new URL("../app/ui/admin/TaxonomyWorkspace.tsx", import.meta.url), "utf8");
-  assert.match(platform, /adminData\.profile\.role === "admin" && <TaxonomyWorkspace/);
+  assert.match(platform, /taxonomy: <TaxonomyWorkspace \/>/);
+  assert.match(platform, /canManageTaxonomy=\{adminData\.profile\.role === "admin"\}/);
+  const shell = readFileSync(new URL("../app/ui/admin/OperationsWorkspaceShell.tsx", import.meta.url), "utf8");
+  assert.match(shell, /value !== "taxonomy" \|\| canManageTaxonomy/);
   assert.match(workspace, /validate_change/);
   assert.match(workspace, /expectedUpdatedAt/);
   assert.match(workspace, /COF-GREEN/);
@@ -1172,7 +1180,9 @@ test("Phase 5 product Add/Edit uses the server-owned capability contract atomica
   assert.match(records, /loadRecordCapability/);
   assert.match(records, /serializeCapabilityAttributes/);
   assert.match(ui, /contract_revision/);
-  assert.match(ui, /تم إنشاء المنتج كمسودة/);
+  const draftController = readFileSync(new URL("../app/ui/admin/useCatalogDraftController.ts", import.meta.url), "utf8");
+  assert.match(draftController, /تم إنشاء المنتج كمسودة/);
+  assert.match(draftController, /createPendingDraft/);
 });
 
 test("Phase 5 attribute serialization rejects malformed and duplicate values", () => {
