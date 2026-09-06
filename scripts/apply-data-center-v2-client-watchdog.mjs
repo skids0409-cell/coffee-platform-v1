@@ -1,3 +1,4 @@
+// one-shot helper; remove before final PR
 import fs from 'node:fs';
 
 const path = 'app/ui/admin/data-center-v2/DataCenterV2App.tsx';
