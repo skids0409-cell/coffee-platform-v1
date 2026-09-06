@@ -63,13 +63,14 @@ export function SearchTermEditForm({ term, onCancel, onSaved }: { term: any; onC
       <fieldset className="search-scope wide"><legend>نطاق النتائج</legend>{[["product", "المنتجات"], ["organization", "الجهات"], ["content", "المعرفة"], ["origin", "المصادر"]].map(([value, label]) => <label key={value}><input type="checkbox" name="entityScope" value={value} defaultChecked={term.entity_scope.includes(value)} /> {label}</label>)}</fieldset>
       <div className="queue-actions wide"><button type="submit" disabled={busy}>حفظ التعديل</button><button type="button" onClick={onCancel} disabled={busy}>إلغاء</button></div>
     </form>
-    {pendingPayload && <StandardConfirmDialog
+    <StandardConfirmDialog
+      open={Boolean(pendingPayload)}
       title={term.lifecycle.editConfirmation.title}
       description={term.lifecycle.editConfirmation.description}
       confirmLabel={term.lifecycle.editConfirmation.confirmLabel}
       busy={busy}
-      onCancel={() => setPendingPayload(null)}
-      onConfirm={() => performSave(pendingPayload)}
-    />}
+      onCancel={() => { if (!busy) setPendingPayload(null); }}
+      onConfirm={() => pendingPayload ? performSave(pendingPayload) : Promise.resolve()}
+    />
   </>;
 }
