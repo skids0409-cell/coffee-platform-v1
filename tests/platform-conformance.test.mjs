@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-const platform = read("../app/lib/platform-conformance.ts");
+const platform = read("../lib/platform-conformance.ts");
 const conformanceRoute = read("../app/api/admin/architecture-conformance/route.ts");
 const platformShell = read("../app/ui/Platform.tsx");
 const partnerPortal = read("../app/ui/partner/PartnerPortal.tsx");
