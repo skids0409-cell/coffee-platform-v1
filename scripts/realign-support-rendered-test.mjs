@@ -1,0 +1,10 @@
+import { readFileSync, writeFileSync } from "node:fs";
+
+const path = "tests/rendered-html.test.mjs";
+let source = readFileSync(path, "utf8");
+const before = `test("directory support and archives follow the governed operational workflow", () => {\n  const ui = readPlatformAndOperationsSource();\n  const supportApi = readFileSync(new URL("../app/api/admin/review/route.ts", import.meta.url), "utf8");\n  const migration = readFileSync(new URL("../supabase/migrations/027_support_resolution_archive.sql", import.meta.url), "utf8");\n  assert.match(ui, /نوع الجهة/);\n  assert.match(ui, /إرسال نتيجة الحل عبر واتساب/);\n  assert.match(ui, /إحالة بالبريد إلى فريق الدعم/);\n  assert.match(ui, /function ArchivedImportBatches/);\n  assert.match(supportApi, /delete_support_request/);\n  assert.match(supportApi, /mark_support_reply/);\n  assert.match(migration, /support_requests_admin_delete/);\n});`;
+const after = `test("directory support and archives follow the governed operational workflow", () => {\n  const ui = readPlatformAndOperationsSource();\n  const supportApi = readFileSync(new URL("../app/api/admin/review/route.ts", import.meta.url), "utf8");\n  const supportProjection = readFileSync(new URL("../lib/support-lifecycle-projection.ts", import.meta.url), "utf8");\n  const migration = readFileSync(new URL("../supabase/migrations/027_support_resolution_archive.sql", import.meta.url), "utf8");\n  assert.match(ui, /نوع الجهة/);\n  assert.match(supportProjection, /label: "إرسال نتيجة الحل عبر واتساب"/);\n  assert.match(supportProjection, /label: "إحالة بالبريد إلى فريق الدعم"/);\n  assert.match(ui, /function ArchivedImportBatches/);\n  assert.match(supportApi, /delete_support_request/);\n  assert.match(supportApi, /mark_support_reply/);\n  assert.match(migration, /support_requests_admin_delete/);\n});`;
+if (!source.includes(before)) throw new Error("stale Support rendered test block not found");
+source = source.replace(before, after);
+writeFileSync(path, source);
+console.log("Support rendered assertions now follow server projection ownership");
