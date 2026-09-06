@@ -36,8 +36,43 @@ test("rights RPC locks state, authorizes verifier/admin and audits atomically", 
   assert.match(migration, /grant execute .* to authenticated/i);
 });
 
-test("operational inbox remains a read-only projection while rights becomes atomic", () => {
+test("support mutations use purpose-built atomic RPCs without direct write fallbacks", () => {
+  const route = read("../app/api/admin/review/route.ts");
+  const updateBlock = actionBlock(route, "update_support_request", '\n  if (body?.action === "delete_support_request")');
+  const deleteBlock = actionBlock(route, "delete_support_request", '\n  if (body?.action === "mark_support_escalated"');
+  const eventStart = route.indexOf('if (body?.action === "mark_support_escalated" || body?.action === "mark_support_reply")');
+  const eventEnd = route.indexOf('\n  if (body?.action === "delete_catalog_record")', eventStart);
+  const eventBlock = route.slice(eventStart, eventEnd);
+
+  assert.match(updateBlock, /rpc\/admin_update_support_request/);
+  assert.match(deleteBlock, /rpc\/admin_delete_archived_support_request/);
+  assert.match(eventBlock, /rpc\/admin_mark_support_event/);
+  for (const block of [updateBlock, deleteBlock, eventBlock]) {
+    assert.doesNotMatch(block, /support_requests\?id=.*method:\s*"(?:PATCH|DELETE)"/s);
+    assert.doesNotMatch(block, /"audit_events"/);
+  }
+});
+
+test("support RPCs lock rows, preserve role boundaries and audit inside transactions", () => {
+  const migration = read("../supabase/migrations/058_atomic_support_request_boundaries.sql");
+  assert.match(migration, /admin_update_support_request/);
+  assert.match(migration, /admin_mark_support_event/);
+  assert.match(migration, /admin_delete_archived_support_request/);
+  assert.equal((migration.match(/security invoker/gi) || []).length, 3);
+  assert.ok((migration.match(/for update/gi) || []).length >= 3);
+  assert.match(migration, /private\.is_staff\(array\['admin'\]::public\.staff_role\[\]\)/);
+  assert.match(migration, /contact_or_resolution_missing/);
+  assert.match(migration, /archived_request_required/);
+  assert.match(migration, /support_atomic_update_v1/);
+  assert.match(migration, /support_atomic_event_v1/);
+  assert.match(migration, /support_atomic_delete_v1/);
+  assert.ok((migration.match(/revoke all .* from public,anon/gi) || []).length >= 3);
+  assert.ok((migration.match(/grant execute .* to authenticated/gi) || []).length >= 3);
+});
+
+test("operational inbox remains a read-only projection while operational boundaries become atomic", () => {
   const inbox = read("../app/api/admin/work-queue/route.ts");
   assert.doesNotMatch(inbox, /export async function (POST|PATCH|DELETE)/);
   assert.match(inbox, /rights_requests\?select=/);
+  assert.match(inbox, /support_requests\?select=/);
 });
