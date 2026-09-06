@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { StandardConfirmDialog } from "@/app/ui/admin/StandardConfirmDialog";
+import type { TaxonomyLifecycleAction, TaxonomyLifecycleProjection } from "@/lib/taxonomy-lifecycle-projection";
 
 type Status = "draft" | "in_review" | "published" | "archived" | "rejected";
 type Category = {
@@ -8,13 +10,13 @@ type Category = {
   description_ar: string | null; description_en: string | null; sort_order: number; comparison_group: string | null;
   navigation_parent_id: string | null; is_navigation_visible: boolean; catalog_family_id: string | null;
   catalog_filter_id: string | null; catalog_product_kind: string | null;
-  phase: string; is_filterable: boolean; status: Status; updated_at: string;
+  phase: string; is_filterable: boolean; status: Status; updated_at: string; lifecycle: TaxonomyLifecycleProjection;
 };
 type Field = {
   id: string; code: string; name_ar: string; name_en: string; data_type: string; unit_code: string | null;
   allowed_values: string[]; validation_rules: Record<string, unknown>; missing_value_policy: string;
   is_searchable: boolean; is_comparable: boolean; is_recommendation_input: boolean; is_multi_value: boolean;
-  status: Status; updated_at: string;
+  status: Status; updated_at: string; lifecycle: TaxonomyLifecycleProjection;
 };
 type Filter = {
   id: string; category_id: string; field_definition_id: string; operator: string; sort_order: number;
@@ -26,7 +28,6 @@ type FilterDraft = Pick<Filter, "field_definition_id" | "operator" | "sort_order
 const emptyCategory = { code: "", parent_id: "", slug: "", name_ar: "", name_en: "", description_ar: "", description_en: "", sort_order: 0, comparison_group: "", phase: "V1", is_filterable: true };
 const emptyField = { code: "", name_ar: "", name_en: "", data_type: "text", unit_code: "", allowed_values: "", missing_value_policy: "hide", is_searchable: false, is_comparable: false, is_recommendation_input: false, is_multi_value: false };
 const statusLabels: Record<Status, string> = { draft: "مسودة", in_review: "قيد المراجعة", published: "منشور", archived: "مؤرشف", rejected: "مرفوض" };
-const nextStatuses: Record<Status, Status[]> = { draft: ["in_review"], in_review: ["published", "rejected", "draft"], published: ["archived"], archived: ["draft"], rejected: ["draft"] };
 
 async function request(method: string, body?: Record<string, unknown>) {
   const response = await fetch("/api/admin/taxonomy", { method, cache: "no-store", headers: body ? { "content-type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
@@ -46,6 +47,8 @@ export function TaxonomyWorkspace() {
   const [categoryForm, setCategoryForm] = useState({ ...emptyCategory });
   const [fieldForm, setFieldForm] = useState({ ...emptyField });
   const [filterDrafts, setFilterDrafts] = useState<FilterDraft[]>([]);
+  const [transitionRequest, setTransitionRequest] = useState<{ entity: "category" | "field"; row: Category | Field; action: TaxonomyLifecycleAction } | null>(null);
+  const [transitionBusy, setTransitionBusy] = useState(false);
 
   const load = useCallback(async () => {
     setBusy("load");
@@ -116,11 +119,18 @@ export function TaxonomyWorkspace() {
       setBusy("");
     }
   };
-  const transition = (entity: "category" | "field", row: Category | Field, status: Status) => {
-    const reason = window.prompt(`سبب نقل الحالة إلى «${statusLabels[status]}» (10 أحرف على الأقل):`) || "";
-    if (reason.trim().length < 10) { setMessage("أُلغي القرار: السبب يجب ألا يقل عن 10 أحرف."); return; }
-    if (status === "published" && !window.confirm("سيصبح تعريف التصنيف فعالاً في واجهات الاكتشاف. هل راجعت الحقول والفلاتر؟")) return;
-    void run(`transition-${row.id}`, "PATCH", { action: "transition_status", entity, id: row.id, status, reason, expectedUpdatedAt: row.updated_at }, "تم تغيير الحالة وتسجيل القرار في سجل التدقيق.");
+  const requestTransition = (entity: "category" | "field", row: Category | Field, action: TaxonomyLifecycleAction) => {
+    if (!action.enabled) { if (action.blockedReason) setMessage(action.blockedReason); return; }
+    setTransitionRequest({ entity, row, action });
+  };
+  const performTransition = async (value: string) => {
+    if (!transitionRequest) return;
+    const { entity, row, action } = transitionRequest;
+    setTransitionBusy(true);
+    try {
+      await run(`transition-${row.id}`, "PATCH", { action: "transition_status", entity, id: row.id, status: action.targetStatus, reason: value.trim(), expectedUpdatedAt: row.updated_at }, "تم تغيير الحالة وتسجيل القرار في سجل التدقيق.");
+      setTransitionRequest(null);
+    } finally { setTransitionBusy(false); }
   };
 
   return <section className="taxonomy-workspace" id="operations-taxonomy">
@@ -135,7 +145,7 @@ export function TaxonomyWorkspace() {
         <div className="section-head"><div><span className="eyebrow">Category</span><h3>{selectedCategory ? `تعديل ${selectedCategory.code}` : "إنشاء تصنيف"}</h3></div>{selectedCategory && <span className={`taxonomy-status ${selectedCategory.status}`}>{statusLabels[selectedCategory.status]}</span>}</div>
         {selectedCategory?.code === "COF-GREEN" && <p className="taxonomy-warning">البن الأخضر مؤجل إلى Phase 2 ولا يمكن نشره في V1.</p>}
         <div className="taxonomy-form-grid"><label>الرمز<input value={categoryForm.code} disabled={!!selectedCategory} onChange={(e) => setCategoryForm({ ...categoryForm, code: e.target.value.toUpperCase() })} /></label><label>Slug<input dir="ltr" value={categoryForm.slug} disabled={!!selectedCategory} onChange={(e) => setCategoryForm({ ...categoryForm, slug: e.target.value })} /></label><label>الاسم العربي<input value={categoryForm.name_ar} onChange={(e) => setCategoryForm({ ...categoryForm, name_ar: e.target.value })} /></label><label>الاسم الإنكليزي<input dir="ltr" value={categoryForm.name_en} onChange={(e) => setCategoryForm({ ...categoryForm, name_en: e.target.value })} /></label><label>التصنيف الأب<select value={categoryForm.parent_id} onChange={(e) => setCategoryForm({ ...categoryForm, parent_id: e.target.value })}><option value="">بدون أب</option>{(data?.categories || []).filter((row) => row.id !== categoryId).map((row) => <option value={row.id} key={row.id}>{row.code} — {row.name_ar}</option>)}</select></label><label>المرحلة<select value={categoryForm.phase} onChange={(e) => setCategoryForm({ ...categoryForm, phase: e.target.value })}><option>V1</option><option>Phase 2 Professional</option></select></label><label>ترتيب العرض<input type="number" min="0" value={categoryForm.sort_order} onChange={(e) => setCategoryForm({ ...categoryForm, sort_order: Number(e.target.value) })} /></label><label>مجموعة المقارنة<input value={categoryForm.comparison_group} onChange={(e) => setCategoryForm({ ...categoryForm, comparison_group: e.target.value })} /></label><label className="taxonomy-check"><input type="checkbox" checked={categoryForm.is_filterable} onChange={(e) => setCategoryForm({ ...categoryForm, is_filterable: e.target.checked })} /> قابل للتصفية</label></div>
-        <div className="queue-actions"><button className="primary" type="button" disabled={!!busy} onClick={() => void run("category", selectedCategory ? "PATCH" : "POST", selectedCategory ? { action: "update_category", id: selectedCategory.id, payload: categoryPayload, expectedUpdatedAt: selectedCategory.updated_at } : { action: "create_category", payload: categoryPayload }, "حُفظ التصنيف وسُجل التغيير.")}>{selectedCategory ? "حفظ التعديل" : "إنشاء كمسودة"}</button>{selectedCategory && nextStatuses[selectedCategory.status].map((status) => <button type="button" key={status} disabled={!!busy} onClick={() => transition("category", selectedCategory, status)}>نقل إلى {statusLabels[status]}</button>)}</div>
+        <div className="queue-actions"><button className="primary" type="button" disabled={!!busy} onClick={() => void run("category", selectedCategory ? "PATCH" : "POST", selectedCategory ? { action: "update_category", id: selectedCategory.id, payload: categoryPayload, expectedUpdatedAt: selectedCategory.updated_at } : { action: "create_category", payload: categoryPayload }, "حُفظ التصنيف وسُجل التغيير.")}>{selectedCategory ? "حفظ التعديل" : "إنشاء كمسودة"}</button>{selectedCategory && selectedCategory.lifecycle.availableActions.map((action) => <button type="button" key={action.targetStatus} disabled={!!busy || !action.enabled} title={action.blockedReason || undefined} data-lifecycle-revision={selectedCategory.lifecycle.contractRevision} onClick={() => requestTransition("category", selectedCategory, action)}>{action.label}</button>)}</div>
 
         {selectedCategory && <section className="taxonomy-filters"><div className="section-head"><div><span className="eyebrow">Facets</span><h3>فلاتر {selectedCategory.code}</h3></div><button type="button" onClick={() => setFilterDrafts([...filterDrafts, { field_definition_id: "", operator: "equals", sort_order: filterDrafts.length, is_visible: true, is_required_for_publish: false }])}>إضافة فلتر</button></div>{filterDrafts.map((row, index) => <div className="taxonomy-filter-row" key={`${row.field_definition_id}-${index}`}><select aria-label="الحقل" value={row.field_definition_id} onChange={(e) => setFilterDrafts(filterDrafts.map((item, i) => i === index ? { ...item, field_definition_id: e.target.value } : item))}><option value="">اختر الحقل</option>{(data?.fields || []).map((field) => <option value={field.id} key={field.id}>{field.code} — {field.name_ar}</option>)}</select><select aria-label="المعامل" value={row.operator} onChange={(e) => setFilterDrafts(filterDrafts.map((item, i) => i === index ? { ...item, operator: e.target.value } : item))}>{["equals", "in", "range", "contains", "exists"].map((operator) => <option key={operator}>{operator}</option>)}</select><input aria-label="الترتيب" type="number" min="0" value={row.sort_order} onChange={(e) => setFilterDrafts(filterDrafts.map((item, i) => i === index ? { ...item, sort_order: Number(e.target.value) } : item))} /><label><input type="checkbox" checked={row.is_visible} onChange={(e) => setFilterDrafts(filterDrafts.map((item, i) => i === index ? { ...item, is_visible: e.target.checked } : item))} />ظاهر</label><label><input type="checkbox" checked={row.is_required_for_publish} onChange={(e) => setFilterDrafts(filterDrafts.map((item, i) => i === index ? { ...item, is_required_for_publish: e.target.checked, is_visible: e.target.checked ? true : item.is_visible } : item))} />إلزامي</label><button type="button" onClick={() => setFilterDrafts(filterDrafts.filter((_, i) => i !== index))}>إزالة</button></div>)}<div className="queue-actions"><button type="button" disabled={!!busy} onClick={() => void run("validate", "POST", { action: "validate_change", categoryId, filters: filterDrafts }, "نجح التحقق دون حفظ.")}>تحقق فقط</button><button className="primary" type="button" disabled={!!busy} onClick={() => void run("filters", "POST", { action: "replace_filters", categoryId, filters: filterDrafts, expectedUpdatedAt: selectedCategory.updated_at }, "استُبدلت روابط الفلاتر ذرياً وسُجل التغيير.")}>حفظ مجموعة الفلاتر</button></div></section>}
       </div>
@@ -154,10 +164,11 @@ export function TaxonomyWorkspace() {
           <div className="taxonomy-list">{(data?.fields || []).map((row) => <button type="button" key={row.id} className={fieldId === row.id ? "active" : ""} onClick={() => selectField(row)}><b>{row.name_ar}</b><span>{row.code} · {row.data_type} · {statusLabels[row.status]}</span></button>)}</div>
           <div>
             <div className="taxonomy-form-grid"><label>رمز الحقل<input dir="ltr" disabled={!!selectedField} required pattern="[a-z][a-z0-9_]*" value={fieldForm.code} onChange={(e) => setFieldForm({ ...fieldForm, code: e.target.value })} /></label><label>الاسم العربي<input required minLength={2} value={fieldForm.name_ar} onChange={(e) => setFieldForm({ ...fieldForm, name_ar: e.target.value })} /></label><label>الاسم الإنكليزي<input dir="ltr" required minLength={2} value={fieldForm.name_en} onChange={(e) => setFieldForm({ ...fieldForm, name_en: e.target.value })} /></label><label>نوع البيانات<select value={fieldForm.data_type} onChange={(e) => setFieldForm({ ...fieldForm, data_type: e.target.value, is_multi_value: e.target.value === "multi_enum" || fieldForm.is_multi_value })}>{["text", "integer", "decimal", "boolean", "date", "enum", "multi_enum", "reference", "json"].map((type) => <option key={type}>{type}</option>)}</select></label><label>الوحدة<input value={fieldForm.unit_code} onChange={(e) => setFieldForm({ ...fieldForm, unit_code: e.target.value })} /></label><label>سياسة القيمة المفقودة<select value={fieldForm.missing_value_policy} onChange={(e) => setFieldForm({ ...fieldForm, missing_value_policy: e.target.value })}>{["block_publish", "lower_confidence", "show_unknown", "hide"].map((policy) => <option key={policy}>{policy}</option>)}</select></label><label className="taxonomy-wide">القيم المسموحة (سطر لكل قيمة)<textarea rows={4} value={fieldForm.allowed_values} onChange={(e) => setFieldForm({ ...fieldForm, allowed_values: e.target.value })} /></label><label className="taxonomy-check"><input type="checkbox" checked={fieldForm.is_searchable} onChange={(e) => setFieldForm({ ...fieldForm, is_searchable: e.target.checked })} /> قابل للبحث</label><label className="taxonomy-check"><input type="checkbox" checked={fieldForm.is_comparable} onChange={(e) => setFieldForm({ ...fieldForm, is_comparable: e.target.checked })} /> قابل للمقارنة</label><label className="taxonomy-check"><input type="checkbox" checked={fieldForm.is_recommendation_input} onChange={(e) => setFieldForm({ ...fieldForm, is_recommendation_input: e.target.checked })} /> يدخل في الترشيح</label></div>
-            <div className="queue-actions taxonomy-field-submit"><button className="primary" type="submit" disabled={!!busy}>{busy === "field" ? "جارٍ الحفظ…" : selectedField ? "حفظ الحقل" : "حفظ الحقل الجديد"}</button>{selectedField && nextStatuses[selectedField.status].map((status) => <button type="button" key={status} disabled={!!busy} onClick={() => transition("field", selectedField, status)}>نقل إلى {statusLabels[status]}</button>)}</div>
+            <div className="queue-actions taxonomy-field-submit"><button className="primary" type="submit" disabled={!!busy}>{busy === "field" ? "جارٍ الحفظ…" : selectedField ? "حفظ الحقل" : "حفظ الحقل الجديد"}</button>{selectedField && selectedField.lifecycle.availableActions.map((action) => <button type="button" key={action.targetStatus} disabled={!!busy || !action.enabled} title={action.blockedReason || undefined} data-lifecycle-revision={selectedField.lifecycle.contractRevision} onClick={() => requestTransition("field", selectedField, action)}>{action.label}</button>)}</div>
           </div>
         </div>
       </form>
     </section>
+    <StandardConfirmDialog open={Boolean(transitionRequest)} title={transitionRequest?.action.confirmation.title || ""} description={transitionRequest?.action.confirmation.description || ""} confirmLabel={transitionRequest?.action.confirmation.confirmLabel || "تأكيد"} tone={transitionRequest?.action.confirmation.tone} input={transitionRequest?.action.confirmation.input} busy={transitionBusy} onCancel={() => { if (!transitionBusy) setTransitionRequest(null); }} onConfirm={performTransition} />
   </section>;
 }

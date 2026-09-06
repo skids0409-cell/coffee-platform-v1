@@ -58,10 +58,15 @@ test("operator can create AIP, verify independent fixity, and create DIP from th
   assert.match(projection, /الواجهة لا تفترض أن SHA المخزن هو نتيجة فحص جديد/);
 });
 
-test("preservation actions remain backend-authoritative and role governed", () => {
+test("preservation actions remain backend-authoritative and capability governed", () => {
   assert.match(projection, /fetch\(url, \{ cache: "no-store", credentials: "same-origin" \}\)/);
   assert.match(projection, /fetch\("\/api\/admin\/preservation"/);
-  assert.match(projection, /\["verifier", "admin"\]/);
+  assert.match(projection, /data\.capabilities/);
+  assert.match(projection, /capabilities\.canCreateAip/);
+  assert.match(projection, /capabilities\.canVerifyFixity/);
+  assert.match(projection, /capabilities\.canCreateDip/);
+  assert.doesNotMatch(projection, /\["verifier",\s*"admin"\]\.includes/);
+  assert.match(preservationApi, /projectPreservationCapabilities/);
   assert.match(preservationApi, /admin_create_oais_aip/);
   assert.match(preservationApi, /admin_verify_oais_fixity/);
   assert.match(preservationApi, /admin_create_oais_dip/);

@@ -1,5 +1,6 @@
 import { requireStaff, sameOrigin, adminRest } from "@/lib/supabase-admin";
 import { cleanHttps, mapMediaError, mediaRpc, mediaStorageRequest } from "@/lib/media-vault";
+import { projectPendingAssetReviewCapabilities } from "@/lib/pending-asset-review-capabilities";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -65,7 +66,7 @@ export async function GET(request: Request) {
       "media_asset_lifecycle?select=asset_id,lifecycle_state&lifecycle_state=in.(pending_technical_audit,pending_approval)"
     );
     const ids = lifecycle.map((row) => row.asset_id);
-    if (!ids.length) return Response.json({ authenticated: true, role: admin.profile.role, assets: [], traceability_gap_count: 0 }, { headers: { "cache-control": "no-store" } });
+    if (!ids.length) return Response.json({ authenticated: true, role: admin.profile.role, capabilities: projectPendingAssetReviewCapabilities(admin.profile.role), assets: [], traceability_gap_count: 0 }, { headers: { "cache-control": "no-store" } });
     const assets = await adminRest<ReviewAsset[]>(admin.token,
       `media_assets?select=id,purpose,original_storage_path,sanitized_storage_path,published_storage_path,original_filename,declared_mime,detected_mime,byte_size,width,height,sha256_hex,technical_status,publication_status,technical_report,uploaded_by,created_at,events:media_ingestion_events(id,event_type,previous_state,next_state,actor_user_id,service_actor,created_at)&id=${inFilter(ids)}&order=created_at.asc`
     );
@@ -83,6 +84,7 @@ export async function GET(request: Request) {
     return Response.json({
       authenticated: true,
       role: admin.profile.role,
+      capabilities: projectPendingAssetReviewCapabilities(admin.profile.role),
       assets: hydrated,
       traceability_gap_count: hydrated.filter((asset) => asset.events.length === 0).length,
     }, { headers: { "cache-control": "no-store" } });

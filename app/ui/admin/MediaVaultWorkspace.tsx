@@ -2,6 +2,8 @@
 /* eslint-disable @next/next/no-img-element */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MediaPreservationInspectorPanel, MediaPreservationProvider, MediaPreservationStatusStrip } from "@/app/ui/admin/governance/MediaPreservationProjection";
+import { StandardConfirmDialog } from "@/app/ui/admin/StandardConfirmDialog";
+import type { MediaVaultActionName, MediaVaultLifecycleAction, MediaVaultLifecycleProjection } from "@/lib/media-vault-lifecycle-projection";
 
 type VaultLink = {
   id: string;
@@ -47,6 +49,7 @@ type VaultAsset = {
   rights?: Array<Record<string, unknown>>;
   events?: Array<Record<string, unknown>>;
   purge_requests: PurgeRequest[];
+  lifecycle: MediaVaultLifecycleProjection;
 };
 
 type LoadResult = { assets?: VaultAsset[]; role?: string; reason?: string };
@@ -117,6 +120,8 @@ export function MediaVaultWorkspace({
   const [query, setQuery] = useState("");
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState("");
+  const [lifecycleRequest, setLifecycleRequest] = useState<{ action: MediaVaultLifecycleAction; assets: VaultAsset[] } | null>(null);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -193,29 +198,27 @@ export function MediaVaultWorkspace({
 
   const selectedAssets = assets.filter((asset) => selected.includes(asset.id));
   const inspected = selectedAssets.length === 1 ? selectedAssets[0] : null;
-  const hasActiveLinks = selectedAssets.some((asset) => activeLinks(asset).length > 0);
-  const hasLegalHold = selectedAssets.some((asset) => asset.legal_hold || asset.lifecycle_state === "legal_hold");
-  const notQuarantined = selectedAssets.some((asset) => asset.lifecycle_state !== "quarantine_retention");
-  const retentionRemaining = selectedAssets.length ? Math.max(...selectedAssets.map(retentionDaysRemaining)) : 0;
-  const hasOpenDisposal = selectedAssets.some((asset) =>
-    ["disposal_requested", "disposal_approved", "disposal_executing"].includes(asset.lifecycle_state),
-  );
 
-  const quarantineBlockers = selectedAssets.length === 0
-    ? ["اختر أصلاً واحداً على الأقل"]
-    : hasActiveLinks
-      ? ["الأصل مرتبط بسجل نشط. افصل الارتباط أو حدّث السجل قبل الحجر."]
-      : [];
+  const projectedSelectionAction = (name: MediaVaultActionName) => {
+    if (!selectedAssets.length) return null;
+    const actions = selectedAssets.map((asset) => asset.lifecycle.availableActions.find((item) => item.action === name)).filter(Boolean) as MediaVaultLifecycleAction[];
+    if (actions.length !== selectedAssets.length) return null;
+    const blocked = actions.find((action) => !action.enabled);
+    return { ...actions[0], enabled: !blocked, blockedReason: blocked?.blockedReason || null };
+  };
 
-  const disposalBlockers = selectedAssets.length === 0
-    ? ["اختر أصلاً واحداً على الأقل"]
-    : [
-        ...(hasActiveLinks ? ["توجد روابط نشطة؛ لا يمكن طلب الإتلاف قبل فصلها."] : []),
-        ...(hasLegalHold ? ["الحجز القانوني يمنع الإتلاف."] : []),
-        ...(notQuarantined ? ["يجب أن يكون الأصل في حالة الحجر أولاً."] : []),
-        ...(retentionRemaining > 0 ? [`باقي ${retentionRemaining} يوم من مدة الاحتفاظ النظامية.`] : []),
-        ...(hasOpenDisposal ? ["يوجد طلب إتلاف مفتوح لهذا الأصل."] : []),
-      ];
+  const requestProjectedAction = (name: MediaVaultActionName) => {
+    const action = projectedSelectionAction(name);
+    if (!action || !action.enabled) {
+      if (action?.blockedReason) setMessage(action.blockedReason);
+      return;
+    }
+    if (name === "execute_purge" && selectedAssets.length !== 1) {
+      setMessage("تنفيذ الإتلاف النهائي يتطلب تحديد أصل واحد فقط.");
+      return;
+    }
+    setLifecycleRequest({ action, assets: selectedAssets });
+  };
 
   const act = async (action: string, payload: Record<string, unknown> = {}) => {
     if (!selectedAssets.length) return;
@@ -250,54 +253,27 @@ export function MediaVaultWorkspace({
     }
   };
 
-  const requestQuarantine = async () => {
-    if (quarantineBlockers.length) {
-      setMessage(quarantineBlockers.join(" "));
-      return;
+  const performProjectedAction = async (request: { action: MediaVaultLifecycleAction; assets: VaultAsset[] }, value: string) => {
+    const { action, assets: requestAssets } = request;
+    if (action.endpoint === "purge") {
+      if (!action.requestId || requestAssets.length !== 1) return false;
+      setWorking(true);
+      try {
+        const response = await fetch("/api/admin/media-vault/purge", { method: "POST", headers: { "content-type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ requestId: action.requestId }) });
+        const result = await response.json().catch(() => ({}));
+        setMessage(response.ok ? "تم تنفيذ الإتلاف النهائي مع حفظ سجل التدقيق." : `تعذر تنفيذ الإتلاف النهائي: ${String(result.reason || "خطأ")}`);
+        if (!response.ok) return false;
+        setSelected([]);
+        await load();
+        return true;
+      } finally { setWorking(false); }
     }
-    const reason = window.prompt("سبب الحجر (سيُسجّل في سجل التدقيق):", "مراجعة تشغيلية");
-    if (!reason?.trim()) return;
-    await act("quarantine", { reason: reason.trim() });
-  };
-
-  const requestDisposal = async () => {
-    if (disposalBlockers.length) {
-      setMessage(`طلب الإتلاف غير متاح: ${disposalBlockers.join(" ")}`);
-      return;
-    }
-    const reason = window.prompt("سبب طلب الإتلاف:", "انتهاء الحاجة التشغيلية");
-    if (!reason?.trim()) return;
-    await act("request_purge", { reason: reason.trim() });
-  };
-
-  const reviewDisposal = async (approved: boolean) => {
-    const note = window.prompt(approved ? "ملاحظة الموافقة:" : "سبب رفض الطلب:");
-    if (!note?.trim()) return;
-    await act(approved ? "approve_purge" : "reject_purge", { review_note: note.trim() });
-  };
-
-  const executeDisposal = async () => {
-    if (!inspected || role !== "admin") return;
-    const request = inspected.purge_requests.find((item) => item.status === "approved");
-    if (!request) {
-      setMessage("تنفيذ الإتلاف النهائي غير متاح: لا يوجد طلب إتلاف موافق عليه.");
-      return;
-    }
-    setWorking(true);
-    try {
-      const response = await fetch("/api/admin/media-vault/purge", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ requestId: request.id }),
-      });
-      const result = await response.json().catch(() => ({}));
-      setMessage(response.ok ? "تم تنفيذ الإتلاف النهائي مع حفظ سجل التدقيق." : `تعذر تنفيذ الإتلاف النهائي: ${String(result.reason || "خطأ")}`);
-      setSelected([]);
-      await load();
-    } finally {
-      setWorking(false);
-    }
+    const payload = action.action === "quarantine" || action.action === "request_purge"
+      ? { reason: value.trim() }
+      : action.action === "approve_purge" || action.action === "reject_purge"
+        ? { review_note: value.trim() }
+        : {};
+    return act(action.action, payload).then(() => true);
   };
 
   const toggleSelected = (id: string) => {
@@ -376,17 +352,16 @@ export function MediaVaultWorkspace({
                 <div className="mt-1 text-xs text-[#756b63]">الحجر والإتلاف محجوبان مسبقاً عند وجود روابط نشطة. قاعدة البيانات تبقى طبقة الحماية النهائية.</div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button className="secondary" disabled={working || !hasActiveLinks || role !== "admin"} onClick={() => void act("unlink")}>فصل الروابط</button>
-                <button className="secondary" disabled={working || quarantineBlockers.length > 0} onClick={() => void requestQuarantine()}>نقل إلى الحجر</button>
-                <button className="secondary" disabled={working || disposalBlockers.length > 0} onClick={() => void requestDisposal()}>طلب إتلاف</button>
-                {queue === "disposal" && role === "admin" && <button className="secondary" disabled={working} onClick={() => void reviewDisposal(true)}>اعتماد طلب الإتلاف</button>}
-                {queue === "disposal" && role === "admin" && <button className="secondary" disabled={working} onClick={() => void reviewDisposal(false)}>رفض طلب الإتلاف</button>}
-                {queue === "disposal" && role === "admin" && <button className="secondary" disabled={working || selectedAssets.length !== 1} onClick={() => void executeDisposal()}>تنفيذ الإتلاف النهائي</button>}
+                {(["unlink", "quarantine", "request_purge", ...(queue === "disposal" ? ["approve_purge", "reject_purge", "execute_purge"] : [])] as MediaVaultActionName[]).map((name) => {
+                  const action = projectedSelectionAction(name);
+                  if (!action) return null;
+                  return <button key={name} className="secondary" disabled={working || !action.enabled || (name === "execute_purge" && selectedAssets.length !== 1)} title={action.blockedReason || undefined} data-lifecycle-revision={selectedAssets[0]?.lifecycle.contractRevision} onClick={() => requestProjectedAction(name)}>{action.label}</button>;
+                })}
               </div>
             </div>
-            {(quarantineBlockers.length > 0 || disposalBlockers.length > 0) && (
+            {selectedAssets.some((asset) => asset.lifecycle.availableActions.some((action) => !action.enabled && action.blockedReason)) && (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                {[...new Set([...quarantineBlockers, ...disposalBlockers])].join(" ")}
+                {[...new Set(selectedAssets.flatMap((asset) => asset.lifecycle.availableActions.map((action) => action.blockedReason).filter(Boolean)))].join(" ")}
               </div>
             )}
           </div>
@@ -451,6 +426,22 @@ export function MediaVaultWorkspace({
           </aside>
         </div>
       </section>
+      <StandardConfirmDialog
+        open={Boolean(lifecycleRequest)}
+        title={lifecycleRequest?.action.confirmation.title || ""}
+        description={lifecycleRequest?.action.confirmation.description || ""}
+        confirmLabel={lifecycleRequest?.action.confirmation.confirmLabel || "تأكيد"}
+        tone={lifecycleRequest?.action.confirmation.tone}
+        input={lifecycleRequest?.action.confirmation.input}
+        busy={lifecycleBusy}
+        onCancel={() => { if (!lifecycleBusy) setLifecycleRequest(null); }}
+        onConfirm={async (value) => {
+          if (!lifecycleRequest) return;
+          setLifecycleBusy(true);
+          try { const ok = await performProjectedAction(lifecycleRequest, value); if (ok) setLifecycleRequest(null); }
+          finally { setLifecycleBusy(false); }
+        }}
+      />
     </MediaPreservationProvider>
   );
 }

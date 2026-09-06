@@ -58,12 +58,13 @@ test("unlink and purge remain separate and search results cannot delete files", 
   assert.match(ui, /لا يوجد حذف دائم مباشر/);
 });
 
-test("Vault explains metadata, validation, retention and purge outcomes", () => {
+test("Vault explains metadata, validation, retention and projected purge outcomes", () => {
   assert.match(ui, /تعديل الوصف والبيانات/);
   assert.match(ui, /هذه العملية لا تشغّل الفحص التقني/);
   assert.match(ui, /بانتظار الفحص التقني/);
   assert.match(ui, /مدة احتفاظ قدرها 30 يوماً/);
-  assert.match(ui, /طلب الإتلاف غير متاح/);
+  assert.match(ui, /projectedSelectionAction/);
+  assert.match(ui, /blockedReason/);
   assert.match(ui, /انتقلت إلى قائمة طلبات الإتلاف/);
   assert.match(ui, /الوصف البديل المحفوظ/);
   assert.match(ui, /purgeStatusLabels/);

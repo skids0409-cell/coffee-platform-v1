@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { PendingAssetReviewCapabilities } from "@/lib/pending-asset-review-capabilities";
 
 type AuditEvent = {
   id: number;
@@ -36,6 +37,7 @@ type PendingAsset = {
 type ReviewResponse = {
   authenticated?: boolean;
   role?: string;
+  capabilities?: PendingAssetReviewCapabilities;
   assets?: PendingAsset[];
   traceability_gap_count?: number;
   reason?: string;
@@ -68,7 +70,7 @@ const bytes = (value: number | null) => {
 export function PendingAssetReviewConsole() {
   const [assets, setAssets] = useState<PendingAsset[]>([]);
   const [selectedId, setSelectedId] = useState("");
-  const [role, setRole] = useState("");
+  const [capabilities, setCapabilities] = useState<PendingAssetReviewCapabilities>({ contractRevision: "pending-asset-review.capabilities.v1", canDecide: false, blockedReason: "صلاحية القرار غير متاحة." });
   const [traceabilityGaps, setTraceabilityGaps] = useState(0);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
@@ -86,7 +88,7 @@ export function PendingAssetReviewConsole() {
       if (!response.ok) throw new Error(result.reason || "load_failed");
       const next = Array.isArray(result.assets) ? result.assets : [];
       setAssets(next);
-      setRole(result.role || "");
+      setCapabilities(result.capabilities || { contractRevision: "pending-asset-review.capabilities.v1", canDecide: false, blockedReason: "تعذر تحميل صلاحية القرار من الخادم." });
       setTraceabilityGaps(Number(result.traceability_gap_count || 0));
       setSelectedId((current) => (current && next.some((asset) => asset.id === current) ? current : next[0]?.id || ""));
       setState("ready");
@@ -101,7 +103,6 @@ export function PendingAssetReviewConsole() {
   }, [load]);
 
   const selected = useMemo(() => assets.find((asset) => asset.id === selectedId) || null, [assets, selectedId]);
-  const canReview = ["verifier", "admin"].includes(role);
   const defaultAltAr = selected?.original_filename.replace(/\.[^.]+$/, "") || "";
 
   const selectAsset = (asset: PendingAsset) => {
@@ -113,8 +114,8 @@ export function PendingAssetReviewConsole() {
 
   const act = async (action: "approve_assign" | "reject_quarantine") => {
     if (!selected) return;
-    if (!canReview) {
-      setMessage("هذه العملية تتطلب صلاحية مراجع/معتمد أو مدير.");
+    if (!capabilities.canDecide) {
+      setMessage(capabilities.blockedReason || "صلاحية القرار غير متاحة.");
       return;
     }
     const effectiveAltAr = altAr.trim() || defaultAltAr;
@@ -231,7 +232,7 @@ export function PendingAssetReviewConsole() {
               </div>
 
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <fieldset className="rounded-lg border border-emerald-200 bg-emerald-50 p-4" disabled={working || !canReview}>
+                <fieldset className="rounded-lg border border-emerald-200 bg-emerald-50 p-4" disabled={working || !capabilities.canDecide}>
                   <legend className="px-2 font-black">Approve & Assign · اعتماد وإسناد</legend>
                   <label className="block text-sm">نوع السجل<select className="mt-1 w-full rounded-md border p-2" value={entityType} onChange={(event) => setEntityType(event.target.value)}>{Object.entries(entityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                   <label className="mt-2 block text-sm">معرف السجل المستهدف<input className="mt-1 w-full rounded-md border p-2" value={entityId} onChange={(event) => setEntityId(event.target.value)} placeholder="UUID" /></label>
@@ -240,14 +241,14 @@ export function PendingAssetReviewConsole() {
                   <button type="button" className="primary mt-3" onClick={() => void act("approve_assign")}>Approve & Assign</button>
                 </fieldset>
 
-                <fieldset className="rounded-lg border border-red-200 bg-red-50 p-4" disabled={working || !canReview}>
+                <fieldset className="rounded-lg border border-red-200 bg-red-50 p-4" disabled={working || !capabilities.canDecide}>
                   <legend className="px-2 font-black">Reject & Quarantine · رفض وحجر</legend>
                   <label className="block text-sm">سبب القرار<textarea className="mt-1 min-h-24 w-full rounded-md border p-2" value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} placeholder="سبب واضح سيظهر في سجل التدقيق" /></label>
                   <button type="button" className="danger-action mt-3" onClick={() => void act("reject_quarantine")}>Reject & Quarantine</button>
                   <p className="mt-2 text-xs">الحجر يبدأ مؤقت الاحتفاظ النظامي لمدة 30 يوماً، مع بقاء الحذف النهائي منفصلاً وخاضعاً للموافقة.</p>
                 </fieldset>
               </div>
-              {!canReview && <p className="mt-3 text-sm text-amber-800">حسابك يستطيع مشاهدة الأثر، لكن القرار يتطلب صلاحية مراجع/معتمد أو مدير.</p>}
+              {!capabilities.canDecide && <p className="mt-3 text-sm text-amber-800">حسابك يستطيع مشاهدة الأثر، لكن القرار يتطلب صلاحية مراجع/معتمد أو مدير.</p>}
               {message && <p className="admin-message mt-3" role="status">{message}</p>}
             </aside>
           )}

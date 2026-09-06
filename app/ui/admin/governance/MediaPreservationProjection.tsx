@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { GovernanceStatusSummary, LifecycleBadge, TransitionActionPanel } from "./GovernedWorkspace";
+import type { PreservationCapabilitiesProjection } from "@/lib/preservation-capabilities-projection";
 
 export type MediaPreservationAsset = {
   id: string;
@@ -33,6 +34,7 @@ type PreservationPackage = {
 type PreservationResponse = {
   authenticated?: boolean;
   role?: string;
+  capabilities?: PreservationCapabilitiesProjection;
   packages?: PreservationPackage[];
   summary?: { aipCount?: number; dipCount?: number; failedFixity?: number };
   reason?: string;
@@ -49,6 +51,7 @@ type PreservationProjection = {
   assets: MediaPreservationAsset[];
   packages: PreservationPackage[];
   role: string;
+  capabilities: PreservationCapabilitiesProjection;
   preservationSummary: { aipCount: number; dipCount: number; failedFixity: number };
 };
 
@@ -77,6 +80,7 @@ const emptyConformance: ConformanceProjection = {
 };
 
 const ProjectionContext = createContext<ProjectionState | null>(null);
+const emptyPreservationCapabilities: PreservationCapabilitiesProjection = { contractRevision: "preservation.capabilities.v1", canCreateAip: false, canVerifyFixity: false, canCreateDip: false, blockedReason: "صلاحيات إجراءات الحفظ غير متاحة." };
 
 const fixityLabel = (value: string | null) => value === "success" ? "Verified" : value === "failure" ? "FAILED" : "Not verified";
 const shortHash = (value: string | null) => value ? `${value.slice(0, 12)}…${value.slice(-8)}` : "—";
@@ -101,6 +105,7 @@ async function readPreservationProjection(assets: MediaPreservationAsset[], vaul
     assets,
     packages: Array.isArray(preservation.packages) ? preservation.packages : [],
     role: preservation.role || vaultRole || "",
+    capabilities: preservation.capabilities || { contractRevision: "preservation.capabilities.v1", canCreateAip: false, canVerifyFixity: false, canCreateDip: false, blockedReason: "تعذر تحميل صلاحيات إجراءات الحفظ من الخادم." },
     preservationSummary: {
       aipCount: Number(preservation.summary?.aipCount || 0),
       dipCount: Number(preservation.summary?.dipCount || 0),
@@ -127,7 +132,7 @@ function loadErrorLabel(error: unknown) {
 }
 
 export function MediaPreservationProvider({ assets, role, children }: { assets: MediaPreservationAsset[]; role: string; children: ReactNode }) {
-  const [data, setData] = useState<PreservationProjection>({ assets, packages: [], role, preservationSummary: { aipCount: 0, dipCount: 0, failedFixity: 0 } });
+  const [data, setData] = useState<PreservationProjection>({ assets, packages: [], role, capabilities: emptyPreservationCapabilities, preservationSummary: { aipCount: 0, dipCount: 0, failedFixity: 0 } });
   const [conformance, setConformance] = useState<ConformanceProjection>(emptyConformance);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -203,7 +208,7 @@ function MediaPreservationInspectorPanelContent({ selectedAssetId }: { selectedA
   const selectedPackages = useMemo(() => data.packages.filter((item) => item.asset_id === selectedAssetId), [data.packages, selectedAssetId]);
   const latestAip = selectedPackages.filter((item) => item.package_type === "AIP").sort((a, b) => b.package_version - a.package_version)[0];
   const latestDip = selectedPackages.filter((item) => item.package_type === "DIP").sort((a, b) => b.package_version - a.package_version)[0];
-  const canOperate = ["verifier", "admin"].includes(data.role);
+  const capabilities = data.capabilities;
 
   const perform = async (body: Record<string, unknown>, success: string) => {
     setWorking(true);
@@ -259,9 +264,9 @@ function MediaPreservationInspectorPanelContent({ selectedAssetId }: { selectedA
     </div>
 
     <TransitionActionPanel title="Preservation Actions · إجراءات الحفظ">
-      {!canOperate ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">العرض متاح؛ التنفيذ يتطلب verifier أو admin.</div> : null}
+      {capabilities.blockedReason ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">{capabilities.blockedReason}</div> : null}
       <div className="space-y-3">
-        <button className="secondary w-full" disabled={working || !canOperate || !selectedAsset || Boolean(latestAip)} onClick={() => selectedAsset && void perform({ action: "create_aip", assetId: selectedAsset.id, representationInformation: { source: "media-vault-operator-ui" }, preservationContext: { operator_projection: true } }, "تم إنشاء AIP وتحديث حالة الحفظ.")}>Create AIP · إنشاء حزمة حفظ</button>
+        <button className="secondary w-full" disabled={working || !capabilities.canCreateAip || !selectedAsset || Boolean(latestAip)} onClick={() => selectedAsset && void perform({ action: "create_aip", assetId: selectedAsset.id, representationInformation: { source: "media-vault-operator-ui" }, preservationContext: { operator_projection: true } }, "تم إنشاء AIP وتحديث حالة الحفظ.")}>Create AIP · إنشاء حزمة حفظ</button>
         <div className="rounded-lg border border-[#eee4d8] p-2">
           <label className="block text-xs font-bold">Observed SHA-256
             <input dir="ltr" value={observedSha256} onChange={(event) => setObservedSha256(event.target.value.trim().toLowerCase())} placeholder="64 hex characters from an independent byte-level check" className="mt-1 w-full rounded-md border border-[#dfd4c5] px-2 py-2 font-mono text-xs" />
@@ -269,14 +274,14 @@ function MediaPreservationInspectorPanelContent({ selectedAssetId }: { selectedA
           <label className="mt-2 block text-xs font-bold">ملاحظة التحقق
             <input value={fixityNote} onChange={(event) => setFixityNote(event.target.value)} placeholder="مصدر/أداة التحقق، إن وجدت" className="mt-1 w-full rounded-md border border-[#dfd4c5] px-2 py-2 text-xs" />
           </label>
-          <button className="secondary mt-2 w-full" disabled={working || !canOperate || !latestAip || !/^[0-9a-f]{64}$/.test(observedSha256)} onClick={() => latestAip && void perform({ action: "verify_fixity", packageId: latestAip.package_id, observedSha256, note: fixityNote }, "تم تسجيل Fixity verification في سجل الحفظ غير القابل للتعديل.")}>Verify Fixity · تحقق البصمة</button>
+          <button className="secondary mt-2 w-full" disabled={working || !capabilities.canVerifyFixity || !latestAip || !/^[0-9a-f]{64}$/.test(observedSha256)} onClick={() => latestAip && void perform({ action: "verify_fixity", packageId: latestAip.package_id, observedSha256, note: fixityNote }, "تم تسجيل Fixity verification في سجل الحفظ غير القابل للتعديل.")}>Verify Fixity · تحقق البصمة</button>
           <p className="mt-2 text-[11px] leading-5 text-[#756b63]">القيمة المدخلة يجب أن تأتي من فحص مستقل للبايتات؛ الواجهة لا تفترض أن SHA المخزن هو نتيجة فحص جديد.</p>
         </div>
         <div className="rounded-lg border border-[#eee4d8] p-2">
           <label className="block text-xs font-bold">غرض التوزيع (DIP)
             <input value={dipPurpose} onChange={(event) => setDipPurpose(event.target.value)} placeholder="مثال: نسخة تدقيق للمراجع" className="mt-1 w-full rounded-md border border-[#dfd4c5] px-2 py-2 text-xs" />
           </label>
-          <button className="secondary mt-2 w-full" disabled={working || !canOperate || !latestAip || dipPurpose.trim().length < 5} onClick={() => latestAip && void perform({ action: "create_dip", packageId: latestAip.package_id, purpose: dipPurpose.trim(), designatedCommunity: latestAip.designated_community }, "تم إنشاء DIP مسجل ومشتق من AIP.")}>Create DIP · إنشاء حزمة توزيع</button>
+          <button className="secondary mt-2 w-full" disabled={working || !capabilities.canCreateDip || !latestAip || dipPurpose.trim().length < 5} onClick={() => latestAip && void perform({ action: "create_dip", packageId: latestAip.package_id, purpose: dipPurpose.trim(), designatedCommunity: latestAip.designated_community }, "تم إنشاء DIP مسجل ومشتق من AIP.")}>Create DIP · إنشاء حزمة توزيع</button>
           {latestDip ? <div className="mt-2 text-[11px] text-[#756b63]">آخر DIP: v{latestDip.package_version} · {formatDate(latestDip.created_at)}</div> : null}
         </div>
       </div>

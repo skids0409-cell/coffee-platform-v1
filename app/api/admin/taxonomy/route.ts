@@ -8,6 +8,7 @@ import {
   requiredTimestamp,
   transitionPayload,
 } from "@/lib/taxonomy-admin";
+import { projectTaxonomyLifecycle, type TaxonomyStatus } from "@/lib/taxonomy-lifecycle-projection";
 
 const jsonHeaders = {
   "cache-control": "no-store, max-age=0, must-revalidate",
@@ -54,8 +55,8 @@ async function snapshot(token: string) {
     authenticated: true,
     schemaVersion: "step2-034-equipment-navigation",
     serverTime: new Date().toISOString(),
-    categories,
-    fields,
+    categories: categories.map((row) => ({ ...row, lifecycle: projectTaxonomyLifecycle(String(row.status) as TaxonomyStatus) })),
+    fields: fields.map((row) => ({ ...row, lifecycle: projectTaxonomyLifecycle(String(row.status) as TaxonomyStatus) })),
     filters,
     counts: {
       categories: categories.length,

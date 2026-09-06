@@ -1,8 +1,10 @@
 "use client";
 /* eslint-disable @next/next/no-img-element, @typescript-eslint/no-explicit-any */
 
+import { useState } from "react";
 import { RecordForm } from "@/app/ui/admin/RecordForm";
-import { useReviewRecordEditorController } from "@/app/ui/admin/useReviewRecordEditorController";
+import { StandardConfirmDialog } from "@/app/ui/admin/StandardConfirmDialog";
+import { useReviewRecordEditorController, type RecordEditorConfirmationRequest } from "@/app/ui/admin/useReviewRecordEditorController";
 import type { ProductKind } from "@/lib/record-capability-types";
 
 const organizationRoleLabels: Record<string, string> = {
@@ -33,7 +35,9 @@ type ReviewRecordEditorProps = {
 };
 
 export function ReviewRecordEditor({ entity, id, canRestore, onClose, onSaved }: ReviewRecordEditorProps) {
-  const controller = useReviewRecordEditorController({ entity, id, onSaved, onClose });
+  const [confirmation, setConfirmation] = useState<(RecordEditorConfirmationRequest & { resolve: (value: boolean) => void }) | null>(null);
+  const requestConfirmation = (request: RecordEditorConfirmationRequest) => new Promise<boolean>((resolve) => setConfirmation({ ...request, resolve }));
+  const controller = useReviewRecordEditorController({ entity, id, onSaved, onClose, requestConfirmation });
   const {
     data,
     attributes,
@@ -137,5 +141,6 @@ export function ReviewRecordEditor({ entity, id, canRestore, onClose, onSaved }:
         <button type="submit" disabled={mediaWorking === "upload"}>{mediaWorking === "upload" ? "جارٍ الحجر والفحص…" : "رفع الأصل إلى الحجر وفحصه"}</button>
       </form>}
     </section>
+    <StandardConfirmDialog open={Boolean(confirmation)} title={confirmation?.title || ""} description={confirmation?.description || ""} confirmLabel={confirmation?.confirmLabel || "تأكيد"} tone={confirmation?.tone} onCancel={() => { confirmation?.resolve(false); setConfirmation(null); }} onConfirm={() => { confirmation?.resolve(true); setConfirmation(null); }} />
   </div>;
 }
