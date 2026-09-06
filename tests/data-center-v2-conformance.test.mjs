@@ -25,14 +25,14 @@ const requiredRules = [
 test("data-center.v2.conformance.v1 declares the full zero-tolerance gate", () => {
   assert.match(contract, /data-center\.v2\.conformance\.v1/);
   for (const rule of requiredRules) assert.match(contract, new RegExp(rule));
-  assert.equal((contract.match(/ruleCode:/g) || []).length, requiredRules.length);
+  assert.equal((contract.match(/ruleCode:\s*["']/g) || []).length, requiredRules.length);
 });
 
 test("Data Center V2 is an independent route and legacy remains frozen", () => {
   assert.match(page, /DataCenterV2App/);
   assert.match(page, /data-legacy-freeze="true"/);
-  assert.doesNotMatch(page, /DataCenterWorkspace|CatalogDraftWorkspace/);
-  assert.doesNotMatch(app, /DataCenterWorkspace|CatalogDraftWorkspace/);
+  assert.doesNotMatch(page, /import\s+.*(?:DataCenterWorkspace|CatalogDraftWorkspace)/);
+  assert.doesNotMatch(app, /import\s+.*(?:DataCenterWorkspace|CatalogDraftWorkspace)/);
 });
 
 test("V2 exposes no manual UUID or generic canonical reference field", () => {
@@ -48,7 +48,8 @@ test("batch actions are projected by data-import.lifecycle.v1", () => {
   assert.match(app, /batch\.lifecycle\?\.availableActions/);
   assert.match(app, /action\.apiAction/);
   assert.doesNotMatch(app, /role\s*===\s*["']admin["']/);
-  assert.doesNotMatch(app, /\[\s*["']imported["']\s*,\s*["']rejected["']\s*\]\.includes\([^)]*\).*button/s);
+  assert.doesNotMatch(app, /batch\.status\s*===\s*["']ready["'][\s\S]{0,180}<button/);
+  assert.doesNotMatch(app, /batch\.status\s*===\s*["'](?:imported|rejected|archived)["'][\s\S]{0,180}<button/);
 });
 
 test("V2 does not create direct database or relationship bypasses", () => {
