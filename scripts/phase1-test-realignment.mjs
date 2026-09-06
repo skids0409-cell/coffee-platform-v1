@@ -10,7 +10,7 @@ const renderedPath = "tests/rendered-html.test.mjs";
 let rendered = readFileSync(renderedPath, "utf8");
 rendered = replaceOnce(rendered, 'import { readFileSync } from "node:fs";', 'import { readFileSync, readdirSync } from "node:fs";', "node fs import");
 const helperMarker = 'const runtimeEnv = undefined;\nconst runtimeContext = undefined;\n';
-const helper = `const runtimeEnv = undefined;\nconst runtimeContext = undefined;\n\nfunction readPlatformAndOperationsSource() {\n  const platform = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");\n  const adminDirectory = new URL("../app/ui/admin/", import.meta.url);\n  const adminModules = readdirSync(adminDirectory)\n    .filter((name) => name.endsWith(".tsx"))\n    .map((name) => readFileSync(new URL(name, adminDirectory), "utf8"))\n    .join("\\n");\n  return \`${platform}\\n${adminModules}\`;\n}\n`;
+const helper = `const runtimeEnv = undefined;\nconst runtimeContext = undefined;\n\nfunction readPlatformAndOperationsSource() {\n  const platform = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");\n  const adminDirectory = new URL("../app/ui/admin/", import.meta.url);\n  const adminModules = readdirSync(adminDirectory)\n    .filter((name) => name.endsWith(".tsx"))\n    .map((name) => readFileSync(new URL(name, adminDirectory), "utf8"))\n    .join("\\n");\n  return \`\${platform}\\n\${adminModules}\`;\n}\n`;
 rendered = replaceOnce(rendered, helperMarker, helper, "operations source helper");
 const splitMarker = 'test("operations renders the protected data center workflow", async () => {';
 const splitAt = rendered.indexOf(splitMarker);
