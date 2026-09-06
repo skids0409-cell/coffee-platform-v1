@@ -21,6 +21,7 @@ import { QualityIssueEditor } from "@/app/ui/admin/QualityIssueEditor";
 import { StandardConfirmDialog } from "@/app/ui/admin/StandardConfirmDialog";
 import type { SearchEntityType, SearchIntent } from "@/lib/search-governance";
 import type { SearchTermLifecycleAction, SearchTermLifecycleProjection } from "@/lib/search-term-lifecycle-projection";
+import type { OperationsCapabilitiesProjection } from "@/lib/operations-capabilities-projection";
 
 type Role = "editor" | "verifier" | "admin";
 
@@ -77,6 +78,7 @@ type QualitySuspect = QualitySuspectView & {
 
 type AdminData = {
   profile: { display_name: string | null; role: Role };
+  operatorCapabilities: OperationsCapabilitiesProjection;
   queues: Record<string, QueueRow[]>;
   searchGovernance: {
     terms: SearchTerm[];
@@ -360,15 +362,15 @@ export function OperationsController() {
     imports: <DataCenterWorkspace mode="imports" onChanged={loadAdmin} />,
     search: <SearchGovernanceWorkspace terms={adminData.searchGovernance.terms} visibleTerms={visibleSearchTerms} weakQueries={adminData.searchGovernance.weakQueries} activeTerms={adminData.searchGovernance.activeTerms} draftTerms={adminData.searchGovernance.draftTerms} totalEventsReviewed={adminData.searchGovernance.totalEventsReviewed} workingId={workingId} view={searchTermView} query={searchTermQuery} letter={searchLetter} letters={arabicLetters} editingTermId={editingSearchTermId} intentLabels={searchIntentLabels} typeLabels={searchTypeLabels} onCreate={createSearchTerm} onViewChange={setSearchTermView} onQueryChange={setSearchTermQuery} onLetterChange={setSearchLetter} onEdit={setEditingSearchTermId} onLifecycleAction={requestSearchTermAction} renderEditingTerm={(term) => <SearchTermEditForm key={term.id} term={term} onCancel={() => setEditingSearchTermId("")} onSaved={(result) => { setAdminData((current) => current ? adoptAdminPayload(current, result) : current); setEditingSearchTermId(""); setAdminMessage("تم تعديل مصطلح البحث وتسجيل التغيير."); }} />} />,
     requests: <SupportWorkspace data={adminData.supportWorkspace} focusId={deepLinkTarget.support} onUpdated={(result) => setAdminData((current) => current ? adoptAdminPayload(current, result) : current)} />,
-    archive: <ArchiveWorkspace items={adminData.inactiveCatalog} role={adminData.profile.role} workingId={workingId} onOpen={setRecordEditor} onRestoreDraft={(entity, id) => void setReviewStatus(entity, id, "draft")} onDelete={deleteCatalogRecord} importArchive={<ArchivedImportBatches />} />,
+    archive: <ArchiveWorkspace items={adminData.inactiveCatalog} canDelete={adminData.operatorCapabilities.canDeleteInactiveCatalog} workingId={workingId} onOpen={setRecordEditor} onRestoreDraft={(entity, id) => void setReviewStatus(entity, id, "draft")} onDelete={deleteCatalogRecord} importArchive={<ArchivedImportBatches />} />,
     taxonomy: <TaxonomyWorkspace />,
   } satisfies Partial<Record<OperationsWorkspaceId, React.ReactNode>>;
 
   return <>
     {adminMessage && <div className="operations-global-message"><p className="admin-message" role="status">{adminMessage}</p></div>}
-    <OperationsWorkspaceShell workspace={workspace} onWorkspaceChange={setWorkspace} panels={panels} canManageTaxonomy={adminData.profile.role === "admin"} operatorLabel={adminData.profile.display_name || "فريق البيانات"} operatorRoleLabel={roleLabels[adminData.profile.role]} onLogout={logout} />
-    {recordEditor && <ReviewRecordEditor entity={recordEditor.entity} id={recordEditor.id} canRestore={["verifier", "admin"].includes(adminData.profile.role)} onClose={() => setRecordEditor(null)} onSaved={loadAdmin} />}
-    {qualityIssueEditor && <QualityIssueEditor issue={qualityIssueEditor} candidates={qualityRecordCandidates} canDecide={["verifier", "admin"].includes(adminData.profile.role)} onClose={() => setQualityIssueEditor(null)} onUpdated={(result) => setAdminData((current) => current ? adoptAdminPayload(current, result) : current)} />}
+    <OperationsWorkspaceShell workspace={workspace} onWorkspaceChange={setWorkspace} panels={panels} canManageTaxonomy={adminData.operatorCapabilities.canManageTaxonomy} operatorLabel={adminData.profile.display_name || "فريق البيانات"} operatorRoleLabel={roleLabels[adminData.profile.role]} onLogout={logout} />
+    {recordEditor && <ReviewRecordEditor entity={recordEditor.entity} id={recordEditor.id} canRestore={adminData.operatorCapabilities.canRestoreRevision} onClose={() => setRecordEditor(null)} onSaved={loadAdmin} />}
+    {qualityIssueEditor && <QualityIssueEditor issue={qualityIssueEditor} candidates={qualityRecordCandidates} canDecide={adminData.operatorCapabilities.canResolveQualityIssue} onClose={() => setQualityIssueEditor(null)} onUpdated={(result) => setAdminData((current) => current ? adoptAdminPayload(current, result) : current)} />}
     <StandardConfirmDialog
       open={Boolean(reviewConfirm)}
       title={reviewConfirm?.title || ""}

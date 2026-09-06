@@ -10,7 +10,7 @@ export type InactiveCatalogItem = {
 
 type ArchiveWorkspaceProps = {
   items: InactiveCatalogItem[];
-  role: string;
+  canDelete: boolean;
   workingId: string;
   onOpen: (record: { entity: string; id: string }) => void;
   onRestoreDraft: (entity: string, id: string) => void;
@@ -18,7 +18,7 @@ type ArchiveWorkspaceProps = {
   importArchive: React.ReactNode;
 };
 
-export function ArchiveWorkspace({ items, role, workingId, onOpen, onRestoreDraft, onDelete, importArchive }: ArchiveWorkspaceProps) {
+export function ArchiveWorkspace({ items, canDelete, workingId, onOpen, onRestoreDraft, onDelete, importArchive }: ArchiveWorkspaceProps) {
   return <>
     <section className="inactive-catalog" data-workspace-contract="command-master-inspector-v1">
       <div className="section-head"><div><span className="eyebrow">Archive</span><h2>المرفوضات والأرشيف</h2></div><span>{items.length} سجل</span></div>
@@ -29,7 +29,7 @@ export function ArchiveWorkspace({ items, role, workingId, onOpen, onRestoreDraf
           <div className="queue-actions">
             <button type="button" onClick={() => onOpen({ entity: item.entity, id: item.id })}>فتح وتعديل</button>
             <button type="button" disabled={workingId === item.id} onClick={() => onRestoreDraft(item.entity, item.id)}>إعادة لمسودة</button>
-            {role === "admin" && <button type="button" className="danger-action" disabled={workingId === item.id} onClick={() => onDelete(item.entity, item.id, item.label)}>حذف نهائي</button>}
+            {canDelete && <button type="button" className="danger-action" disabled={workingId === item.id} onClick={() => onDelete(item.entity, item.id, item.label)}>حذف نهائي</button>}
           </div>
         </article>)}
         {!items.length && <p>لا توجد سجلات مؤرشفة أو مرفوضة حالياً.</p>}
