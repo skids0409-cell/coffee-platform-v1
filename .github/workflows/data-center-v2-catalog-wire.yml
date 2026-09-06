@@ -1,0 +1,25 @@
+name: Data Center V2 Catalog Wire
+on:
+  push:
+    branches: [phase6/data-center-v2-rebuild]
+    paths: [scripts/wire-data-center-v2-catalog.mjs]
+permissions:
+  contents: write
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: phase6/data-center-v2-rebuild
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.19.0
+      - run: node scripts/wire-data-center-v2-catalog.mjs
+      - name: Commit catalog wiring
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/ui/admin/data-center-v2/DataCenterV2App.tsx app/ui/admin/data-center-v2/DataCenterV2.module.css
+          git diff --cached --quiet || git commit -m "feat(data-center-v2): wire structured catalog intake"
+          git push
