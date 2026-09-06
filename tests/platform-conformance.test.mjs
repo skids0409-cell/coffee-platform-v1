@@ -33,7 +33,7 @@ const requiredRuleCodes = [
 test("platform conformance manifest exposes all CI-gated rules", () => {
   assert.match(platform, /PLATFORM_CONFORMANCE_REVISION\s*=\s*"phase6\.platform\.v1"/);
   for (const code of requiredRuleCodes) assert.match(platform, new RegExp(`ruleCode: "${code}"`));
-  assert.equal((platform.match(/status:\s*"PASS"/g) || []).length, requiredRuleCodes.length);
+  assert.equal((platform.match(/status:\s*"PASS",/g) || []).length, requiredRuleCodes.length);
 });
 
 test("architecture endpoint separates kernel and platform conformance", () => {
@@ -46,7 +46,8 @@ test("architecture endpoint separates kernel and platform conformance", () => {
 
 test("legacy Operations remains removed while partner routing stays isolated", () => {
   assert.doesNotMatch(platformShell, /function Operations\s*\(/);
-  assert.doesNotMatch(platformShell, /kind:\s*"operations"/);
+  assert.doesNotMatch(platformShell, /operations-workspace-nav/);
+  assert.doesNotMatch(platformShell, /PartnerReviewQueue/);
   assert.match(platformShell, /page\.kind === "partner"/);
   assert.match(platformShell, /<PartnerPortal\s*\/>/);
   assert.match(partnerPortal, /export function PartnerPortal/);
