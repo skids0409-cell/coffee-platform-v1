@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { StandardConfirmDialog } from "@/app/ui/admin/StandardConfirmDialog";
+import type { DataImportLifecycleAction, DataImportLifecycleProjection } from "@/lib/data-import-lifecycle-projection";
 
 export type DataCenterBatch = {
   id: string;
@@ -13,6 +15,7 @@ export type DataCenterBatch = {
   rejected_rows: number;
   created_at: string;
   imported_at: string | null;
+  lifecycle?: DataImportLifecycleProjection;
 };
 
 export type DataCenterPreviewRow = {
@@ -51,6 +54,8 @@ export function DataCenterWorkspace({ onChanged, mode = "entry", renderEntry }: 
   const [working, setWorking] = useState("");
   const [batchDetails, setBatchDetails] = useState<BatchDetails | null>(null);
   const [reference, setReference] = useState<DataCenterReference>(emptyReference());
+  const [lifecycleRequest, setLifecycleRequest] = useState<{ batch: DataCenterBatch; action: DataImportLifecycleAction } | null>(null);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
 
   const load = async () => {
     const response = await fetch("/api/admin/data-center", { cache: "no-store", credentials: "same-origin" });
@@ -118,19 +123,6 @@ export function DataCenterWorkspace({ onChanged, mode = "entry", renderEntry }: 
     setMessage("اكتمل التحقق. راجع المعاينة ثم اضغط «تحويل إلى مسودات» على الدفعة.");
   };
 
-  const importBatch = async (batchId: string) => {
-    if (!window.confirm("سيتم إنشاء السجلات الصالحة كمسودات فقط، ولن يظهر شيء للعامة. هل تريد المتابعة؟")) return;
-    setWorking(batchId);
-    setMessage("");
-    const response = await fetch("/api/admin/data-center", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "import_batch", batchId }) });
-    const data = await response.json();
-    setWorking("");
-    if (!response.ok) { setMessage(responseMessage(data.reason)); return; }
-    setBatches(data.batches || []);
-    setMessage(`تم إنشاء ${Number(data.imported?.imported || 0).toLocaleString("ar-IQ")} مسودة. راجعها في طابور الجهات.`);
-    await onChanged();
-  };
-
   const openBatch = async (batchId: string) => {
     setWorking(`details-${batchId}`);
     const response = await fetch(`/api/admin/data-center?batchId=${encodeURIComponent(batchId)}`, { cache: "no-store", credentials: "same-origin" });
@@ -140,16 +132,27 @@ export function DataCenterWorkspace({ onChanged, mode = "entry", renderEntry }: 
     setBatchDetails(data);
   };
 
-  const changeBatchArchive = async (batch: DataCenterBatch) => {
-    if (!window.confirm("ستنقل الدفعة المكتملة إلى قسم الأرشيف الرئيسي ويمكن استعادتها لاحقاً. هل تريد المتابعة؟")) return;
-    setWorking(`archive-${batch.id}`);
-    const response = await fetch("/api/admin/data-center", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "archive_batch", batchId: batch.id }) });
+  const performLifecycleAction = async (batch: DataCenterBatch, action: DataImportLifecycleAction) => {
+    setWorking(`lifecycle-${batch.id}`);
+    setMessage("");
+    const response = await fetch("/api/admin/data-center", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: action.apiAction, batchId: batch.id }) });
     const data = await response.json();
     setWorking("");
-    if (!response.ok) { setMessage("لا يمكن أرشفة دفعة غير مكتملة. عالجها أو ارفضها أولاً."); return; }
+    if (!response.ok) { setMessage(responseMessage(data.reason)); return false; }
     setBatches(data.batches || []);
     setBatchDetails(null);
-    setMessage("نُقلت الدفعة إلى قسم الأرشيف الرئيسي.");
+    if (action.action === "import") {
+      setMessage(`تم إنشاء ${Number(data.imported?.imported || 0).toLocaleString("ar-IQ")} مسودة. راجعها في طابور الجهات.`);
+      await onChanged();
+    } else if (action.action === "archive") {
+      setMessage("نُقلت الدفعة إلى قسم الأرشيف الرئيسي.");
+    }
+    return true;
+  };
+
+  const requestLifecycleAction = (batch: DataCenterBatch, action: DataImportLifecycleAction) => {
+    if (!action.enabled) return;
+    setLifecycleRequest({ batch, action });
   };
 
   const visibleBatches = batches.filter((batch) => batch.status !== "archived");
@@ -168,8 +171,9 @@ export function DataCenterWorkspace({ onChanged, mode = "entry", renderEntry }: 
         <form onSubmit={submitCsv}><h3>استيراد ملف CSV</h3><p>الأعمدة المقبولة: <b>اسم الجهة، نوع الجهة، عنوان، تواصل</b>. نوع الجهة اختياري ويُعامل كمقهى عند غيابه للتوافق مع الملفات القديمة.</p><label>المحافظة لكل الملف<select name="marketCode" defaultValue="IQ-BGD"><option value="IQ-BGD">بغداد — سوق الاختبار الحالي</option></select></label><label>الملف<input name="csvFile" type="file" accept=".csv,text/csv" required /></label><label>اسم المصدر<input name="sourceLabel" minLength={3} maxLength={180} placeholder="اسم الحساب أو القائمة وتاريخها" required /></label><label className="check"><input name="sourceConfirmed" type="checkbox" required /> راجعت البيانات وأسمح بتحويل الصالح منها إلى مسودات</label><button type="submit" disabled={working === "csv"}>{working === "csv" ? "جارٍ التحقق…" : "فحص الملف أولاً"}</button></form>
       </div>
       {preview.length > 0 && <div className="data-preview" data-governed-inspector="true"><h3>معاينة التحقق <span>{preview.length}</span></h3><div className="data-table" role="table" aria-label="نتيجة فحص ملف البيانات"><div className="head" role="row"><span>الصف</span><span>الجهة ونوعها</span><span>العنوان</span><span>النتيجة</span></div>{preview.slice(0, 50).map((row) => <div role="row" key={`${row.sourceRowNumber}-${row.normalized.name_ar}`}><span>{row.sourceRowNumber}</span><b>{row.normalized.name_ar || "—"} · {row.normalized.role_type || "cafe"}</b><span>{row.normalized.address_ar || "—"}</span><span className={`intake-status ${row.status}`}>{row.status === "valid" ? "صالح" : row.status === "warning" ? "تنبيه" : "مرفوض"}{row.messages.length ? ` — ${row.messages.join("، ")}` : ""}</span></div>)}</div>{preview.length > 50 && <small>تظهر أول 50 نتيجة فقط؛ تم فحص جميع الصفوف.</small>}</div>}
-      <div className="batch-list" data-governed-master="true"><div className="subsection-head"><div><h3>سجل الدفعات النشطة</h3><span>الدفعة المؤرشفة تنتقل إلى قسم «الأرشيف» الرئيسي ولا تبقى هنا.</span></div></div>{visibleBatches.length ? visibleBatches.map((batch) => <article key={batch.id}><div><b>{batch.source_label}</b><span>{batch.entity_type === "organization" ? "جهات مشاركة" : batch.entity_type} · {new Date(batch.created_at).toLocaleDateString("ar-IQ")} · المرجع {batch.batch_code}</span><span>{batch.total_rows} سجل · {batch.valid_rows} صالح · {batch.rejected_rows} مرفوض</span></div><div className="queue-actions"><span className={`batch-status ${batch.status}`}>{batchStatusLabel(batch.status)}</span><button type="button" disabled={working === `details-${batch.id}`} onClick={() => openBatch(batch.id)}>عرض التفاصيل</button>{batch.status === "ready" && <button type="button" disabled={working === batch.id} onClick={() => importBatch(batch.id)}>{working === batch.id ? "جارٍ التحويل…" : "تحويل إلى مسودات"}</button>}{["imported", "rejected"].includes(batch.status) && <button type="button" disabled={working === `archive-${batch.id}`} onClick={() => changeBatchArchive(batch)}>حفظ في الأرشيف</button>}</div></article>) : <p>لا توجد دفعات بعد.</p>}</div>
+      <div className="batch-list" data-governed-master="true"><div className="subsection-head"><div><h3>سجل الدفعات النشطة</h3><span>الدفعة المؤرشفة تنتقل إلى قسم «الأرشيف» الرئيسي ولا تبقى هنا.</span></div></div>{visibleBatches.length ? visibleBatches.map((batch) => <article key={batch.id}><div><b>{batch.source_label}</b><span>{batch.entity_type === "organization" ? "جهات مشاركة" : batch.entity_type} · {new Date(batch.created_at).toLocaleDateString("ar-IQ")} · المرجع {batch.batch_code}</span><span>{batch.total_rows} سجل · {batch.valid_rows} صالح · {batch.rejected_rows} مرفوض</span></div><div className="queue-actions"><span className={`batch-status ${batch.status}`}>{batchStatusLabel(batch.status)}</span><button type="button" disabled={working === `details-${batch.id}`} onClick={() => openBatch(batch.id)}>عرض التفاصيل</button>{(batch.lifecycle?.availableActions || []).filter((action) => action.action === "import" || action.action === "archive").map((action) => <button key={action.action} type="button" disabled={working === `lifecycle-${batch.id}` || !action.enabled} title={action.blockedReason || ""} data-confirmation-mode={action.confirmationMode} onClick={() => requestLifecycleAction(batch, action)}>{action.label}</button>)}</div></article>) : <p>لا توجد دفعات بعد.</p>}</div>
     </div>}
+    <StandardConfirmDialog open={Boolean(lifecycleRequest)} title={lifecycleRequest?.action.action === "import" ? "تحويل الدفعة إلى مسودات" : "أرشفة الدفعة"} description={lifecycleRequest?.action.action === "import" ? "سينفذ الخادم التحويل الذري للسجلات الصالحة إلى مسودات فقط، دون نشر عام." : "ستنقل الدفعة المكتملة إلى الأرشيف ويمكن استعادتها لاحقاً."} confirmLabel={lifecycleRequest?.action.label || "تأكيد"} busy={lifecycleBusy} onCancel={() => { if (!lifecycleBusy) setLifecycleRequest(null); }} onConfirm={async () => { if (!lifecycleRequest) return; setLifecycleBusy(true); try { const ok = await performLifecycleAction(lifecycleRequest.batch, lifecycleRequest.action); if (ok) setLifecycleRequest(null); } finally { setLifecycleBusy(false); } }} />
     {batchDetails && <div className="batch-details" role="dialog" aria-modal="true"><section><div className="section-head"><div><span className="eyebrow">تفاصيل الدفعة</span><h3>{batchDetails.batch.source_label}</h3></div><button type="button" onClick={() => setBatchDetails(null)}>إغلاق</button></div><p>{batchDetails.batch.batch_code} · {batchStatusLabel(batchDetails.batch.status)}</p><div className="data-table" role="table"><div className="head" role="row"><span>الصف</span><span>الاسم</span><span>العنوان</span><span>النتيجة</span></div>{batchDetails.rows.map((row) => <div role="row" key={row.id}><span>{row.source_row_number}</span><b>{String(row.normalized_payload?.name_ar || "—")}</b><span>{String(row.normalized_payload?.address_ar || "—")}</span><span>{row.validation_status}{row.validation_messages?.length ? ` — ${row.validation_messages.join("، ")}` : ""}</span></div>)}</div></section></div>}
   </section>;
 }

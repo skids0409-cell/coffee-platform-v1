@@ -3,11 +3,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const source = fs.readFileSync("app/ui/admin/DataCenterWorkspace.tsx", "utf8");
+const projection = fs.readFileSync("lib/data-import-lifecycle-projection.ts", "utf8");
 
 test("data center extraction preserves the batch lifecycle actions", () => {
-  for (const action of ["create_manual_draft", "stage_csv", "import_batch", "archive_batch"]) {
-    assert.match(source, new RegExp(action));
-  }
+  for (const action of ["create_manual_draft", "stage_csv"]) assert.match(source, new RegExp(action));
+  assert.match(source, /batch\.lifecycle\?\.availableActions/);
+  assert.match(source, /action\.apiAction/);
+  assert.match(projection, /apiAction: "import_batch"/);
+  assert.match(projection, /apiAction: "archive_batch"/);
+  assert.match(source, /StandardConfirmDialog/);
   assert.match(source, /\/api\/admin\/data-center/);
   assert.match(source, /data-workspace-contract="command-master-inspector-v1"/);
   assert.match(source, /data-governed-master="true"/);
@@ -15,10 +19,11 @@ test("data center extraction preserves the batch lifecycle actions", () => {
 });
 
 test("data center preserves draft-only import safeguards", () => {
-  assert.match(source, /سيتم إنشاء السجلات الصالحة كمسودات فقط/);
+  assert.match(projection, /إنشاء السجلات كمسودات فقط/);
   assert.match(source, /لا تنشر عملية الاستيراد أي سجل تلقائياً/);
   assert.match(source, /sourceConfirmed/);
   assert.match(source, /status !== "archived"/);
+  assert.doesNotMatch(source, /window\.(confirm|prompt|alert)\s*\(/);
 });
 
 test("data center stays behind the existing server boundary", () => {

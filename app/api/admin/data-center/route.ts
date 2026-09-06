@@ -2,6 +2,7 @@ import { adminRest, requireStaff, sameOrigin } from "@/lib/supabase-admin";
 import { validateOrganizationCsv } from "@/lib/data-center";
 import { isProductKind } from "@/lib/record-capability-types";
 import { loadRecordCapability, serializeCapabilityAttributes } from "@/lib/record-capabilities";
+import { projectDataImportLifecycle } from "@/lib/data-import-lifecycle-projection";
 
 type BatchRow = {
   id: string;
@@ -16,7 +17,7 @@ type BatchRow = {
   imported_at: string | null;
 };
 
-async function loadDataCenter(token: string) {
+async function loadDataCenter(token: string, role: string) {
   const [markets, batches, categories, organizations, products, brands, countries, filterDefinitions] = await Promise.all([
     adminRest<Array<{ id: string }>>(token, "markets?select=id&code=eq.IQ-BGD&limit=1"),
     adminRest<BatchRow[]>(token, "data_import_batches?select=id,batch_code,entity_type,source_label,status,total_rows,valid_rows,rejected_rows,created_at,imported_at&order=created_at.desc&limit=100"),
@@ -27,7 +28,7 @@ async function loadDataCenter(token: string) {
     adminRest<Array<{ code: string; name_ar: string; coffee_regions: Array<{ id: string; name_ar: string }> }>>(token, "countries?select=code,name_ar,coffee_regions(id,name_ar)&status=eq.published&order=name_ar.asc"),
     adminRest<Array<{ category_id: string; sort_order: number; is_required_for_publish: boolean; field_definitions: Record<string, unknown> }>>(token, "filter_definitions?select=category_id,sort_order,is_required_for_publish,field_definitions(id,code,name_ar,data_type,allowed_values,unit_code)&status=eq.published&order=sort_order.asc"),
   ]);
-  return { marketId: markets[0]?.id || null, batches, referenceData: { categories, organizations, products, brands: brands.map((brand) => ({ ...brand, product_kinds: [...new Set(brand.brand_product_kinds.map((row) => row.product_kind))] })), countries, filterDefinitions: filterDefinitions.map((rule) => ({ category_id: rule.category_id, sort_order: rule.sort_order, is_required_for_publish: rule.is_required_for_publish, ...rule.field_definitions })) } };
+  return { marketId: markets[0]?.id || null, batches: batches.map((batch) => ({ ...batch, lifecycle: projectDataImportLifecycle({ status: batch.status, role }) })), referenceData: { categories, organizations, products, brands: brands.map((brand) => ({ ...brand, product_kinds: [...new Set(brand.brand_product_kinds.map((row) => row.product_kind))] })), countries, filterDefinitions: filterDefinitions.map((rule) => ({ category_id: rule.category_id, sort_order: rule.sort_order, is_required_for_publish: rule.is_required_for_publish, ...rule.field_definitions })) } };
 }
 
 async function stageRows(
@@ -65,9 +66,9 @@ export async function GET(request: Request) {
         adminRest<Array<Record<string, unknown>>>(admin.token, `data_intake_rows?select=id,source_row_number,normalized_payload,validation_status,validation_messages,target_table,target_id,reviewed_at&batch_id=eq.${batchId}&order=source_row_number.asc&limit=500`),
       ]);
       if (!batch[0]) return Response.json({ authenticated: true, reason: "not_found" }, { status: 404 });
-      return Response.json({ authenticated: true, batch: batch[0], rows });
+      return Response.json({ authenticated: true, batch: { ...batch[0], lifecycle: projectDataImportLifecycle({ status: batch[0].status, role: admin.profile.role }) }, rows });
     }
-    return Response.json({ authenticated: true, ...(await loadDataCenter(admin.token)) });
+    return Response.json({ authenticated: true, ...(await loadDataCenter(admin.token, admin.profile.role)) });
   } catch (error) {
     console.error("admin-data-center-get", error);
     return Response.json({ authenticated: true, reason: "upstream_error" }, { status: 502 });
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
         const duplicateBrands = brandName ? await adminRest<Array<{ id: string; name_ar: string; status: string }>>(admin.token, `brands?select=id,name_ar,status&name_ar=eq.${encodeURIComponent(brandName)}&status=neq.archived&limit=1`) : [];
         if (duplicateBrands[0]) return Response.json({ updated: false, reason: "duplicate_brand", existing: duplicateBrands[0] }, { status: 409 });
         const created = await adminRest<Record<string, unknown>>(admin.token, "rpc/admin_create_brand_draft", { method: "POST", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify({ p_payload: body.payload }) });
-        return Response.json({ updated: true, created, ...(await loadDataCenter(admin.token)) });
+        return Response.json({ updated: true, created, ...(await loadDataCenter(admin.token, admin.profile.role)) });
       }
       if (body.entityType === "product") {
         const kind = String(body.payload.product_kind || "");
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
           headers: { "content-type": "application/json", prefer: "return=representation" },
           body: JSON.stringify({ p_payload: body.payload, p_values: values, p_contract_revision: body.contractRevision }),
         });
-        return Response.json({ updated: true, created, ...(await loadDataCenter(admin.token)) });
+        return Response.json({ updated: true, created, ...(await loadDataCenter(admin.token, admin.profile.role)) });
       }
       if (body.entityType === "offer") {
         const productId = String(body.payload.product_id || "");
@@ -134,7 +135,7 @@ export async function POST(request: Request) {
         headers: { "content-type": "application/json", prefer: "return=representation" },
         body: JSON.stringify({ p_entity_type: body.entityType, p_payload: body.payload }),
       });
-      return Response.json({ updated: true, created, ...(await loadDataCenter(admin.token)) });
+      return Response.json({ updated: true, created, ...(await loadDataCenter(admin.token, admin.profile.role)) });
     }
     if (body?.action === "stage_csv" || body?.action === "create_manual_draft") {
       const sourceLabel = String(body.sourceLabel || "").trim().slice(0, 180);
@@ -160,9 +161,9 @@ export async function POST(request: Request) {
           headers: { "content-type": "application/json", prefer: "return=representation" },
           body: JSON.stringify({ p_batch_id: staged.batch.id }),
         });
-        return Response.json({ updated: true, imported, preview: staged.rows, ...(await loadDataCenter(admin.token)) });
+        return Response.json({ updated: true, imported, preview: staged.rows, ...(await loadDataCenter(admin.token, admin.profile.role)) });
       }
-      return Response.json({ updated: true, batch: staged.batch, preview: staged.rows, ...(await loadDataCenter(admin.token)) });
+      return Response.json({ updated: true, batch: staged.batch, preview: staged.rows, ...(await loadDataCenter(admin.token, admin.profile.role)) });
     }
     if (body?.action === "import_batch") {
       if (!body.batchId || !/^[0-9a-f-]{36}$/i.test(body.batchId)) {
@@ -173,7 +174,7 @@ export async function POST(request: Request) {
         headers: { "content-type": "application/json", prefer: "return=representation" },
         body: JSON.stringify({ p_batch_id: body.batchId }),
       });
-      return Response.json({ updated: true, imported, ...(await loadDataCenter(admin.token)) });
+      return Response.json({ updated: true, imported, ...(await loadDataCenter(admin.token, admin.profile.role)) });
     }
     if (body?.action === "archive_batch" || body?.action === "restore_batch") {
       if (!body.batchId || !/^[0-9a-f-]{36}$/i.test(body.batchId)) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
@@ -183,7 +184,7 @@ export async function POST(request: Request) {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ p_batch_id: body.batchId, p_action: body.action === "archive_batch" ? "archive" : "restore" }),
         });
-        return Response.json({ updated: true, ...(await loadDataCenter(admin.token)) });
+        return Response.json({ updated: true, ...(await loadDataCenter(admin.token, admin.profile.role)) });
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
         if (message.includes("batch_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
@@ -201,7 +202,7 @@ export async function POST(request: Request) {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ p_batch_id: body.batchId }),
         });
-        return Response.json({ updated: true, deletedRows: result?.deleted_rows || 0, ...(await loadDataCenter(admin.token)) });
+        return Response.json({ updated: true, deletedRows: result?.deleted_rows || 0, ...(await loadDataCenter(admin.token, admin.profile.role)) });
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
         if (message.includes("batch_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
