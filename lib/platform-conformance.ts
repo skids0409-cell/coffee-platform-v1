@@ -51,7 +51,7 @@ export const platformConformanceRules: PlatformConformanceRule[] = [
     severity: "critical",
     status: "PASS",
     description: "Canonical media relationships are non-null, foreign-key constrained, target validated, and deletion restricted.",
-    evidence: ["supabase/migrations/043_closed_loop_media_asset_lifecycle.sql", "supabase/migrations/049_zero_orphan_governed_relationship_registry.sql"],
+    evidence: ["supabase/migrations/043_closed_loop_media_asset_lifecycle.sql", "supabase/migrations/049_wave_a_zero_orphan_relationship_registry.sql"],
   },
   {
     ruleCode: "REVIEW_ATOMIC_BOUNDARY",
