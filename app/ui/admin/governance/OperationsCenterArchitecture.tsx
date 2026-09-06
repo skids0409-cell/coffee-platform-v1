@@ -74,7 +74,27 @@ export function OperationsCenterArchitecture({ workspace }: { workspace: Operati
       }
       .operations-workspace-nav[data-architecture-navigation="true"] button.active::before { background:#c89152; }
 
+      /* Taxonomy is an editing surface: navigation must remain in normal flow so it can never cover create/edit controls. */
+      .governed-operations-shell[data-current-workspace="taxonomy"] .operations-workspace-nav[data-architecture-navigation="true"] {
+        position:static !important;
+        top:auto !important;
+        z-index:auto !important;
+      }
+      .governed-operations-shell[data-current-workspace="taxonomy"] .governed-operations-panel,
+      .governed-operations-shell[data-current-workspace="taxonomy"] .taxonomy-workspace {
+        position:relative;
+        isolation:isolate;
+        overflow:visible;
+      }
+      .governed-operations-shell[data-current-workspace="taxonomy"] .taxonomy-editor,
+      .governed-operations-shell[data-current-workspace="taxonomy"] .taxonomy-fields {
+        position:relative;
+        z-index:1;
+        overflow:visible;
+      }
+
       #operations-published, #operations-review, #operations-media, .operations-dashboard, .data-center-imports, .taxonomy-workspace { border-radius:16px; overflow:clip; }
+      .governed-operations-shell[data-current-workspace="taxonomy"] .taxonomy-workspace { overflow:visible !important; }
       .media-vault-assets, .media-vault-inspector, .published-record-list, .record-editor, .quality-desk, .media-backlog {
         border-radius:12px !important; border-color:#dfd4c5 !important; box-shadow:0 8px 24px rgba(58,31,18,.05);
       }
