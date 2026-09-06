@@ -86,7 +86,7 @@ async function loadQueue(token: string, role: string) {
       token,
       "beta_feedback?select=id,public_reference,page_path,task_code,outcome,device_type,severity,feedback_text,status,created_at&status=neq.resolved&order=created_at.desc&limit=100",
     ),
-    adminRest<Array<{ id: string; public_reference: string; request_type: string; page_path: string; subject: string; message: string; preferred_channel: string; status: string; priority: string; assigned_to: string | null; internal_notes: string | null; resolution_note: string | null; technical_reference: string | null; created_at: string; updated_at: string }>>(
+    adminRest<Array<{ id: string; public_reference: string; request_type: string; page_path: string; subject: string; message: string; preferred_channel: string; requester_name: string | null; requester_phone: string | null; requester_email: string | null; status: string; priority: string; assigned_to: string | null; internal_notes: string | null; resolution_note: string | null; technical_reference: string | null; escalated_at: string | null; customer_replied_at: string | null; archived_at: string | null; created_at: string; updated_at: string }>>(
       token,
       "support_requests?select=id,public_reference,request_type,page_path,subject,message,preferred_channel,requester_name,requester_phone,requester_email,status,priority,assigned_to,internal_notes,resolution_note,technical_reference,escalated_at,customer_replied_at,archived_at,created_at,updated_at&order=created_at.desc&limit=200",
     ),
