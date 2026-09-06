@@ -1,6 +1,7 @@
 import { requireStaff, sameOrigin } from "@/lib/supabase-admin";
 import { cleanHttps, mapMediaError, mediaRpc, mediaStorageRequest } from "@/lib/media-vault";
 import { adminRest } from "@/lib/supabase-admin";
+import { projectMediaVaultLifecycle } from "@/lib/media-vault-lifecycle-projection";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -137,11 +138,26 @@ export async function GET(request: Request) {
       preview_url: await signedPreview(admin.token, asset),
     })));
     const activeLinks = (asset: VaultAsset) => (asset.links || []).filter((link) => ["active", "pending"].includes(link.link_status));
+    const dependentDuplicateParents = new Set(assets.map((asset) => asset.duplicate_of_asset_id).filter(Boolean));
+    const projectedAssets = hydrated.map((asset) => ({
+      ...asset,
+      lifecycle: projectMediaVaultLifecycle({
+        role: admin.profile.role,
+        lifecycleState: String(asset.lifecycle_state || "pending_approval"),
+        publicationStatus: asset.publication_status,
+        legalHold: asset.legal_hold,
+        retentionDaysRemaining: asset.retention_days_remaining ?? null,
+        hasActiveLinks: activeLinks(asset).length > 0,
+        hasDependentDuplicates: dependentDuplicateParents.has(asset.id),
+        purgeRequestId: asset.purge_request_id ?? null,
+        purgeRequestStatus: asset.purge_request_status ?? null,
+      }),
+    }));
     const latestRights = (asset: VaultAsset) => (asset.rights || []).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
     return Response.json({
       authenticated: true,
       role: admin.profile.role,
-      assets: hydrated,
+      assets: projectedAssets,
       summary: {
         total: hydrated.length,
         quarantined: hydrated.filter((asset) => ["quarantined", "restricted"].includes(asset.publication_status)).length,

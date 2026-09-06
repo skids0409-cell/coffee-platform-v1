@@ -1,5 +1,6 @@
 import { requireStaff, sameOrigin, adminRest } from "@/lib/supabase-admin";
 import { mediaRpc } from "@/lib/media-vault";
+import { projectPreservationCapabilities } from "@/lib/preservation-capabilities-projection";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256 = /^[0-9a-f]{64}$/i;
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
     const aipCount = packages.filter((row) => row.package_type === "AIP").length;
     const dipCount = packages.filter((row) => row.package_type === "DIP").length;
     const failedFixity = packages.filter((row) => row.latest_fixity_outcome === "failure").length;
-    return Response.json({ authenticated: true, role: admin.profile.role, packages, summary: { aipCount, dipCount, failedFixity } }, { headers: { "cache-control": "no-store" } });
+    return Response.json({ authenticated: true, role: admin.profile.role, capabilities: projectPreservationCapabilities(admin.profile.role), packages, summary: { aipCount, dipCount, failedFixity } }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     console.error("preservation-read", error instanceof Error ? error.message : error);
     return Response.json({ authenticated: true, reason: "upstream_error" }, { status: 502 });
