@@ -4,7 +4,7 @@ export type EntityResolverContext = "media_pending_review" | "support_technical_
 
 export type EntityLinkRole = "primary" | "gallery" | "logo" | "hero" | "evidence" | "document";
 
-export type EntityTypeKey = "products" | "offers" | "organizations" | "brands" | "contents" | "origin_claims";
+export type EntityTypeKey = "products" | "offers" | "organizations" | "brands" | "contents" | "origin_claims" | "technical_tasks";
 
 export type EntityTypeProjection = {
   entityType: EntityTypeKey;
@@ -27,6 +27,7 @@ const labels: Record<EntityTypeKey, string> = {
   brands: "علامة تجارية",
   contents: "محتوى",
   origin_claims: "مصدر قهوة",
+  technical_tasks: "مهمة تقنية",
 };
 
 const mediaTypesByRole: Record<EntityLinkRole, EntityTypeKey[]> = {
@@ -48,7 +49,7 @@ export function projectEntityLinkingContract(input: {
 
   const entityTypes: EntityTypeKey[] = input.context === "media_pending_review"
     ? (role ? mediaTypesByRole[role] : [...new Set(Object.values(mediaTypesByRole).flat())])
-    : ["products", "offers", "organizations", "brands", "contents", "origin_claims"];
+    : ["technical_tasks"];
 
   return {
     contractRevision: ENTITY_LINKING_CONTRACT_REVISION,
