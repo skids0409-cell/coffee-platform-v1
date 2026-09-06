@@ -1,0 +1,35 @@
+name: Operational Work Queue integration
+
+on:
+  push:
+    branches:
+      - phase5/unified-operational-work-queue
+    paths:
+      - "scripts/integrate-operational-work-queue-deeplinks.mjs"
+      - ".github/workflows/operational-work-queue-integration.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: phase5/unified-operational-work-queue
+          fetch-depth: 1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.19.0
+      - name: Apply deep-link integration
+        run: node scripts/integrate-operational-work-queue-deeplinks.mjs
+      - name: Commit integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/api/admin/work-queue/route.ts app/ui/admin/OperationsController.tsx app/ui/admin/ReviewWorkspace.tsx app/ui/admin/SupportWorkspace.tsx app/ui/admin/PartnerReviewQueue.tsx
+          git commit -m "feat(operations): route inbox items into governed workspaces"
+          git push origin HEAD:phase5/unified-operational-work-queue
