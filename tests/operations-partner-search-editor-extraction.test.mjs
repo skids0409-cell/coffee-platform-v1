@@ -3,13 +3,18 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const partner = fs.readFileSync("app/ui/admin/PartnerReviewQueue.tsx", "utf8");
+const partnerProjection = fs.readFileSync("lib/partner-lifecycle-projection.ts", "utf8");
 const editor = fs.readFileSync("app/ui/admin/SearchTermEditForm.tsx", "utf8");
 
 test("partner review extraction preserves server-authoritative decisions", () => {
   assert.match(partner, /\/api\/admin\/partner-submissions/);
   assert.match(partner, /upsert_membership/);
-  for (const state of ["in_review", "needs_changes", "approved", "rejected"]) assert.match(partner, new RegExp(state));
-  assert.match(partner, /reviewNote\.trim\(\)\.length < 10/);
+  assert.match(partner, /row\.lifecycle\?\.availableActions/);
+  assert.match(partner, /<StandardConfirmDialog/);
+  assert.match(partnerProjection, /PARTNER_LIFECYCLE_CONTRACT_REVISION\s*=\s*"partner\.lifecycle\.v1"/);
+  for (const state of ["in_review", "needs_changes", "approved", "rejected"]) assert.match(partnerProjection, new RegExp(`targetStatus: "${state}"`));
+  assert.match(partnerProjection, /ملاحظة مراجعة لا تقل عن 10 أحرف/);
+  assert.doesNotMatch(partner, /window\.prompt|window\.alert/);
   assert.match(partner, /data-workspace-contract="command-master-inspector-v1"/);
   assert.match(partner, /data-governed-master="true"/);
   assert.match(partner, /data-governed-inspector="true"/);
