@@ -121,8 +121,8 @@ test("DIRECT_LIFECYCLE_REST_WRITES=0 across governed lifecycle routes", () => {
   assert.match(partnerRoute, /rpc\/admin_transition_partner_submission/);
   assert.match(dataCenterRoute, /rpc\/admin_transition_data_import_batch/);
   assert.match(taxonomyRoute, /rpc\/admin_transition_taxonomy_status/);
-  assert.match(mediaVaultRoute, /mediaRpc<[^>]+>\(admin\.token,\s*"admin_media_vault_action"/s);
-  assert.match(pendingAssetReviewRoute, /mediaRpc<[^>]+>\(admin\.token,\s*"admin_media_review_pending_asset"/s);
+  assert.match(mediaVaultRoute, /mediaRpc<[^\n]+>\(admin\.token,\s*"admin_media_vault_action"/);
+  assert.match(pendingAssetReviewRoute, /mediaRpc<[^\n]+>\(admin\.token,\s*"admin_media_review_pending_asset"/);
   assert.match(mediaPurgeRoute, /admin_media_prepare_purge/);
   assert.match(mediaPurgeRoute, /admin_media_finalize_purge/);
   assert.doesNotMatch(partnerRoute, /partner_submissions\?id=.*method:\s*"PATCH"/s);
