@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { PendingAssetReviewConsole } from "@/app/ui/admin/PendingAssetReviewConsole";
+import type { ReviewLifecycleAction, ReviewLifecycleProjection } from "@/lib/review-lifecycle-projection";
 
 export type ReviewQueueRow = {
   id: string;
@@ -11,6 +12,7 @@ export type ReviewQueueRow = {
   ready: boolean;
   blockers: string[];
   warnings: string[];
+  lifecycle?: ReviewLifecycleProjection;
 };
 
 export type ReviewQueues = Record<string, ReviewQueueRow[]>;
@@ -61,6 +63,27 @@ export function ReviewWorkspace({
     return () => window.clearTimeout(handle);
   }, [focusId]);
 
+  const runProjectedAction = (key: string, row: ReviewQueueRow, action: ReviewLifecycleAction) => {
+    const entity = entityFor(key);
+    switch (action.action) {
+      case "open":
+        onOpenRecord({ entity, id: row.id });
+        return;
+      case "admin_override_publish":
+        onAdminOverride(entity, row.id, row.label);
+        return;
+      case "delete":
+        onDeleteRecord(entity, row.id, row.label);
+        return;
+      case "submit_review":
+      case "publish":
+      case "return_draft":
+      case "reject":
+        if (action.targetStatus) onSetStatus(entity, row.id, action.targetStatus);
+        return;
+    }
+  };
+
   return <div className="review-queues" id="operations-review" data-workspace-contract="master-detail-v1">
     <PendingAssetReviewConsole />
     {queueSections.filter(([key]) => (queues[key]?.length || 0) > 0).map(([key, label]) => (
@@ -90,14 +113,20 @@ export function ReviewWorkspace({
             {row.status === "in_review" && <><button type="button" disabled={workingId === row.id} onClick={() => onProcessRights(row.id, "approved")}>قبول وإغلاق</button><button type="button" disabled={workingId === row.id} onClick={() => onProcessRights(row.id, "rejected")}>رفض مع السبب</button></>}
           </div>}
 
-          {!["rights", "beta", "support"].includes(key) && <div className="queue-actions">
-            <button type="button" onClick={() => onOpenRecord({ entity: entityFor(key), id: row.id })}>فتح وتدقيق</button>
-            {row.status === "draft" && <button type="button" disabled={workingId === row.id} onClick={() => onSetStatus(entityFor(key), row.id, "in_review")}>إرسال للمراجعة</button>}
-            {row.status === "in_review" && canVerify && <button type="button" disabled={workingId === row.id || !row.ready} title={!row.ready ? "أغلق النواقص الظاهرة قبل النشر" : ""} onClick={() => onSetStatus(entityFor(key), row.id, "published")}>اعتماد للنشر</button>}
-            {row.status === "in_review" && !row.ready && role === "admin" && <button type="button" className="admin-override" disabled={workingId === row.id} onClick={() => onAdminOverride(entityFor(key), row.id, row.label)}>اعتماد إداري مع توثيق السبب</button>}
-            {["in_review", "rejected"].includes(row.status) && <button type="button" disabled={workingId === row.id} onClick={() => onSetStatus(entityFor(key), row.id, "draft")}>إعادة لمسودة</button>}
-            {canVerify && <button type="button" disabled={workingId === row.id} onClick={() => onSetStatus(entityFor(key), row.id, "rejected")}>رفض</button>}
-            {row.status !== "published" && role === "admin" && <button type="button" className="danger-action" disabled={workingId === row.id} onClick={() => onDeleteRecord(entityFor(key), row.id, row.label)}>حذف نهائي</button>}
+          {!["rights", "beta", "support"].includes(key) && <div className="queue-actions" data-lifecycle-revision={row.lifecycle?.contractRevision || "missing"}>
+            {(row.lifecycle?.availableActions || []).map((action) => (
+              <button
+                key={action.action}
+                type="button"
+                className={action.action === "delete" ? "danger-action" : action.action === "admin_override_publish" ? "admin-override" : undefined}
+                disabled={action.action === "open" ? !action.enabled : workingId === row.id || !action.enabled}
+                title={action.blockedReason || ""}
+                data-confirmation-mode={action.confirmationMode}
+                onClick={() => runProjectedAction(key, row, action)}
+              >
+                {action.label}
+              </button>
+            ))}
           </div>}
         </article>)}
       </section>
