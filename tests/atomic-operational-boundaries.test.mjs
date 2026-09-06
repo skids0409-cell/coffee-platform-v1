@@ -129,6 +129,42 @@ test("data import RPCs atomize batch rows audit transitions and disposal", () =>
   assert.ok((migration.match(/grant execute .* to authenticated/gi) || []).length >= 3);
 });
 
+test("search governance uses atomic RPCs with no direct search_terms write fallback", () => {
+  const route = read("../app/api/admin/review/route.ts");
+  const createBlock = actionBlock(route, "create_search_term", '\n  if (body?.action === "set_search_term_status")');
+  const statusBlock = actionBlock(route, "set_search_term_status", '\n  if (body?.action === "delete_search_term")');
+  const deleteBlock = actionBlock(route, "delete_search_term", '\n  if (body?.action === "update_search_term")');
+  const updateBlock = actionBlock(route, "update_search_term", '\n  if (body?.action === "update_support_request")');
+
+  assert.match(createBlock, /rpc\/admin_create_search_term/);
+  assert.match(statusBlock, /rpc\/admin_set_search_term_status/);
+  assert.match(deleteBlock, /rpc\/admin_delete_search_term/);
+  assert.match(updateBlock, /rpc\/admin_update_search_term/);
+  for (const block of [createBlock, statusBlock, deleteBlock, updateBlock]) {
+    assert.doesNotMatch(block, /search_terms(?:\?[^`"]*)?[`"]\s*,?\s*\{[^}]*method:\s*"(?:POST|PATCH|DELETE)"/s);
+    assert.doesNotMatch(block, /"audit_events"/);
+  }
+});
+
+test("search governance RPCs enforce locking roles and atomic audit", () => {
+  const migration = read("../supabase/migrations/061_atomic_search_governance.sql");
+  assert.match(migration, /admin_create_search_term/);
+  assert.match(migration, /admin_update_search_term/);
+  assert.match(migration, /admin_set_search_term_status/);
+  assert.match(migration, /admin_delete_search_term/);
+  assert.equal((migration.match(/security invoker/gi) || []).length, 4);
+  assert.ok((migration.match(/for update/gi) || []).length >= 3);
+  assert.match(migration, /private\.is_staff\(array\['verifier','admin'\]::public\.staff_role\[\]\)/);
+  assert.match(migration, /private\.is_staff\(array\['admin'\]::public\.staff_role\[\]\)/);
+  assert.match(migration, /active_term_cannot_be_deleted/);
+  assert.match(migration, /search_atomic_create_v1/);
+  assert.match(migration, /search_atomic_update_v1/);
+  assert.match(migration, /search_atomic_status_v1/);
+  assert.match(migration, /search_atomic_delete_v1/);
+  assert.ok((migration.match(/revoke all .* from public,anon/gi) || []).length >= 4);
+  assert.ok((migration.match(/grant execute .* to authenticated/gi) || []).length >= 4);
+});
+
 test("operational inbox remains a read-only projection while operational boundaries become atomic", () => {
   const inbox = read("../app/api/admin/work-queue/route.ts");
   assert.doesNotMatch(inbox, /export async function (POST|PATCH|DELETE)/);
