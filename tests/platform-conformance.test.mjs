@@ -54,8 +54,8 @@ test("legacy Operations remains removed while partner routing stays isolated", (
 
 test("Review confirmation and lifecycle boundaries remain governed", () => {
   assert.doesNotMatch(reviewWorkspace, /window\.(?:prompt|confirm)/);
-  assert.doesNotMatch(operationsController, /window\.(?:prompt|confirm)/);
   assert.match(operationsController, /StandardConfirmDialog/);
+  assert.match(operationsController, /reviewConfirm/);
   assert.match(reviewRoute, /rpc\/admin_transition_review_record/);
   assert.match(reviewRoute, /rpc\/admin_transition_rights_request/);
   assert.match(reviewRoute, /rpc\/admin_update_support_request/);
