@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const ui = readFileSync(new URL("../app/ui/admin/MediaVaultWorkspace.tsx", import.meta.url), "utf8");
-const platform = readFileSync(new URL("../app/ui/Platform.tsx", import.meta.url), "utf8");
+const platform = ["../app/ui/Platform.tsx", "../app/ui/admin/OperationsController.tsx", "../app/ui/admin/ReviewRecordEditor.tsx"].map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
 const api = readFileSync(new URL("../app/api/admin/media-vault/route.ts", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../supabase/migrations/039_phase4_independent_media_vault.sql", import.meta.url), "utf8");
 const backfill = readFileSync(new URL("../supabase/migrations/038_phase3_legacy_entity_media_backfill.sql", import.meta.url), "utf8");
@@ -15,7 +15,7 @@ const purgeApi = readFileSync(new URL("../app/api/admin/media-vault/purge/route.
 const legacyMediaApi = readFileSync(new URL("../app/api/admin/media/route.ts", import.meta.url), "utf8");
 
 test("Phase 4 activates an independent asset-centric Media Vault", () => {
-  assert.match(platform, /workspace === "media" && <MediaVaultWorkspace/);
+  assert.match(platform, /media: <MediaVaultWorkspace/);
   assert.match(ui, /Media Vault — خزنة الأصول/);
   assert.match(ui, /media-vault-assets/);
   assert.match(ui, /media-vault-inspector/);
