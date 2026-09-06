@@ -526,6 +526,16 @@ export async function POST(request: Request) {
       return Response.json({ updated: false, reason: "publish_requirements", blockers: readiness?.blockers || [] }, { status: 409 });
   }
 
+  if (["products", "brands", "organizations", "offers", "contents", "origin_claims"].includes(table)) {
+    const overrideReason = String(body.overrideReason || "").trim().slice(0, 1000) || null;
+    await adminRest(admin.token, "rpc/admin_transition_review_record", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ p_entity: table, p_entity_id: body.id, p_next_status: body.status, p_override_reason: overrideReason }),
+    });
+    return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+  }
+
   await adminRest(admin.token, `${table}?id=eq.${body.id}`, {
     method: "PATCH",
     headers: { "content-type": "application/json", prefer: "return=minimal" },

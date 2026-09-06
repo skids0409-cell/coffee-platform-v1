@@ -49,7 +49,8 @@ test("navigation metadata is emitted directly from shell state", () => {
   assert.match(shell, /data-architecture-navigation="true"/);
   assert.match(shell, /data-architecture-group=\{descriptor\.group\}/);
   assert.match(shell, /data-architecture-purpose=\{descriptor\.purpose\}/);
-  assert.match(shell, /aria-description=/);
+  assert.doesNotMatch(shell, /aria-description=/);
+  assert.match(shell, /aria-label=/);
   assert.match(shell, /<OperationsCenterArchitecture workspace=\{workspace\} \/>/);
   assert.doesNotMatch(architecture, /MutationObserver|createPortal|document\./);
   assert.doesNotMatch(architecture, /fetch\(/);

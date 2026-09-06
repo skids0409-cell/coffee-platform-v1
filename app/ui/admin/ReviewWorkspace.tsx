@@ -20,7 +20,8 @@ type ReviewWorkspaceProps = {
   workingId: string;
   statusLabels: Record<string, string>;
   onOpenRecord: (record: { entity: string; id: string }) => void;
-  onSetStatus: (table: string, id: string, status: string, overrideReason?: string) => void;
+  onSetStatus: (table: string, id: string, status: string) => void;
+  onAdminOverride: (table: string, id: string, label: string) => void;
   onProcessRights: (id: string, status: string) => void;
   onDeleteRecord: (table: string, id: string, label: string) => void;
 };
@@ -45,6 +46,7 @@ export function ReviewWorkspace({
   statusLabels,
   onOpenRecord,
   onSetStatus,
+  onAdminOverride,
   onProcessRights,
   onDeleteRecord,
 }: ReviewWorkspaceProps) {
@@ -83,7 +85,7 @@ export function ReviewWorkspace({
             <button type="button" onClick={() => onOpenRecord({ entity: entityFor(key), id: row.id })}>فتح وتدقيق</button>
             {row.status === "draft" && <button type="button" disabled={workingId === row.id} onClick={() => onSetStatus(entityFor(key), row.id, "in_review")}>إرسال للمراجعة</button>}
             {row.status === "in_review" && canVerify && <button type="button" disabled={workingId === row.id || !row.ready} title={!row.ready ? "أغلق النواقص الظاهرة قبل النشر" : ""} onClick={() => onSetStatus(entityFor(key), row.id, "published")}>اعتماد للنشر</button>}
-            {row.status === "in_review" && !row.ready && role === "admin" && <button type="button" className="admin-override" disabled={workingId === row.id} onClick={() => { const reason = window.prompt("اكتب سبب التجاوز الإداري بوضوح (10 أحرف على الأقل). سيُحفظ في سجل التدقيق:"); if (reason && reason.trim().length >= 10) onSetStatus(entityFor(key), row.id, "published", reason.trim()); }}>اعتماد إداري مع توثيق السبب</button>}
+            {row.status === "in_review" && !row.ready && role === "admin" && <button type="button" className="admin-override" disabled={workingId === row.id} onClick={() => onAdminOverride(entityFor(key), row.id, row.label)}>اعتماد إداري مع توثيق السبب</button>}
             {["in_review", "rejected"].includes(row.status) && <button type="button" disabled={workingId === row.id} onClick={() => onSetStatus(entityFor(key), row.id, "draft")}>إعادة لمسودة</button>}
             {canVerify && <button type="button" disabled={workingId === row.id} onClick={() => onSetStatus(entityFor(key), row.id, "rejected")}>رفض</button>}
             {row.status !== "published" && role === "admin" && <button type="button" className="danger-action" disabled={workingId === row.id} onClick={() => onDeleteRecord(entityFor(key), row.id, row.label)}>حذف نهائي</button>}

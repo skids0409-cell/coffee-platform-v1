@@ -18,9 +18,19 @@ import { ArchivedImportBatches } from "@/app/ui/admin/ArchivedImportBatches";
 import { TaxonomyWorkspace } from "@/app/ui/admin/TaxonomyWorkspace";
 import { ReviewRecordEditor } from "@/app/ui/admin/ReviewRecordEditor";
 import { QualityIssueEditor } from "@/app/ui/admin/QualityIssueEditor";
+import { StandardConfirmDialog } from "@/app/ui/admin/StandardConfirmDialog";
 import type { SearchEntityType, SearchIntent } from "@/lib/search-governance";
 
 type Role = "editor" | "verifier" | "admin";
+
+type ReviewConfirmRequest = {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  tone?: "default" | "danger";
+  input?: { label: string; placeholder?: string; minLength?: number; requiredValue?: string; multiline?: boolean };
+  execute: (value: string) => Promise<void>;
+};
 
 type QueueRow = {
   id: string;
@@ -119,6 +129,8 @@ export function OperationsController() {
   const [publishedGroup, setPublishedGroup] = useState("all");
   const [publishedQuery, setPublishedQuery] = useState("");
   const [workspace, setWorkspace] = useState<OperationsWorkspaceId>("dashboard");
+  const [reviewConfirm, setReviewConfirm] = useState<ReviewConfirmRequest | null>(null);
+  const [reviewConfirmBusy, setReviewConfirmBusy] = useState(false);
 
   const loadAdmin = async () => {
     const response = await fetch("/api/admin/review", { cache: "no-store", credentials: "same-origin" });
@@ -160,8 +172,7 @@ export function OperationsController() {
     setWorkspace("dashboard");
   };
 
-  const setReviewStatus = async (table: string, id: string, next: string, overrideReason = "") => {
-    if (next === "published" && !window.confirm("هذا الإجراء سينشر السجل فوراً. هل راجعت المصدر والحقول وتريد المتابعة؟")) return;
+  const performReviewStatus = async (table: string, id: string, next: string, overrideReason = "") => {
     setWorkingId(id);
     setAdminMessage("");
     const response = await fetch("/api/admin/review", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ table, id, status: next, overrideReason }) });
@@ -175,9 +186,27 @@ export function OperationsController() {
     setAdminMessage("تم تحديث الحالة وتسجيل العملية في سجل التدقيق.");
   };
 
-  const deleteCatalogRecord = async (table: string, id: string, label: string) => {
-    const typed = window.prompt(`حذف نهائي للسجل غير المنشور «${label}» مع علاقاته. اكتب كلمة حذف للتأكيد:`);
-    if (typed?.trim() !== "حذف") return;
+  const setReviewStatus = (table: string, id: string, next: string) => {
+    if (next !== "published") { void performReviewStatus(table, id, next); return; }
+    setReviewConfirm({
+      title: "اعتماد السجل للنشر",
+      description: "هذا الإجراء سينشر السجل فوراً. تأكد من مراجعة المصدر والحقول وأدلة التحقق قبل المتابعة.",
+      confirmLabel: "اعتماد ونشر",
+      execute: () => performReviewStatus(table, id, next),
+    });
+  };
+
+  const requestAdminOverride = (table: string, id: string, label: string) => {
+    setReviewConfirm({
+      title: "اعتماد إداري استثنائي",
+      description: `السجل «${label}» لا يحقق جميع متطلبات الاعتماد. يجب توثيق سبب واضح وسيُحفظ مع حدث التدقيق.`,
+      confirmLabel: "اعتماد الاستثناء ونشر",
+      input: { label: "سبب التجاوز الإداري", placeholder: "اكتب سبباً واضحاً (10 أحرف على الأقل)", minLength: 10, multiline: true },
+      execute: (value) => performReviewStatus(table, id, "published", value),
+    });
+  };
+
+  const performDeleteCatalogRecord = async (table: string, id: string) => {
     setWorkingId(id);
     setAdminMessage("");
     const response = await fetch("/api/admin/review", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "delete_catalog_record", table, id }) });
@@ -188,10 +217,18 @@ export function OperationsController() {
     setAdminMessage("حُذف السجل غير المنشور نهائياً وسُجلت العملية.");
   };
 
-  const processRightsRequest = async (id: string, status: string) => {
-    const final = ["approved", "rejected", "closed"].includes(status);
-    const resolutionNote = final ? window.prompt("اكتب نتيجة المعالجة وسبب القرار (10 أحرف على الأقل):") || "" : "";
-    if (final && resolutionNote.trim().length < 10) return;
+  const deleteCatalogRecord = (table: string, id: string, label: string) => {
+    setReviewConfirm({
+      title: "حذف نهائي لسجل غير منشور",
+      description: `سيُحذف «${label}» نهائياً مع العلاقات التي يسمح الخادم بإزالتها. لا يمكن التراجع عن هذا الإجراء.`,
+      confirmLabel: "حذف نهائي",
+      tone: "danger",
+      input: { label: "اكتب كلمة حذف للتأكيد", requiredValue: "حذف" },
+      execute: () => performDeleteCatalogRecord(table, id),
+    });
+  };
+
+  const performRightsRequest = async (id: string, status: string, resolutionNote = "") => {
     setWorkingId(id);
     setAdminMessage("");
     const response = await fetch("/api/admin/review", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "process_rights_request", id, status, resolutionNote }) });
@@ -200,6 +237,18 @@ export function OperationsController() {
     if (!response.ok) { setAdminMessage("تعذر معالجة طلب الحقوق؛ القرار النهائي يحتاج ملاحظة واضحة."); return; }
     setAdminData((current) => current ? adoptAdminPayload(current, data) : current);
     setAdminMessage("تم تحديث طلب الحقوق وتوثيق القرار.");
+  };
+
+  const processRightsRequest = (id: string, status: string) => {
+    const final = ["approved", "rejected", "closed"].includes(status);
+    if (!final) { void performRightsRequest(id, status); return; }
+    setReviewConfirm({
+      title: "توثيق قرار طلب الحقوق",
+      description: "القرار النهائي يحتاج نتيجة معالجة وسبباً واضحاً قبل الإغلاق.",
+      confirmLabel: "توثيق القرار",
+      input: { label: "نتيجة المعالجة وسبب القرار", placeholder: "10 أحرف على الأقل", minLength: 10, multiline: true },
+      execute: (value) => performRightsRequest(id, status, value),
+    });
   };
 
   const createSearchTerm = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -277,7 +326,7 @@ export function OperationsController() {
     dashboard: <OperationsDashboardWorkspace checks={[["جلسة الإدارة", "متصلة"], ["حاجز النشر", "مفعّل"], ["نطاق التشغيل", "بغداد"], ["معمارية الواجهة", "Operations Center v2"]]} summary={adminData.qualityDesk.summary} suspects={adminData.qualityDesk.suspects} onOpenIssue={(issue) => setQualityIssueEditor(issue as QualitySuspect)} onOpenRecord={setRecordEditor} />,
     records: <RecordsWorkspace items={adminData.publishedCatalog} visibleItems={visiblePublished} publishedType={publishedType} publishedGroup={publishedGroup} publishedGroups={publishedGroups} publishedQuery={publishedQuery} onTypeChange={(value) => { setPublishedType(value); setPublishedGroup("all"); }} onGroupChange={setPublishedGroup} onQueryChange={setPublishedQuery} onOpen={setRecordEditor} />,
     entry: <DataCenterWorkspace mode="entry" onChanged={loadAdmin} renderEntry={(reference, reload) => <CatalogDraftWorkspace reference={reference} onCreated={reload} />} />,
-    review: <ReviewWorkspace queues={adminData.queues} role={adminData.profile.role} workingId={workingId} statusLabels={queueStatusLabels} onOpenRecord={setRecordEditor} onSetStatus={setReviewStatus} onProcessRights={processRightsRequest} onDeleteRecord={deleteCatalogRecord} />,
+    review: <ReviewWorkspace queues={adminData.queues} role={adminData.profile.role} workingId={workingId} statusLabels={queueStatusLabels} onOpenRecord={setRecordEditor} onSetStatus={setReviewStatus} onAdminOverride={requestAdminOverride} onProcessRights={processRightsRequest} onDeleteRecord={deleteCatalogRecord} />,
     partners: <PartnerReviewQueue />,
     media: <MediaVaultWorkspace onOpen={setRecordEditor} onUnauthorized={() => { setAdminData(null); setAdminState("signed_out"); }} />,
     imports: <DataCenterWorkspace mode="imports" onChanged={loadAdmin} />,
@@ -292,5 +341,21 @@ export function OperationsController() {
     <OperationsWorkspaceShell workspace={workspace} onWorkspaceChange={setWorkspace} panels={panels} canManageTaxonomy={adminData.profile.role === "admin"} operatorLabel={adminData.profile.display_name || "فريق البيانات"} operatorRoleLabel={roleLabels[adminData.profile.role]} onLogout={logout} />
     {recordEditor && <ReviewRecordEditor entity={recordEditor.entity} id={recordEditor.id} canRestore={["verifier", "admin"].includes(adminData.profile.role)} onClose={() => setRecordEditor(null)} onSaved={loadAdmin} />}
     {qualityIssueEditor && <QualityIssueEditor issue={qualityIssueEditor} candidates={qualityRecordCandidates} canDecide={["verifier", "admin"].includes(adminData.profile.role)} onClose={() => setQualityIssueEditor(null)} onUpdated={(result) => setAdminData((current) => current ? adoptAdminPayload(current, result) : current)} />}
+    <StandardConfirmDialog
+      open={Boolean(reviewConfirm)}
+      title={reviewConfirm?.title || ""}
+      description={reviewConfirm?.description || ""}
+      confirmLabel={reviewConfirm?.confirmLabel || "تأكيد"}
+      tone={reviewConfirm?.tone}
+      input={reviewConfirm?.input}
+      busy={reviewConfirmBusy}
+      onCancel={() => { if (!reviewConfirmBusy) setReviewConfirm(null); }}
+      onConfirm={async (value) => {
+        if (!reviewConfirm) return;
+        setReviewConfirmBusy(true);
+        try { await reviewConfirm.execute(value); setReviewConfirm(null); }
+        finally { setReviewConfirmBusy(false); }
+      }}
+    />
   </>;
 }

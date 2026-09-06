@@ -38,7 +38,7 @@ test("Review extraction preserves governed decision boundaries", () => {
   assert.match(review, /onSetStatus\(entityFor\(key\), row\.id, "published"\)/);
   assert.match(review, /onProcessRights\(row\.id, "approved"\)/);
   assert.match(review, /onDeleteRecord\(entityFor\(key\), row\.id, row\.label\)/);
-  assert.match(review, /reason\.trim\(\)\.length >= 10/);
+  assert.match(review, /onAdminOverride\(entityFor\(key\), row\.id, row\.label\)/);
 });
 
 test("Extracted workspaces remain presentation-only", () => {
