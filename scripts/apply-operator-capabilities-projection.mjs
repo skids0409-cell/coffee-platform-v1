@@ -15,8 +15,8 @@ route = replaceRequired(
 );
 route = replaceRequired(
   route,
-  '  return {\n    profile,',
-  '  return {\n    profile,\n    operatorCapabilities: projectOperationsCapabilities(role),',
+  '  return {\n    queues: rows,',
+  '  return {\n    operatorCapabilities: projectOperationsCapabilities(role),\n    queues: rows,',
   "review route operator capability projection",
 );
 writeFileSync(routePath, route);
