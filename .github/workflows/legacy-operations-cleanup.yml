@@ -48,6 +48,14 @@ jobs:
           grep -q 'function HelpSupport()' app/ui/Platform.tsx
           grep -q 'export default function Platform' app/ui/Platform.tsx
 
+      - name: Persist physical cleanup before validation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/ui/Platform.tsx app/ui/partner/PartnerPortal.tsx
+          git commit -m "refactor(platform): physically remove legacy operations monolith"
+          git push origin HEAD:phase1/legacy-operations-cleanup
+
       - name: Lint cleaned source
         run: npm run lint
 
@@ -55,12 +63,7 @@ jobs:
         run: npm test
 
       - name: Remove one-time cleanup machinery
-        run: git rm scripts/remove-legacy-operations.mjs .github/workflows/legacy-operations-cleanup.yml
-
-      - name: Commit physical legacy removal
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/ui/Platform.tsx app/ui/partner/PartnerPortal.tsx app/ui/admin/OperationsWorkspaceShell.tsx
-          git commit -m "refactor(platform): physically remove legacy operations monolith"
+          git rm scripts/remove-legacy-operations.mjs .github/workflows/legacy-operations-cleanup.yml
+          git commit -m "chore: remove one-time legacy cleanup machinery"
           git push origin HEAD:phase1/legacy-operations-cleanup
