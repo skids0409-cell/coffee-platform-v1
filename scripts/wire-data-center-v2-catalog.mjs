@@ -1,3 +1,4 @@
+// one-shot wiring helper; remove before final PR
 import fs from 'node:fs';
 
 const appPath = 'app/ui/admin/data-center-v2/DataCenterV2App.tsx';
