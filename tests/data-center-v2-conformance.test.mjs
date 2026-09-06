@@ -5,9 +5,13 @@ import test from "node:test";
 const read = (path) => fs.readFileSync(path, "utf8");
 
 const app = read("app/ui/admin/data-center-v2/DataCenterV2App.tsx");
+const catalog = read("app/ui/admin/data-center-v2/CatalogIntakeV2.tsx");
 const page = read("app/operations/data-center-v2/page.tsx");
 const contract = read("lib/data-center-v2-conformance.ts");
 const lifecycle = read("lib/data-import-lifecycle-projection.ts");
+const dataCenterApi = read("app/api/admin/data-center/route.ts");
+const atomicImport = read("supabase/migrations/060_atomic_data_import_boundaries.sql");
+const coreSchema = read("supabase/migrations/001_core_schema.sql");
 
 const requiredRules = [
   "MANUAL_UUID_ENTRY_ZERO",
@@ -17,8 +21,11 @@ const requiredRules = [
   "FREEFORM_CANONICAL_REFERENCES_ZERO",
   "COUNTER_SOURCE_DRIFT_ZERO",
   "DIRECT_DB_WRITES_ZERO",
+  "UNAUDITED_MUTATIONS_ZERO",
+  "ORPHAN_RELATIONSHIPS_ZERO",
   "WINDOW_PROMPT_CONFIRM_ZERO",
   "LEGACY_DATA_CENTER_IMPORTS_ZERO",
+  "STRUCTURED_CATALOG_INTAKE_PARITY",
   "CLIENT_FACING_PARITY_READ_ONLY",
 ];
 
@@ -31,16 +38,17 @@ test("data-center.v2.conformance.v1 declares the full zero-tolerance gate", () =
 test("Data Center V2 is an independent route and legacy remains frozen", () => {
   assert.match(page, /DataCenterV2App/);
   assert.match(page, /data-legacy-freeze="true"/);
-  assert.doesNotMatch(page, /import\s+.*(?:DataCenterWorkspace|CatalogDraftWorkspace)/);
-  assert.doesNotMatch(app, /import\s+.*(?:DataCenterWorkspace|CatalogDraftWorkspace)/);
+  for (const source of [page, app, catalog]) assert.doesNotMatch(source, /import\s+.*(?:DataCenterWorkspace|CatalogDraftWorkspace)/);
 });
 
-test("V2 exposes no manual UUID or generic canonical reference field", () => {
+test("V2 exposes no manual UUID or free-form canonical record identifier", () => {
   assert.match(page, /data-manual-uuid="false"/);
   assert.match(app, /data-manual-uuid="false"/);
-  assert.doesNotMatch(app, /name=["'][^"']*(?:uuid|entityId|entity_id|recordId|record_id)[^"']*["']/i);
-  assert.doesNotMatch(app, /placeholder=["'][^"']*UUID/i);
-  assert.doesNotMatch(app, /<textarea[^>]+(?:entity|record).*(?:id|uuid)/i);
+  for (const source of [app, catalog]) {
+    assert.doesNotMatch(source, /name=["'][^"']*(?:uuid|entityId|entity_id|recordId|record_id)[^"']*["']/i);
+    assert.doesNotMatch(source, /placeholder=["'][^"']*UUID/i);
+    assert.doesNotMatch(source, /<textarea[^>]+(?:entity|record).*(?:id|uuid)/i);
+  }
 });
 
 test("batch actions are projected by data-import.lifecycle.v1", () => {
@@ -52,15 +60,56 @@ test("batch actions are projected by data-import.lifecycle.v1", () => {
   assert.doesNotMatch(app, /batch\.status\s*===\s*["'](?:imported|rejected|archived)["'][\s\S]{0,180}<button/);
 });
 
+test("structured catalog intake preserves master/vendor separation", () => {
+  for (const type of ["product", "offer", "organization", "brand", "content", "origin"]) assert.match(catalog, new RegExp(`\\[?\\"${type}\\"|entityType:\\s*\\"${type}\\"|stage\\(event, \\"${type}\\"\\)`));
+  assert.match(catalog, /RecordForm/);
+  assert.match(catalog, /name="product_id"/);
+  assert.match(catalog, /name="seller_organization_id"/);
+  const productBlock = catalog.slice(catalog.indexOf('entityType === "product"'), catalog.indexOf('entityType === "offer"'));
+  assert.doesNotMatch(productBlock, /name="price"|name="seller_organization_id"/);
+  const offerBlock = catalog.slice(catalog.indexOf('entityType === "offer"'), catalog.indexOf('entityType === "organization"'));
+  assert.doesNotMatch(offerBlock, /name="description_ar"|name="model_number"|RecordForm/);
+});
+
+test("catalog intake uses server records for relationships and preview-before-create", () => {
+  assert.match(catalog, /reference\.products\.map/);
+  assert.match(catalog, /reference\.organizations\.map/);
+  assert.match(catalog, /reference\.countries\.map/);
+  assert.match(catalog, /setPending\(/);
+  assert.match(catalog, /StandardConfirmDialog/);
+  assert.match(catalog, /action:\s*"create_catalog_draft"/);
+  assert.doesNotMatch(catalog, /window\.(?:confirm|prompt|alert)\s*\(/);
+});
+
 test("V2 does not create direct database or relationship bypasses", () => {
-  assert.doesNotMatch(app, /createClient|supabase|\.from\(|rpc\//i);
-  assert.doesNotMatch(app, /entity_media|entity_source_links|governed_relationships/);
+  for (const source of [app, catalog]) {
+    assert.doesNotMatch(source, /createClient|supabase|\.from\(|rpc\//i);
+    assert.doesNotMatch(source, /entity_media|entity_source_links|governed_relationships/);
+  }
   assert.match(app, /fetch\("\/api\/admin\/data-center"/);
+  assert.match(catalog, /fetch\("\/api\/admin\/data-center"/);
+});
+
+test("V2 mutations stay behind existing audited RPC boundaries", () => {
+  assert.match(dataCenterApi, /admin_create_product_draft_v2/);
+  assert.match(dataCenterApi, /admin_create_brand_draft/);
+  assert.match(dataCenterApi, /admin_create_catalog_draft/);
+  assert.match(dataCenterApi, /admin_stage_organization_intake_batch/);
+  assert.match(dataCenterApi, /admin_transition_data_import_batch/);
+  assert.match(atomicImport, /audit_events/);
+  assert.match(atomicImport, /for update/i);
+});
+
+test("V2 relationship targets remain FK-backed", () => {
+  assert.match(coreSchema, /product_id\s+uuid\s+not null\s+references\s+public\.products/i);
+  assert.match(coreSchema, /seller_organization_id\s+uuid\s+not null\s+references\s+public\.organizations/i);
+  assert.match(coreSchema, /brand_id\s+uuid\s+references\s+public\.brands/i);
 });
 
 test("V2 uses governed confirmation and no browser dialogs", () => {
   assert.match(app, /StandardConfirmDialog/);
-  assert.doesNotMatch(app, /window\.(?:confirm|prompt|alert)\s*\(/);
+  assert.match(catalog, /StandardConfirmDialog/);
+  for (const source of [app, catalog]) assert.doesNotMatch(source, /window\.(?:confirm|prompt|alert)\s*\(/);
 });
 
 test("batch metrics derive from one batches payload and public counts are isolated", () => {
