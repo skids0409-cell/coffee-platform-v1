@@ -156,7 +156,7 @@ export function SupportWorkspace({ data, focusId = "", onUpdated }: SupportWorks
   };
 
   return <section className="support-workspace" id="operations-support" data-workspace-contract="command-master-inspector-v1">
-    <div className="section-head"><div><span className="eyebrow">Support Desk</span><h2>معالجة طلبات المساعدة</h2></div><span>من الاستلام إلى الإغلاق</span></div>
+    <div className="section-head"><div><span className="eyebrow">مكتب الدعم</span><h2>معالجة طلبات المساعدة</h2></div><span>من الاستلام إلى الإغلاق</span></div>
     <p>مكتب المعالجة مرتبط الآن بمهام تقنية canonical وبقائمة المشرفين النشطين من الخادم؛ لا يقبل مرجعاً فنياً نصياً حراً.</p>
     <div className="support-tabs">
       <button type="button" className={view === "open" ? "active" : ""} onClick={() => { setView("open"); setSelectedId(""); }}>المفتوحة</button>

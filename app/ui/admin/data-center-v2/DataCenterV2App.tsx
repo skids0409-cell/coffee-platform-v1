@@ -86,9 +86,9 @@ const emptyReference: ReferenceData = {
 const navItems: Array<{ id: View; label: string; description: string }> = [
   { id: "overview", label: "لوحة القيادة", description: "حالة الإدخال والحوكمة" },
   { id: "intake", label: "الإدخال", description: "CSV وسجل جهة واحد" },
-  { id: "catalog", label: "إدخال الكتالوج", description: "Master / Vendor / Content / Origin" },
+  { id: "catalog", label: "إدخال الكتالوج", description: "المنتجات والعروض والمحتوى والمنشأ" },
   { id: "batches", label: "دفعات الاستيراد", description: "المعاينة ودورة الحياة" },
-  { id: "handoffs", label: "مسارات الحوكمة", description: "Review / Media / Search / Support" },
+  { id: "handoffs", label: "مسارات الحوكمة", description: "المراجعة والوسائط والبحث والدعم" },
   { id: "client", label: "مرآة العميل", description: "فحص واجهات النشر العامة" },
 ];
 
@@ -125,6 +125,7 @@ export function DataCenterV2App() {
   const [working, setWorking] = useState("");
   const [confirmRequest, setConfirmRequest] = useState<{ batch: Batch; action: DataImportLifecycleAction } | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const [csvFileName, setCsvFileName] = useState("لم يتم اختيار ملف");
   const [mirror, setMirror] = useState<MirrorProbe[]>(() => mirrorDefinitions.map((probe) => ({ ...probe, state: "idle", count: null })));
 
   const load = useCallback(async () => {
@@ -192,6 +193,7 @@ export function DataCenterV2App() {
     }
     setBatches(Array.isArray(data.batches) ? data.batches : []);
     formElement.reset();
+    setCsvFileName("لم يتم اختيار ملف");
     setMessage("تم تجهيز الدفعة دون نشر أي سجل. راجع النتائج ثم نفّذ الإجراء الذي يعيده عقد الخادم فقط.");
   };
 
@@ -303,8 +305,8 @@ export function DataCenterV2App() {
       <div className={styles.shell}>
         <aside className={styles.sidebar}>
           <div className={styles.brand}>
-            <strong>Data Center V2</strong>
-            <span>إعادة بناء مستقلة · Legacy Freeze</span>
+            <strong>مركز البيانات V2</strong>
+            <span>إعادة بناء مستقلة · تجميد الواجهة السابقة</span>
           </div>
           <nav className={styles.nav} aria-label="أقسام مركز البيانات V2">
             {navItems.map((item) => <button key={item.id} type="button" data-active={view === item.id} onClick={() => setView(item.id)}><b>{item.label}</b><small>{item.description}</small></button>)}
@@ -314,7 +316,7 @@ export function DataCenterV2App() {
         <section className={styles.content}>
           <header className={styles.hero}>
             <div>
-              <span className={styles.badge} data-tone="ready">V2 · server-authoritative</span>
+              <span className={styles.badge} data-tone="ready">V2 · محكوم من الخادم</span>
               <h1>مركز البيانات التشغيلي الجديد</h1>
               <p>لا UUID يدوي، لا نشر مباشر، ولا انتقال دورة حياة خارج الأفعال التي يعيدها الخادم.</p>
             </div>
@@ -325,7 +327,7 @@ export function DataCenterV2App() {
           </header>
 
           <div className={styles.notice} data-tone="success">
-            <b>Legacy Freeze مفعل:</b> المسار القديم باقٍ للرجوع التشغيلي فقط أثناء بناء التكافؤ. هذا المسار لا يستورد `DataCenterWorkspace` القديم ولا يعتمد على منطق UUID يدوي.
+            <b>تجميد الواجهة السابقة مفعّل:</b> المسار السابق مخصص للرجوع الطارئ فقط. مركز البيانات V2 مستقل ولا يعتمد على الإدخال اليدوي للمعرّفات.
           </div>
           {message && <div className={styles.notice} role="status">{message}</div>}
 
@@ -333,11 +335,11 @@ export function DataCenterV2App() {
             <div className={styles.grid4}>
               <article className={styles.card}><small>دفعات نشطة</small><div className={styles.metric}>{stats.active.toLocaleString("ar-IQ")}</div><span className={styles.muted}>من نفس مصدر الدفعات الخادمي</span></article>
               <article className={styles.card}><small>جاهزة للتحويل</small><div className={styles.metric}>{stats.ready.toLocaleString("ar-IQ")}</div><span className={styles.muted}>تنتظر action projected من الخادم</span></article>
-              <article className={styles.card}><small>دفعات مكتملة</small><div className={styles.metric}>{stats.completed.toLocaleString("ar-IQ")}</div><span className={styles.muted}>Imported / Rejected</span></article>
+              <article className={styles.card}><small>دفعات مكتملة</small><div className={styles.metric}>{stats.completed.toLocaleString("ar-IQ")}</div><span className={styles.muted}>تم الاستيراد أو الرفض</span></article>
               <article className={styles.card}><small>صفوف مرفوضة</small><div className={styles.metric}>{stats.rejectedRows.toLocaleString("ar-IQ")}</div><span className={styles.muted}>لا تدخل الكتالوج تلقائياً</span></article>
             </div>
             <section className={styles.panel}>
-              <div className={styles.panelHead}><div><h2>مرجع البيانات الحي</h2><p className={styles.muted}>مؤشرات فقط؛ لا توجد قوائم UUID للمشغل.</p></div><span className={styles.badge}>read-only</span></div>
+              <div className={styles.panelHead}><div><h2>مرجع البيانات الحي</h2><p className={styles.muted}>مؤشرات فقط؛ لا توجد قوائم UUID للمشغل.</p></div><span className={styles.badge}>للقراءة فقط</span></div>
               <div className={styles.grid4}>
                 <article className={styles.card}><small>جهات</small><div className={styles.metric}>{reference.organizations.length.toLocaleString("ar-IQ")}</div></article>
                 <article className={styles.card}><small>منتجات</small><div className={styles.metric}>{reference.products.length.toLocaleString("ar-IQ")}</div></article>
@@ -352,7 +354,7 @@ export function DataCenterV2App() {
               <section className={styles.panel}>
                 <div className={styles.panelHead}><div><h2>دفعة CSV جديدة</h2><p className={styles.muted}>تدخل staging فقط، ثم تتحول إلى مسودات بإجراء منفصل.</p></div><span className={styles.badge}>IQ-BGD</span></div>
                 <form className={styles.form} onSubmit={submitCsv}>
-                  <label>ملف CSV<input name="csvFile" type="file" accept=".csv,text/csv" required /></label>
+                  <label>ملف CSV<span className={styles.filePicker}><span>{csvFileName}</span><span className={styles.fileButton}>اختيار ملف</span><input className={styles.fileInput} name="csvFile" type="file" accept=".csv,text/csv" required onChange={(event) => setCsvFileName(event.target.files?.[0]?.name || "لم يتم اختيار ملف")} /></span></label>
                   <label>اسم المصدر<input name="sourceLabel" minLength={3} maxLength={180} placeholder="مثال: قائمة موثقة — بغداد" required /></label>
                   <label className={styles.check}><input name="sourceConfirmed" type="checkbox" required />راجعت المصدر وأؤكد أن البيانات قابلة للتدقيق</label>
                   <div className={styles.formActions}><button className={styles.primary} type="submit" disabled={working === "csv"}>{working === "csv" ? "جارٍ الفحص…" : "فحص وتجهيز الدفعة"}</button></div>
@@ -378,7 +380,7 @@ export function DataCenterV2App() {
           {view === "catalog" && <CatalogIntakeV2 reference={reference} onCreated={async () => { await load(); await runMirror(); }} />}
 
           {view === "batches" && <section className={styles.panel}>
-            <div className={styles.panelHead}><div><h2>دفعات الاستيراد</h2><p className={styles.muted}>الأزرار أدناه ترسم `availableActions` من `data-import.lifecycle.v1` فقط.</p></div><span className={styles.badge}>{activeBatches.length.toLocaleString("ar-IQ")}</span></div>
+            <div className={styles.panelHead}><div><h2>دفعات الاستيراد</h2><p className={styles.muted}>الأزرار أدناه تظهر فقط الإجراءات التي يسمح بها عقد دورة الحياة الخادمي.</p></div><span className={styles.badge}>{activeBatches.length.toLocaleString("ar-IQ")}</span></div>
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead><tr><th>رمز الدفعة</th><th>المصدر</th><th>الحالة</th><th>الصفوف</th><th>الأفعال</th></tr></thead>
@@ -389,14 +391,14 @@ export function DataCenterV2App() {
           </section>}
 
           {view === "handoffs" && <section className={styles.panel}>
-            <div className={styles.panelHead}><div><h2>مسارات الحوكمة المتخصصة</h2><p className={styles.muted}>V2 لا يكرر منطق Review أو Media أو Search أو Support؛ يعيد العمل إلى المالك التشغيلي الصحيح.</p></div><span className={styles.badge}>no duplicate authority</span></div>
+            <div className={styles.panelHead}><div><h2>مسارات الحوكمة المتخصصة</h2><p className={styles.muted}>V2 لا يكرر منطق Review أو Media أو Search أو Support؛ يعيد العمل إلى المالك التشغيلي الصحيح.</p></div><span className={styles.badge}>بلا صلاحيات مكررة</span></div>
             <div className={styles.handoffGrid}>
-              <Link className={styles.handoff} href="/operations?workspace=review"><b>المراجعة والاعتماد</b><p className={styles.muted}>مراجعة المسودات واتخاذ قرارات النشر عبر العقود الحالية.</p></Link>
-              <Link className={styles.handoff} href="/operations?workspace=media"><b>Media Vault</b><p className={styles.muted}>الصور والملفات والحقوق والحجر والحفظ.</p></Link>
-              <Link className={styles.handoff} href="/operations?workspace=search"><b>Search Governance</b><p className={styles.muted}>المصطلحات والمرادفات وweak-query intake.</p></Link>
-              <Link className={styles.handoff} href="/operations?workspace=requests"><b>Support Desk</b><p className={styles.muted}>الطلبات والمهام التقنية والتعيين الخاضع للصلاحيات.</p></Link>
-              <Link className={styles.handoff} href="/operations?workspace=archive"><b>Archive</b><p className={styles.muted}>السجلات غير النشطة ودفعات الاستيراد المؤرشفة.</p></Link>
-              <Link className={styles.handoff} href="/operations?workspace=taxonomy"><b>Governed Taxonomy</b><p className={styles.muted}>الفئات والحقول والتصفية المحكومة.</p></Link>
+              <Link className={styles.handoff} href="/operations/data-center-v2/specialist?workspace=review"><b>المراجعة والاعتماد</b><p className={styles.muted}>مراجعة المسودات واتخاذ قرارات النشر عبر العقود الحالية.</p></Link>
+              <Link className={styles.handoff} href="/operations/data-center-v2/specialist?workspace=media"><b>خزنة الوسائط</b><p className={styles.muted}>الصور والملفات والحقوق والحجر والحفظ.</p></Link>
+              <Link className={styles.handoff} href="/operations/data-center-v2/specialist?workspace=search"><b>حوكمة البحث</b><p className={styles.muted}>المصطلحات والمرادفات وweak-query intake.</p></Link>
+              <Link className={styles.handoff} href="/operations/data-center-v2/specialist?workspace=requests"><b>مكتب الدعم</b><p className={styles.muted}>الطلبات والمهام التقنية والتعيين الخاضع للصلاحيات.</p></Link>
+              <Link className={styles.handoff} href="/operations/data-center-v2/specialist?workspace=archive"><b>الأرشيف</b><p className={styles.muted}>السجلات غير النشطة ودفعات الاستيراد المؤرشفة.</p></Link>
+              <Link className={styles.handoff} href="/operations/data-center-v2/specialist?workspace=taxonomy"><b>التصنيفات المحكومة</b><p className={styles.muted}>الفئات والحقول والتصفية المحكومة.</p></Link>
             </div>
           </section>}
 

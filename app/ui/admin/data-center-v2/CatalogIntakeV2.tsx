@@ -158,7 +158,7 @@ export function CatalogIntakeV2({ reference, onCreated }: { reference: Reference
   return <section className={styles.panel} data-catalog-intake-v2="structured" data-freeform-canonical-reference="false">
     <div className={styles.panelHead}>
       <div><h2>الإدخال المنظم للكتالوج</h2><p className={styles.muted}>كل نوع له نموذج مستقل. مفاتيح السجلات تبقى داخل قيم الخيارات ولا يكتب المشغل UUID.</p></div>
-      <span className={styles.badge}>Draft only</span>
+      <span className={styles.badge}>مسودة فقط</span>
     </div>
 
     <div className={styles.entityTabs} role="tablist" aria-label="نوع السجل الجديد">

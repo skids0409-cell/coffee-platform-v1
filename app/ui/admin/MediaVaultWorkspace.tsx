@@ -291,10 +291,10 @@ export function MediaVaultWorkspace({
   }
 
   const cards: Array<{ key: QueueKey; title: string; value: number; note: string }> = [
-    { key: "pending", title: "Pending Technical Audit", value: metrics.pending, note: "بانتظار الفحص التقني" },
-    { key: "active", title: "Active", value: metrics.active, note: "جاهزة وآمنة للربط" },
-    { key: "quarantine", title: "Quarantine / Legal Hold", value: metrics.quarantine, note: "مدة احتفاظ قدرها 30 يوماً" },
-    { key: "disposal", title: "Disposal Requests", value: metrics.disposal, note: "مؤهلة أو بانتظار قرار" },
+    { key: "pending", title: "بانتظار الفحص التقني", value: metrics.pending, note: "لم يكتمل التدقيق التقني بعد" },
+    { key: "active", title: "نشطة", value: metrics.active, note: "جاهزة وآمنة للربط" },
+    { key: "quarantine", title: "الحجر والحجز القانوني", value: metrics.quarantine, note: "مدة احتفاظ قدرها 30 يوماً" },
+    { key: "disposal", title: "طلبات الإتلاف", value: metrics.disposal, note: "مؤهلة أو بانتظار قرار" },
   ];
 
   return (
@@ -310,7 +310,7 @@ export function MediaVaultWorkspace({
 
         <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-[#dfd4c5] bg-white p-5">
           <div>
-            <span className="text-xs font-black tracking-wide text-[#6d371e]">Media Vault — خزنة الأصول</span>
+            <span className="text-xs font-black tracking-wide text-[#6d371e]">خزنة الوسائط والأصول</span>
             <h2 className="mt-1 text-2xl font-black">الصور والملفات</h2>
             <p className="mt-1 max-w-3xl text-sm text-[#756b63]">
               دورة حياة الأصل المغلقة: تدقيق تقني، تفعيل، حجر/حجز قانوني، ثم إتلاف مضبوط. الفلاتر أدناه تقرأ الحالة الرسمية نفسها من قاعدة البيانات.
@@ -392,7 +392,7 @@ export function MediaVaultWorkspace({
                   </div>
                   <div>
                     <span className="rounded-full bg-[#efe7dc] px-2 py-1 text-xs font-bold text-[#6d371e]">{statusLabels[asset.lifecycle_state] || asset.lifecycle_state}</span>
-                    {asset.legal_hold && <div className="mt-2 text-xs font-black text-red-700">Legal Hold</div>}
+                    {asset.legal_hold && <div className="mt-2 text-xs font-black text-red-700">حجز قانوني</div>}
                   </div>
                   <div>
                     <b>{links.length}</b><div className="text-xs text-[#756b63]">روابط نشطة</div>
