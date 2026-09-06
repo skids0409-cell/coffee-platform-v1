@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { SearchEntityType, SearchIntent } from "@/lib/search-governance";
+import type { SearchTermLifecycleAction, SearchTermLifecycleProjection } from "@/lib/search-term-lifecycle-projection";
 
 type SearchTerm = {
   id: string;
@@ -15,6 +16,7 @@ type SearchTerm = {
   source_basis: string;
   status: "draft" | "active" | "retired";
   updated_at: string;
+  lifecycle: SearchTermLifecycleProjection;
 };
 
 type WeakQuery = {
@@ -46,8 +48,7 @@ type SearchGovernanceWorkspaceProps = {
   onQueryChange: (value: string) => void;
   onLetterChange: (value: string) => void;
   onEdit: (id: string) => void;
-  onStatusChange: (id: string, next: "draft" | "active" | "retired") => void;
-  onDelete: (id: string) => void;
+  onLifecycleAction: (term: SearchTerm, action: SearchTermLifecycleAction) => void;
   renderEditingTerm?: (term: SearchTerm) => ReactNode;
 };
 
@@ -70,8 +71,7 @@ export function SearchGovernanceWorkspace({
   onQueryChange,
   onLetterChange,
   onEdit,
-  onStatusChange,
-  onDelete,
+  onLifecycleAction,
   renderEditingTerm,
 }: SearchGovernanceWorkspaceProps) {
   return <div className="search-governance-disclosure" id="operations-search" data-workspace-contract="command-master-inspector-v1">
@@ -126,10 +126,14 @@ export function SearchGovernanceWorkspace({
           </div>
           <div className="queue-actions">
             <button type="button" onClick={() => onEdit(term.id)}>تعديل</button>
-            {term.status !== "active" && <button type="button" disabled={workingId === term.id} onClick={() => onStatusChange(term.id, "active")}>تفعيل</button>}
-            {term.status === "active" && <button type="button" disabled={workingId === term.id} onClick={() => onStatusChange(term.id, "retired")}>إيقاف</button>}
-            {term.status === "retired" && <button type="button" disabled={workingId === term.id} onClick={() => onStatusChange(term.id, "draft")}>إعادة لمسودة</button>}
-            {term.status !== "active" && <button type="button" className="danger-action" disabled={workingId === term.id} onClick={() => onDelete(term.id)}>حذف</button>}
+            {term.lifecycle.availableActions.map((action) => <button
+              type="button"
+              key={action.action}
+              className={action.action === "delete" ? "danger-action" : undefined}
+              disabled={!action.enabled || workingId === term.id}
+              title={action.blockedReason || undefined}
+              onClick={() => onLifecycleAction(term, action)}
+            >{action.label}</button>)}
           </div>
         </article>)}
         {!visibleTerms.length && <p>لا توجد مصطلحات مطابقة في هذا التبويب.</p>}
