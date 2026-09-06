@@ -3,6 +3,7 @@ import { normalizeSearchText, type SearchEntityType, type SearchIntent } from "@
 import { projectReviewLifecycle, type ReviewLifecycleProjection } from "@/lib/review-lifecycle-projection";
 import { projectRightsLifecycle, type RightsLifecycleProjection } from "@/lib/rights-lifecycle-projection";
 import { projectBetaLifecycle, type BetaLifecycleProjection } from "@/lib/beta-lifecycle-projection";
+import { projectSupportLifecycle } from "@/lib/support-lifecycle-projection";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -309,7 +310,19 @@ async function loadQueue(token: string, role: string) {
         ...publishedOffers.filter((row) => !mediaKeys.has(`offers:${row.id}`)).map((row) => ({ entity: "offers", id: row.id, label: `${row.products?.name_ar || "منتج"} — ${row.organizations?.name_ar || "بائع"}`, kind: "عرض البائع" })),
       ],
     },
-    supportWorkspace: { requests: supportRequests.map((request) => ({ ...request, history: supportHistory.filter((event) => event.entity_id === request.id) })), staff: staffProfiles },
+    supportWorkspace: {
+      requests: supportRequests.map((request) => ({
+        ...request,
+        history: supportHistory.filter((event) => event.entity_id === request.id),
+        lifecycle: projectSupportLifecycle({
+          status: request.status,
+          role,
+          requesterPhone: request.requester_phone || null,
+          resolutionNote: request.resolution_note || null,
+        }),
+      })),
+      staff: staffProfiles,
+    },
     searchGovernance: {
       terms: searchTerms,
       weakQueries,
