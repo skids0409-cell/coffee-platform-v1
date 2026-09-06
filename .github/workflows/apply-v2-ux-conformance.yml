@@ -2,7 +2,9 @@ name: One-shot Data Center V2 UX Conformance
 on:
   push:
     branches: [hotfix/data-center-v2-ux-conformance]
-    paths: [scripts/apply-v2-ux-conformance.mjs]
+    paths:
+      - scripts/apply-v2-ux-conformance.mjs
+      - .github/workflows/apply-v2-ux-conformance.yml
 permissions:
   contents: write
 jobs:
