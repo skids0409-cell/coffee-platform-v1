@@ -36,6 +36,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --include=dev
 
+      - name: Dependency security audit
+        run: npm audit --audit-level=low
+
       - name: Verify CSS build toolchain
         run: node -e "require.resolve('@tailwindcss/postcss'); require.resolve('tailwindcss')"
 
