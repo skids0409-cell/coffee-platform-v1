@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-export function PartnerReviewQueue() {
+export function PartnerReviewQueue({ focusId = "" }: { focusId?: string }) {
   const [items, setItems] = useState<any[]>([]);
   const [memberships, setMemberships] = useState<any[]>([]);
   const [organizations, setOrganizations] = useState<any[]>([]);
@@ -29,6 +29,12 @@ export function PartnerReviewQueue() {
     const timer = window.setTimeout(() => { load().catch(() => setState("error")); }, 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (state !== "ready" || !focusId) return;
+    const timer = window.setTimeout(() => document.getElementById(`partner-submission-${focusId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
+    return () => window.clearTimeout(timer);
+  }, [focusId, state]);
 
   const decide = async (id: string, status: string) => {
     const reviewNote = status === "needs_changes" || status === "rejected"
@@ -96,7 +102,7 @@ export function PartnerReviewQueue() {
       </form>
     </details>
     <div data-governed-master="true">
-      {items.map((row) => <article key={row.id}>
+      {items.map((row) => <article key={row.id} id={`partner-submission-${row.id}`} className={focusId === row.id ? "work-queue-focus" : undefined}>
         <div><b>{row.organizations?.name_ar || row.organization_id}</b><span>{row.entity_type} · {row.status} · {new Date(row.updated_at).toLocaleString("ar-IQ")}</span><details><summary>معاينة البيانات</summary><pre>{JSON.stringify(row.payload, null, 2)}</pre></details></div>
         <div className="queue-actions"><button disabled={working === row.id} onClick={() => decide(row.id, "in_review")}>بدء المراجعة</button><button disabled={working === row.id} onClick={() => decide(row.id, "needs_changes")}>إعادة للتعديل</button><button disabled={working === row.id} onClick={() => decide(row.id, "approved")}>اعتماد وتحويل</button><button disabled={working === row.id} onClick={() => decide(row.id, "rejected")}>رفض</button></div>
       </article>)}

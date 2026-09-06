@@ -1,20 +1,27 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type SupportWorkspaceProps = {
   data: { requests: any[]; staff: any[] };
   canDelete: boolean;
+  focusId?: string;
   onUpdated: (result: any) => void;
 };
 
-export function SupportWorkspace({ data, canDelete, onUpdated }: SupportWorkspaceProps) {
-  const [selectedId, setSelectedId] = useState("");
+export function SupportWorkspace({ data, canDelete, focusId = "", onUpdated }: SupportWorkspaceProps) {
+  const [selectedId, setSelectedId] = useState(focusId);
   const [message, setMessage] = useState("");
   const [view, setView] = useState<"open" | "closed" | "archived" | "all">("open");
   const filtered = data.requests.filter((request: any) => view === "all" || (view === "archived" ? request.status === "archived" : view === "closed" ? ["resolved", "closed", "spam"].includes(request.status) : !["resolved", "closed", "spam", "archived"].includes(request.status)));
   const selected = filtered.find((request: any) => request.id === selectedId) || filtered[0];
+
+  useEffect(() => {
+    if (!focusId) return;
+    const handle = window.setTimeout(() => { setView("open"); setSelectedId(focusId); }, 0);
+    return () => window.clearTimeout(handle);
+  }, [focusId]);
 
   if (!data.requests.length) return <section className="support-workspace" id="operations-support"><h2>معالجة طلبات المساعدة</h2><p>لا توجد طلبات حالياً.</p></section>;
 

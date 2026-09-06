@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { PendingAssetReviewConsole } from "@/app/ui/admin/PendingAssetReviewConsole";
 
 export type ReviewQueueRow = {
@@ -19,6 +20,7 @@ type ReviewWorkspaceProps = {
   role: string;
   workingId: string;
   statusLabels: Record<string, string>;
+  focusId?: string;
   onOpenRecord: (record: { entity: string; id: string }) => void;
   onSetStatus: (table: string, id: string, status: string) => void;
   onAdminOverride: (table: string, id: string, label: string) => void;
@@ -44,6 +46,7 @@ export function ReviewWorkspace({
   role,
   workingId,
   statusLabels,
+  focusId = "",
   onOpenRecord,
   onSetStatus,
   onAdminOverride,
@@ -52,13 +55,19 @@ export function ReviewWorkspace({
 }: ReviewWorkspaceProps) {
   const canVerify = ["verifier", "admin"].includes(role);
 
+  useEffect(() => {
+    if (!focusId) return;
+    const handle = window.setTimeout(() => document.getElementById(`review-queue-${focusId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
+    return () => window.clearTimeout(handle);
+  }, [focusId]);
+
   return <div className="review-queues" id="operations-review" data-workspace-contract="master-detail-v1">
     <PendingAssetReviewConsole />
     {queueSections.filter(([key]) => (queues[key]?.length || 0) > 0).map(([key, label]) => (
       <section key={key} data-governed-master="true">
         <h3>{label} <span>{queues[key]?.length || 0}</span></h3>
         {key === "rights" && <p className="rights-workflow-note">«طلب دليل إضافي» يغيّر حالة الطلب ويثبتها في السجل. في MVP لا يرسل النظام بريداً تلقائياً؛ استخدم بيانات التواصل الظاهرة ثم أعد الطلب إلى «قيد المراجعة» عند وصول الدليل.</p>}
-        {queues[key].map((row) => <article key={row.id}>
+        {queues[key].map((row) => <article key={row.id} id={`review-queue-${row.id}`} className={focusId === row.id ? "work-queue-focus" : undefined}>
           <div>
             <div className="queue-title">
               <b>{row.label}</b>

@@ -58,7 +58,7 @@ export async function GET(request: Request) {
         assignedTo: row.assigned_to,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-        deepLink: `/operations?workspace=review&quality=${row.id}`,
+        deepLink: `/operations?workspace=dashboard&quality=${row.id}`,
       })),
       ...rights.filter((row) => active(row.status)).map((row) => ({
         key: `rights:${row.id}`,

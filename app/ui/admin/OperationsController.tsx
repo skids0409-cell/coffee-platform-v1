@@ -131,6 +131,7 @@ export function OperationsController() {
   const [workspace, setWorkspace] = useState<OperationsWorkspaceId>("dashboard");
   const [reviewConfirm, setReviewConfirm] = useState<ReviewConfirmRequest | null>(null);
   const [reviewConfirmBusy, setReviewConfirmBusy] = useState(false);
+  const [deepLinkTarget, setDeepLinkTarget] = useState({ quality: "", rights: "", support: "", submission: "" });
 
   const loadAdmin = async () => {
     const response = await fetch("/api/admin/review", { cache: "no-store", credentials: "same-origin" });
@@ -146,9 +147,30 @@ export function OperationsController() {
   };
 
   useEffect(() => {
-    const handle = window.setTimeout(() => void loadAdmin().catch(() => setAdminState("error")), 0);
+    const handle = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const requestedWorkspace = params.get("workspace") as OperationsWorkspaceId | null;
+      const allowedWorkspaces: OperationsWorkspaceId[] = ["dashboard", "records", "entry", "review", "partners", "media", "imports", "search", "requests", "archive", "taxonomy"];
+      if (requestedWorkspace && allowedWorkspaces.includes(requestedWorkspace)) setWorkspace(requestedWorkspace);
+      setDeepLinkTarget({
+        quality: params.get("quality") || "",
+        rights: params.get("rights") || "",
+        support: params.get("support") || "",
+        submission: params.get("submission") || "",
+      });
+      void loadAdmin().catch(() => setAdminState("error"));
+    }, 0);
     return () => window.clearTimeout(handle);
   }, []);
+
+  useEffect(() => {
+    if (!adminData || !deepLinkTarget.quality || qualityIssueEditor) return;
+    const handle = window.setTimeout(() => {
+      const issue = adminData.qualityDesk.suspects.find((candidate) => candidate.id === deepLinkTarget.quality && Boolean(candidate.issueDetails));
+      if (issue) setQualityIssueEditor(issue);
+    }, 0);
+    return () => window.clearTimeout(handle);
+  }, [adminData, deepLinkTarget.quality, qualityIssueEditor]);
 
   const login = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -326,12 +348,12 @@ export function OperationsController() {
     dashboard: <OperationsDashboardWorkspace checks={[["جلسة الإدارة", "متصلة"], ["حاجز النشر", "مفعّل"], ["نطاق التشغيل", "بغداد"], ["معمارية الواجهة", "Operations Center v2"]]} summary={adminData.qualityDesk.summary} suspects={adminData.qualityDesk.suspects} onOpenIssue={(issue) => setQualityIssueEditor(issue as QualitySuspect)} onOpenRecord={setRecordEditor} />,
     records: <RecordsWorkspace items={adminData.publishedCatalog} visibleItems={visiblePublished} publishedType={publishedType} publishedGroup={publishedGroup} publishedGroups={publishedGroups} publishedQuery={publishedQuery} onTypeChange={(value) => { setPublishedType(value); setPublishedGroup("all"); }} onGroupChange={setPublishedGroup} onQueryChange={setPublishedQuery} onOpen={setRecordEditor} />,
     entry: <DataCenterWorkspace mode="entry" onChanged={loadAdmin} renderEntry={(reference, reload) => <CatalogDraftWorkspace reference={reference} onCreated={reload} />} />,
-    review: <ReviewWorkspace queues={adminData.queues} role={adminData.profile.role} workingId={workingId} statusLabels={queueStatusLabels} onOpenRecord={setRecordEditor} onSetStatus={setReviewStatus} onAdminOverride={requestAdminOverride} onProcessRights={processRightsRequest} onDeleteRecord={deleteCatalogRecord} />,
-    partners: <PartnerReviewQueue />,
+    review: <ReviewWorkspace queues={adminData.queues} role={adminData.profile.role} workingId={workingId} statusLabels={queueStatusLabels} focusId={deepLinkTarget.rights} onOpenRecord={setRecordEditor} onSetStatus={setReviewStatus} onAdminOverride={requestAdminOverride} onProcessRights={processRightsRequest} onDeleteRecord={deleteCatalogRecord} />,
+    partners: <PartnerReviewQueue focusId={deepLinkTarget.submission} />,
     media: <MediaVaultWorkspace onOpen={setRecordEditor} onUnauthorized={() => { setAdminData(null); setAdminState("signed_out"); }} />,
     imports: <DataCenterWorkspace mode="imports" onChanged={loadAdmin} />,
     search: <SearchGovernanceWorkspace terms={adminData.searchGovernance.terms} visibleTerms={visibleSearchTerms} weakQueries={adminData.searchGovernance.weakQueries} activeTerms={adminData.searchGovernance.activeTerms} draftTerms={adminData.searchGovernance.draftTerms} totalEventsReviewed={adminData.searchGovernance.totalEventsReviewed} workingId={workingId} view={searchTermView} query={searchTermQuery} letter={searchLetter} letters={arabicLetters} editingTermId={editingSearchTermId} intentLabels={searchIntentLabels} typeLabels={searchTypeLabels} onCreate={createSearchTerm} onViewChange={setSearchTermView} onQueryChange={setSearchTermQuery} onLetterChange={setSearchLetter} onEdit={setEditingSearchTermId} onStatusChange={setSearchTermStatus} onDelete={deleteSearchTerm} renderEditingTerm={(term) => <SearchTermEditForm key={term.id} term={term} onCancel={() => setEditingSearchTermId("")} onSaved={(result) => { setAdminData((current) => current ? adoptAdminPayload(current, result) : current); setEditingSearchTermId(""); setAdminMessage("تم تعديل مصطلح البحث وتسجيل التغيير."); }} />} />,
-    requests: <SupportWorkspace data={adminData.supportWorkspace} canDelete={adminData.profile.role === "admin"} onUpdated={(result) => setAdminData((current) => current ? adoptAdminPayload(current, result) : current)} />,
+    requests: <SupportWorkspace data={adminData.supportWorkspace} canDelete={adminData.profile.role === "admin"} focusId={deepLinkTarget.support} onUpdated={(result) => setAdminData((current) => current ? adoptAdminPayload(current, result) : current)} />,
     archive: <ArchiveWorkspace items={adminData.inactiveCatalog} role={adminData.profile.role} workingId={workingId} onOpen={setRecordEditor} onRestoreDraft={(entity, id) => void setReviewStatus(entity, id, "draft")} onDelete={deleteCatalogRecord} importArchive={<ArchivedImportBatches />} />,
     taxonomy: <TaxonomyWorkspace />,
   } satisfies Partial<Record<OperationsWorkspaceId, React.ReactNode>>;
