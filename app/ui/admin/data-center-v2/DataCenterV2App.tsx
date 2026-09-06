@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StandardConfirmDialog } from "@/app/ui/admin/StandardConfirmDialog";
+import { CatalogIntakeV2 } from "@/app/ui/admin/data-center-v2/CatalogIntakeV2";
 import type { DataImportLifecycleAction, DataImportLifecycleProjection } from "@/lib/data-import-lifecycle-projection";
 import styles from "./DataCenterV2.module.css";
 
-type View = "overview" | "intake" | "batches" | "handoffs" | "client";
+type View = "overview" | "intake" | "catalog" | "batches" | "handoffs" | "client";
 
 type Batch = {
   id: string;
@@ -23,11 +24,11 @@ type Batch = {
 };
 
 type ReferenceData = {
-  categories: Array<{ id: string; name_ar: string }>;
-  organizations: Array<{ id: string; name_ar: string; status: string }>;
+  categories: Array<{ id: string; code: string; name_ar: string; parent_id: string | null; catalog_product_kind: string | null }>;
+  organizations: Array<{ id: string; name_ar: string; status: string; organization_roles?: Array<{ role_type: string }> }>;
   products: Array<{ id: string; name_ar: string; status: string; product_kind: string }>;
-  brands: Array<{ id: string; name_ar: string }>;
-  countries: Array<{ code: string; name_ar: string }>;
+  brands: Array<{ id: string; name_ar: string; product_kinds?: string[] }>;
+  countries: Array<{ code: string; name_ar: string; coffee_regions?: Array<{ id: string; name_ar: string }> }>;
   filterDefinitions: Array<{ id: string; name_ar: string }>;
 };
 
@@ -79,6 +80,7 @@ const emptyReference: ReferenceData = {
 const navItems: Array<{ id: View; label: string; description: string }> = [
   { id: "overview", label: "لوحة القيادة", description: "حالة الإدخال والحوكمة" },
   { id: "intake", label: "الإدخال", description: "CSV وسجل جهة واحد" },
+  { id: "catalog", label: "إدخال الكتالوج", description: "Master / Vendor / Content / Origin" },
   { id: "batches", label: "دفعات الاستيراد", description: "المعاينة ودورة الحياة" },
   { id: "handoffs", label: "مسارات الحوكمة", description: "Review / Media / Search / Support" },
   { id: "client", label: "مرآة العميل", description: "فحص واجهات النشر العامة" },
@@ -352,6 +354,8 @@ export function DataCenterV2App() {
             </div>
             {preview.length > 0 && <section className={styles.panel}><div className={styles.panelHead}><h2>معاينة التحقق</h2><span className={styles.badge}>{preview.length.toLocaleString("ar-IQ")} صف</span></div><ul className={styles.previewList}>{preview.slice(0, 100).map((row) => <li className={styles.previewItem} data-status={row.status} key={`${row.sourceRowNumber}-${row.normalized.name_ar}`}><b>{row.normalized.name_ar || "بدون اسم"}</b><div className={styles.meta}>{row.normalized.address_ar}</div>{row.messages.length > 0 && <small>{row.messages.join(" · ")}</small>}</li>)}</ul></section>}
           </>}
+
+          {view === "catalog" && <CatalogIntakeV2 reference={reference} onCreated={load} />}
 
           {view === "batches" && <section className={styles.panel}>
             <div className={styles.panelHead}><div><h2>دفعات الاستيراد</h2><p className={styles.muted}>الأزرار أدناه ترسم `availableActions` من `data-import.lifecycle.v1` فقط.</p></div><span className={styles.badge}>{activeBatches.length.toLocaleString("ar-IQ")}</span></div>
