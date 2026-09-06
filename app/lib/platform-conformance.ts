@@ -1,7 +1,7 @@
 export type PlatformConformanceRule = {
   ruleCode: string;
   severity: "critical" | "high" | "medium";
-  status: "PASS";
+  status: "PASS" | "FAIL";
   description: string;
   evidence: string[];
 };
