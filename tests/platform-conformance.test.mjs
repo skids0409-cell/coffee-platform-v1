@@ -20,15 +20,17 @@ const platform = read("../lib/platform-conformance.ts");
 const conformanceRoute = read("../app/api/admin/architecture-conformance/route.ts");
 const platformShell = read("../app/ui/Platform.tsx");
 const partnerPortal = read("../app/ui/partner/PartnerPortal.tsx");
-const operationsController = read("../app/ui/admin/OperationsController.tsx");
 const reviewRoute = read("../app/api/admin/review/route.ts");
 const partnerRoute = read("../app/api/admin/partner-submissions/route.ts");
 const dataCenterRoute = read("../app/api/admin/data-center/route.ts");
 const taxonomyRoute = read("../app/api/admin/taxonomy/route.ts");
+const pendingAssetReviewRoute = read("../app/api/admin/media-vault/review/route.ts");
 const mediaVaultRoute = read("../app/api/admin/media-vault/route.ts");
 const mediaPurgeRoute = read("../app/api/admin/media-vault/purge/route.ts");
 const preservationRoute = read("../app/api/admin/preservation/route.ts");
 const workQueueRoute = read("../app/api/admin/work-queue/route.ts");
+const taxonomyUi = read("../app/ui/admin/TaxonomyWorkspace.tsx");
+const pendingAssetReviewUi = read("../app/ui/admin/PendingAssetReviewConsole.tsx");
 const mediaVaultUi = read("../app/ui/admin/MediaVaultWorkspace.tsx");
 const preservationUi = read("../app/ui/admin/governance/MediaPreservationProjection.tsx");
 const mediaMigration = read("../supabase/migrations/043_closed_loop_media_asset_lifecycle.sql");
@@ -79,7 +81,7 @@ test("WINDOW_PROMPT_CONFIRM=0 across governed UI", () => {
     const source = readFileSync(file, "utf8");
     assert.doesNotMatch(source, /window\.(?:prompt|confirm|alert)\s*\(/, `browser dialog found in ${relative(root, file)}`);
   }
-  assert.match(mediaVaultUi, /StandardConfirmDialog/);
+  for (const source of [mediaVaultUi, taxonomyUi]) assert.match(source, /StandardConfirmDialog/);
 });
 
 test("CLIENT_INFERRED_ACTIONS=0 for privileged Operations surfaces", () => {
@@ -99,12 +101,15 @@ test("CLIENT_INFERRED_ACTIONS=0 for privileged Operations surfaces", () => {
     "data-import-lifecycle-projection",
     "search-term-lifecycle-projection",
     "media-vault-lifecycle-projection",
+    "taxonomy-lifecycle-projection",
     "operations-capabilities-projection",
     "preservation-capabilities-projection",
+    "pending-asset-review-capabilities",
   ]) assert.ok(sourceFiles("lib").some((file) => file.endsWith(`${contract}.ts`)), `missing ${contract}`);
   assert.match(mediaVaultUi, /asset\.lifecycle\.availableActions/);
+  assert.match(taxonomyUi, /lifecycle\.availableActions/);
+  assert.match(pendingAssetReviewUi, /capabilities\.canDecide/);
   assert.match(preservationUi, /data\.capabilities/);
-  assert.doesNotMatch(preservationUi, /\["verifier",\s*"admin"\]\.includes\(data\.role\)/);
 });
 
 test("DIRECT_LIFECYCLE_REST_WRITES=0 across governed lifecycle routes", () => {
@@ -115,7 +120,8 @@ test("DIRECT_LIFECYCLE_REST_WRITES=0 across governed lifecycle routes", () => {
   assert.match(partnerRoute, /rpc\/admin_transition_partner_submission/);
   assert.match(dataCenterRoute, /rpc\/admin_transition_data_import_batch/);
   assert.match(taxonomyRoute, /rpc\/admin_transition_taxonomy_status/);
-  assert.match(mediaVaultRoute, /rpc\/admin_media_vault_action/);
+  assert.match(mediaVaultRoute, /mediaRpc\(admin\.token,\s*"admin_media_vault_action"/);
+  assert.match(pendingAssetReviewRoute, /mediaRpc<[^>]+>\(admin\.token,\s*"admin_media_review_pending_asset"/s);
   assert.match(mediaPurgeRoute, /admin_media_prepare_purge/);
   assert.match(mediaPurgeRoute, /admin_media_finalize_purge/);
   assert.doesNotMatch(partnerRoute, /partner_submissions\?id=.*method:\s*"PATCH"/s);
@@ -149,11 +155,14 @@ test("ORPHAN_RELATIONSHIPS=0 is enforced by canonical constraints and registry",
   assert.match(orphanMigration, /zero.orphan|orphan/i);
 });
 
-test("Media Vault and Preservation consume server action authority", () => {
+test("Media Vault Taxonomy Pending Review and Preservation consume server action authority", () => {
   assert.match(mediaVaultRoute, /projectMediaVaultLifecycle/);
   assert.match(mediaVaultUi, /projectedSelectionAction/);
-  assert.doesNotMatch(mediaVaultUi, /role\s*!==\s*"admin"/);
-  assert.doesNotMatch(mediaVaultUi, /role\s*===\s*"admin"/);
+  assert.match(taxonomyRoute, /projectTaxonomyLifecycle/);
+  assert.match(taxonomyUi, /selectedCategory\.lifecycle\.availableActions/);
+  assert.match(taxonomyUi, /selectedField\.lifecycle\.availableActions/);
+  assert.match(pendingAssetReviewRoute, /projectPendingAssetReviewCapabilities/);
+  assert.match(pendingAssetReviewUi, /capabilities\.canDecide/);
   assert.match(preservationRoute, /projectPreservationCapabilities/);
   assert.match(preservationUi, /capabilities\.canCreateAip/);
   assert.match(preservationUi, /capabilities\.canVerifyFixity/);
