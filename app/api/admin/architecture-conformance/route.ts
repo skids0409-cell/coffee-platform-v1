@@ -1,6 +1,7 @@
 import { requireStaff } from "@/lib/supabase-admin";
 import { mediaRpc } from "@/lib/media-vault";
 import { PLATFORM_CONFORMANCE_REVISION, platformConformanceRules } from "@/lib/platform-conformance";
+import { OPERATIONS_REMEDIATION_REVISION, operationsRemediationRules } from "@/lib/operations-remediation-conformance";
 
 type ConformanceRow = {
   rule_code: string;
@@ -20,8 +21,11 @@ export async function GET(request: Request) {
     const kernelCriticalFailures = kernelFailed.filter((rule) => rule.severity === "critical");
     const platformFailed = platformConformanceRules.filter((rule) => rule.status === "FAIL");
     const platformCriticalFailures = platformFailed.filter((rule) => rule.severity === "critical");
+    const remediationFailed = operationsRemediationRules.filter((rule) => rule.status === "FAIL");
+    const remediationCriticalFailures = remediationFailed.filter((rule) => rule.severity === "critical");
     const kernelStatus = kernelCriticalFailures.length === 0 ? "CONFORMANT" : "NON_CONFORMANT";
     const platformStatus = platformCriticalFailures.length === 0 ? "CONFORMANT" : "NON_CONFORMANT";
+    const remediationStatus = remediationCriticalFailures.length === 0 ? "CONFORMANT" : "NON_CONFORMANT";
 
     return Response.json({
       authenticated: true,
@@ -50,7 +54,19 @@ export async function GET(request: Request) {
         },
         rules: platformConformanceRules,
       },
-      conformanceStatus: kernelStatus === "CONFORMANT" && platformStatus === "CONFORMANT"
+      remediation: {
+        revision: OPERATIONS_REMEDIATION_REVISION,
+        attestation: "CI_GATED_STATIC_SOURCE",
+        conformanceStatus: remediationStatus,
+        summary: {
+          totalRules: operationsRemediationRules.length,
+          passedRules: operationsRemediationRules.length - remediationFailed.length,
+          failedRules: remediationFailed.length,
+          criticalFailures: remediationCriticalFailures.length,
+        },
+        rules: operationsRemediationRules,
+      },
+      conformanceStatus: kernelStatus === "CONFORMANT" && platformStatus === "CONFORMANT" && remediationStatus === "CONFORMANT"
         ? "CONFORMANT"
         : "NON_CONFORMANT",
     }, { headers: { "cache-control": "no-store" } });
