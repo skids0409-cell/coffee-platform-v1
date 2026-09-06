@@ -3,6 +3,7 @@ import { normalizeSearchText, type SearchEntityType, type SearchIntent } from "@
 import { projectReviewLifecycle, type ReviewLifecycleProjection } from "@/lib/review-lifecycle-projection";
 import { projectRightsLifecycle, type RightsLifecycleProjection } from "@/lib/rights-lifecycle-projection";
 import { projectBetaLifecycle, type BetaLifecycleProjection } from "@/lib/beta-lifecycle-projection";
+import { projectSupportLifecycle } from "@/lib/support-lifecycle-projection";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -85,7 +86,7 @@ async function loadQueue(token: string, role: string) {
       token,
       "beta_feedback?select=id,public_reference,page_path,task_code,outcome,device_type,severity,feedback_text,status,created_at&status=neq.resolved&order=created_at.desc&limit=100",
     ),
-    adminRest<Array<{ id: string; public_reference: string; request_type: string; page_path: string; subject: string; message: string; preferred_channel: string; status: string; priority: string; assigned_to: string | null; internal_notes: string | null; resolution_note: string | null; technical_reference: string | null; created_at: string; updated_at: string }>>(
+    adminRest<Array<{ id: string; public_reference: string; request_type: string; page_path: string; subject: string; message: string; preferred_channel: string; requester_name: string | null; requester_phone: string | null; requester_email: string | null; status: string; priority: string; assigned_to: string | null; internal_notes: string | null; resolution_note: string | null; technical_reference: string | null; escalated_at: string | null; customer_replied_at: string | null; archived_at: string | null; created_at: string; updated_at: string }>>(
       token,
       "support_requests?select=id,public_reference,request_type,page_path,subject,message,preferred_channel,requester_name,requester_phone,requester_email,status,priority,assigned_to,internal_notes,resolution_note,technical_reference,escalated_at,customer_replied_at,archived_at,created_at,updated_at&order=created_at.desc&limit=200",
     ),
@@ -309,7 +310,19 @@ async function loadQueue(token: string, role: string) {
         ...publishedOffers.filter((row) => !mediaKeys.has(`offers:${row.id}`)).map((row) => ({ entity: "offers", id: row.id, label: `${row.products?.name_ar || "منتج"} — ${row.organizations?.name_ar || "بائع"}`, kind: "عرض البائع" })),
       ],
     },
-    supportWorkspace: { requests: supportRequests.map((request) => ({ ...request, history: supportHistory.filter((event) => event.entity_id === request.id) })), staff: staffProfiles },
+    supportWorkspace: {
+      requests: supportRequests.map((request) => ({
+        ...request,
+        history: supportHistory.filter((event) => event.entity_id === request.id),
+        lifecycle: projectSupportLifecycle({
+          status: request.status,
+          role,
+          requesterPhone: request.requester_phone || null,
+          resolutionNote: request.resolution_note || null,
+        }),
+      })),
+      staff: staffProfiles,
+    },
     searchGovernance: {
       terms: searchTerms,
       weakQueries,

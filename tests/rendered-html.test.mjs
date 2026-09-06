@@ -1083,10 +1083,11 @@ test("operations fixes media loading and separates coffee form from seller filte
 test("directory support and archives follow the governed operational workflow", () => {
   const ui = readPlatformAndOperationsSource();
   const supportApi = readFileSync(new URL("../app/api/admin/review/route.ts", import.meta.url), "utf8");
+  const supportProjection = readFileSync(new URL("../lib/support-lifecycle-projection.ts", import.meta.url), "utf8");
   const migration = readFileSync(new URL("../supabase/migrations/027_support_resolution_archive.sql", import.meta.url), "utf8");
   assert.match(ui, /نوع الجهة/);
-  assert.match(ui, /إرسال نتيجة الحل عبر واتساب/);
-  assert.match(ui, /إحالة بالبريد إلى فريق الدعم/);
+  assert.match(supportProjection, /label: "إرسال نتيجة الحل عبر واتساب"/);
+  assert.match(supportProjection, /label: "إحالة بالبريد إلى فريق الدعم"/);
   assert.match(ui, /function ArchivedImportBatches/);
   assert.match(supportApi, /delete_support_request/);
   assert.match(supportApi, /mark_support_reply/);
