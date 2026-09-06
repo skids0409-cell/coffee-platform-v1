@@ -70,7 +70,6 @@ const bytes = (value: number | null) => {
 export function PendingAssetReviewConsole() {
   const [assets, setAssets] = useState<PendingAsset[]>([]);
   const [selectedId, setSelectedId] = useState("");
-  const [role, setRole] = useState("");
   const [capabilities, setCapabilities] = useState<PendingAssetReviewCapabilities>({ contractRevision: "pending-asset-review.capabilities.v1", canDecide: false, blockedReason: "صلاحية القرار غير متاحة." });
   const [traceabilityGaps, setTraceabilityGaps] = useState(0);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -89,7 +88,6 @@ export function PendingAssetReviewConsole() {
       if (!response.ok) throw new Error(result.reason || "load_failed");
       const next = Array.isArray(result.assets) ? result.assets : [];
       setAssets(next);
-      setRole(result.role || "");
       setCapabilities(result.capabilities || { contractRevision: "pending-asset-review.capabilities.v1", canDecide: false, blockedReason: "تعذر تحميل صلاحية القرار من الخادم." });
       setTraceabilityGaps(Number(result.traceability_gap_count || 0));
       setSelectedId((current) => (current && next.some((asset) => asset.id === current) ? current : next[0]?.id || ""));
@@ -250,7 +248,7 @@ export function PendingAssetReviewConsole() {
                   <p className="mt-2 text-xs">الحجر يبدأ مؤقت الاحتفاظ النظامي لمدة 30 يوماً، مع بقاء الحذف النهائي منفصلاً وخاضعاً للموافقة.</p>
                 </fieldset>
               </div>
-              {!canReview && <p className="mt-3 text-sm text-amber-800">حسابك يستطيع مشاهدة الأثر، لكن القرار يتطلب صلاحية مراجع/معتمد أو مدير.</p>}
+              {!capabilities.canDecide && <p className="mt-3 text-sm text-amber-800">حسابك يستطيع مشاهدة الأثر، لكن القرار يتطلب صلاحية مراجع/معتمد أو مدير.</p>}
               {message && <p className="admin-message mt-3" role="status">{message}</p>}
             </aside>
           )}
