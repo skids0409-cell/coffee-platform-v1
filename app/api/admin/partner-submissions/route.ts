@@ -1,7 +1,6 @@
 import { adminRest, requireStaff, sameOrigin } from "@/lib/supabase-admin";
 
 const uuid = /^[0-9a-f-]{36}$/i;
-type PartnerSubmissionRow = { id: string; organization_id: string; entity_type: string; status: string; payload: Record<string, unknown> };
 
 async function loadPartnerQueue(token: string) {
   return adminRest<Array<Record<string, unknown>>>(token, "partner_submissions?select=id,organization_id,submitted_by,entity_type,target_entity_id,payload,status,review_note,reviewed_at,created_at,updated_at,organizations(name_ar,slug)&status=in.(submitted,in_review,needs_changes)&order=updated_at.desc&limit=200");
