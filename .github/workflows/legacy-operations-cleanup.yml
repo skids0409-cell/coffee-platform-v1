@@ -11,15 +11,10 @@ on:
       - "app/ui/admin/**"
       - "app/api/admin/review/route.ts"
       - "supabase/migrations/**"
-      - "scripts/phase1-final-test-alignment.mjs"
       - "tests/**"
-
-permissions:
-  contents: write
 
 jobs:
   validate:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -37,17 +32,6 @@ jobs:
 
       - name: Install locked dependencies
         run: npm ci --include=dev
-
-      - name: Align final extracted-architecture assertions
-        run: node scripts/phase1-final-test-alignment.mjs
-
-      - name: Persist final test alignment
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/rendered-html.test.mjs
-          git commit -m "test: align final assertions to extracted operations architecture"
-          git push origin HEAD:phase1/legacy-operations-cleanup
 
       - name: Verify phase 1 boundaries
         run: |
