@@ -6,3 +6,4 @@ const count = source.split(target).length - 1;
 if (count !== 2) throw new Error(`expected 2 root operations links, found ${count}`);
 source = source.replaceAll(target, 'href="/operations?workspace=dashboard"');
 fs.writeFileSync(path, source);
+// one-shot trigger
