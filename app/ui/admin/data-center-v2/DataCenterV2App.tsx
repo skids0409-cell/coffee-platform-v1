@@ -141,7 +141,12 @@ export function DataCenterV2App() {
   }, []);
 
   useEffect(() => {
-    const handle = window.setTimeout(() => void load().catch(() => setState("error")), 0);
+    const handle = window.setTimeout(() => {
+      const requestedView = new URLSearchParams(window.location.search).get("view") as View | null;
+      const allowedViews: View[] = ["overview", "intake", "catalog", "batches", "handoffs", "client"];
+      if (requestedView && allowedViews.includes(requestedView)) setView(requestedView);
+      void load().catch(() => setState("error"));
+    }, 0);
     return () => window.clearTimeout(handle);
   }, [load]);
 
