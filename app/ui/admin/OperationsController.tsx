@@ -20,6 +20,7 @@ import { ReviewRecordEditor } from "@/app/ui/admin/ReviewRecordEditor";
 import { QualityIssueEditor } from "@/app/ui/admin/QualityIssueEditor";
 import { StandardConfirmDialog } from "@/app/ui/admin/StandardConfirmDialog";
 import type { SearchEntityType, SearchIntent } from "@/lib/search-governance";
+import type { SearchTermLifecycleAction, SearchTermLifecycleProjection } from "@/lib/search-term-lifecycle-projection";
 
 type Role = "editor" | "verifier" | "admin";
 
@@ -55,6 +56,7 @@ type SearchTerm = {
   source_basis: string;
   status: "draft" | "active" | "retired";
   updated_at: string;
+  lifecycle: SearchTermLifecycleProjection;
 };
 
 type QualitySuspect = QualitySuspectView & {
@@ -303,27 +305,31 @@ export function OperationsController() {
     setAdminMessage("أضيف المصطلح كمسودة. راجعه ثم فعّله من القائمة.");
   };
 
-  const setSearchTermStatus = async (id: string, next: "draft" | "active" | "retired") => {
-    if (next === "active" && !window.confirm("سيؤثر هذا المصطلح فوراً في فهم البحث وترتيب النتائج. هل راجعت معناه والمرادفات؟")) return;
-    setWorkingId(id);
+  const performSearchTermAction = async (term: SearchTerm, action: SearchTermLifecycleAction) => {
+    setWorkingId(term.id);
     setAdminMessage("");
-    const response = await fetch("/api/admin/review", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "set_search_term_status", id, status: next }) });
+    const payload = action.apiAction === "set_search_term_status"
+      ? { action: action.apiAction, id: term.id, status: action.nextStatus }
+      : { action: action.apiAction, id: term.id };
+    const response = await fetch("/api/admin/review", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
     const data = await response.json();
     setWorkingId("");
-    if (!response.ok) { setAdminMessage("تعذر تغيير حالة المصطلح. أعد تسجيل الدخول ثم حاول مجدداً."); return; }
+    if (!response.ok) { setAdminMessage(action.blockedReason || "تعذر تنفيذ إجراء مصطلح البحث. أعد تحميل البيانات ثم حاول مجدداً."); return; }
     setAdminData((current) => current ? adoptAdminPayload(current, data) : current);
-    setAdminMessage("تم تحديث قاعدة البحث وتسجيل القرار.");
+    setAdminMessage("تم تنفيذ إجراء مصطلح البحث وتسجيل القرار.");
   };
 
-  const deleteSearchTerm = async (id: string) => {
-    if (!window.confirm("سيُحذف هذا المصطلح غير الفعال نهائياً من القاموس. هل تريد المتابعة؟")) return;
-    setWorkingId(id);
-    const response = await fetch("/api/admin/review", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "delete_search_term", id }) });
-    const data = await response.json();
-    setWorkingId("");
-    if (!response.ok) { setAdminMessage(data.reason === "active_term_cannot_be_deleted" ? "أوقف المصطلح الفعال أولاً ثم احذفه." : "تعذر حذف المصطلح."); return; }
-    setAdminData((current) => current ? adoptAdminPayload(current, data) : current);
-    setAdminMessage("حُذف المصطلح غير الفعال وسُجلت العملية.");
+  const requestSearchTermAction = (term: SearchTerm, action: SearchTermLifecycleAction) => {
+    if (!action.enabled) return;
+    const execute = () => performSearchTermAction(term, action);
+    if (!action.confirmation.required) { void execute(); return; }
+    setReviewConfirm({
+      title: action.confirmation.title,
+      description: action.confirmation.description,
+      confirmLabel: action.confirmation.confirmLabel,
+      tone: action.confirmation.tone,
+      execute,
+    });
   };
 
   const visibleSearchTerms = useMemo(() => (adminData?.searchGovernance.terms || [])
@@ -352,7 +358,7 @@ export function OperationsController() {
     partners: <PartnerReviewQueue focusId={deepLinkTarget.submission} />,
     media: <MediaVaultWorkspace onOpen={setRecordEditor} onUnauthorized={() => { setAdminData(null); setAdminState("signed_out"); }} />,
     imports: <DataCenterWorkspace mode="imports" onChanged={loadAdmin} />,
-    search: <SearchGovernanceWorkspace terms={adminData.searchGovernance.terms} visibleTerms={visibleSearchTerms} weakQueries={adminData.searchGovernance.weakQueries} activeTerms={adminData.searchGovernance.activeTerms} draftTerms={adminData.searchGovernance.draftTerms} totalEventsReviewed={adminData.searchGovernance.totalEventsReviewed} workingId={workingId} view={searchTermView} query={searchTermQuery} letter={searchLetter} letters={arabicLetters} editingTermId={editingSearchTermId} intentLabels={searchIntentLabels} typeLabels={searchTypeLabels} onCreate={createSearchTerm} onViewChange={setSearchTermView} onQueryChange={setSearchTermQuery} onLetterChange={setSearchLetter} onEdit={setEditingSearchTermId} onStatusChange={setSearchTermStatus} onDelete={deleteSearchTerm} renderEditingTerm={(term) => <SearchTermEditForm key={term.id} term={term} onCancel={() => setEditingSearchTermId("")} onSaved={(result) => { setAdminData((current) => current ? adoptAdminPayload(current, result) : current); setEditingSearchTermId(""); setAdminMessage("تم تعديل مصطلح البحث وتسجيل التغيير."); }} />} />,
+    search: <SearchGovernanceWorkspace terms={adminData.searchGovernance.terms} visibleTerms={visibleSearchTerms} weakQueries={adminData.searchGovernance.weakQueries} activeTerms={adminData.searchGovernance.activeTerms} draftTerms={adminData.searchGovernance.draftTerms} totalEventsReviewed={adminData.searchGovernance.totalEventsReviewed} workingId={workingId} view={searchTermView} query={searchTermQuery} letter={searchLetter} letters={arabicLetters} editingTermId={editingSearchTermId} intentLabels={searchIntentLabels} typeLabels={searchTypeLabels} onCreate={createSearchTerm} onViewChange={setSearchTermView} onQueryChange={setSearchTermQuery} onLetterChange={setSearchLetter} onEdit={setEditingSearchTermId} onLifecycleAction={requestSearchTermAction} renderEditingTerm={(term) => <SearchTermEditForm key={term.id} term={term} onCancel={() => setEditingSearchTermId("")} onSaved={(result) => { setAdminData((current) => current ? adoptAdminPayload(current, result) : current); setEditingSearchTermId(""); setAdminMessage("تم تعديل مصطلح البحث وتسجيل التغيير."); }} />} />,
     requests: <SupportWorkspace data={adminData.supportWorkspace} focusId={deepLinkTarget.support} onUpdated={(result) => setAdminData((current) => current ? adoptAdminPayload(current, result) : current)} />,
     archive: <ArchiveWorkspace items={adminData.inactiveCatalog} role={adminData.profile.role} workingId={workingId} onOpen={setRecordEditor} onRestoreDraft={(entity, id) => void setReviewStatus(entity, id, "draft")} onDelete={deleteCatalogRecord} importArchive={<ArchivedImportBatches />} />,
     taxonomy: <TaxonomyWorkspace />,

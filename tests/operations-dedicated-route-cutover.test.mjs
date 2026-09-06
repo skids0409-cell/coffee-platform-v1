@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 const route = fs.readFileSync("app/operations/page.tsx", "utf8");
 const controller = fs.readFileSync("app/ui/admin/OperationsController.tsx", "utf8");
+const searchProjection = fs.readFileSync("lib/search-term-lifecycle-projection.ts", "utf8");
 
 test("operations has a dedicated static route outside the catch-all platform host", () => {
   assert.match(route, /OperationsController/);
@@ -37,13 +38,17 @@ test("controller keeps lifecycle-changing actions on existing server APIs", () =
   assert.match(controller, /action: "delete_catalog_record"/);
   assert.match(controller, /action: "process_rights_request"/);
   assert.match(controller, /action: "create_search_term"/);
-  assert.match(controller, /action: "set_search_term_status"/);
+  assert.match(controller, /action\.apiAction/);
+  assert.match(searchProjection, /apiAction: "set_search_term_status"/);
+  assert.match(searchProjection, /apiAction: "delete_search_term"/);
   assert.match(controller, /credentials: "same-origin"/);
   assert.doesNotMatch(controller, /@supabase|createClient\(|supabase\.(?:from|rpc|auth|storage)\b/i);
 });
 
-test("dedicated controller preserves explicit publication and destructive confirmations", () => {
+test("dedicated controller preserves explicit governed confirmations", () => {
   assert.match(controller, /هذا الإجراء سينشر السجل فوراً/);
   assert.match(controller, /اكتب كلمة حذف للتأكيد/);
-  assert.match(controller, /سيؤثر هذا المصطلح فوراً/);
+  assert.match(controller, /action\.confirmation\.required/);
+  assert.match(searchProjection, /سيؤثر هذا المصطلح فوراً/);
+  assert.match(controller, /StandardConfirmDialog/);
 });

@@ -21,11 +21,13 @@ test("partner review extraction preserves server-authoritative decisions", () =>
   assert.doesNotMatch(partner, /\.from\(|createClient|supabaseUrl/i);
 });
 
-test("search term editor preserves the existing review API boundary", () => {
+test("search term editor preserves the review API boundary and projected confirmation", () => {
   assert.match(editor, /\/api\/admin\/review/);
   assert.match(editor, /update_search_term/);
-  assert.match(editor, /term\.status === "active"/);
-  assert.match(editor, /window\.confirm/);
+  assert.match(editor, /term\.lifecycle\.editConfirmation\.required/);
+  assert.match(editor, /<StandardConfirmDialog/);
+  assert.doesNotMatch(editor, /term\.status\s*===\s*"active"/);
+  assert.doesNotMatch(editor, /window\.(confirm|prompt|alert)/);
   assert.match(editor, /data-governed-inspector="true"/);
   assert.doesNotMatch(editor, /\.from\(|createClient|supabaseUrl/i);
 });
