@@ -1154,7 +1154,7 @@ test("STEP2 TaxonomyWorkspace is restricted to admins and has no delete workflow
   const platform = readPlatformAndOperationsSource();
   const workspace = readFileSync(new URL("../app/ui/admin/TaxonomyWorkspace.tsx", import.meta.url), "utf8");
   assert.match(platform, /taxonomy: <TaxonomyWorkspace \/>/);
-  assert.match(platform, /canManageTaxonomy=\{adminData\.profile\.role === "admin"\}/);
+  assert.match(platform, /canManageTaxonomy=\{adminData\.operatorCapabilities\.canManageTaxonomy\}/);
   const shell = readFileSync(new URL("../app/ui/admin/OperationsWorkspaceShell.tsx", import.meta.url), "utf8");
   assert.match(shell, /value !== "taxonomy" \|\| canManageTaxonomy/);
   assert.match(workspace, /validate_change/);
