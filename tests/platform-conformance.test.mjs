@@ -33,6 +33,7 @@ const taxonomyUi = read("../app/ui/admin/TaxonomyWorkspace.tsx");
 const pendingAssetReviewUi = read("../app/ui/admin/PendingAssetReviewConsole.tsx");
 const mediaVaultUi = read("../app/ui/admin/MediaVaultWorkspace.tsx");
 const preservationUi = read("../app/ui/admin/governance/MediaPreservationProjection.tsx");
+const recordEditorUi = read("../app/ui/admin/ReviewRecordEditor.tsx");
 const mediaMigration = read("../supabase/migrations/043_closed_loop_media_asset_lifecycle.sql");
 const orphanMigration = read("../supabase/migrations/049_wave_a_zero_orphan_relationship_registry.sql");
 const reviewMigration = read("../supabase/migrations/056_phase1_atomic_review_transition.sql");
@@ -81,7 +82,7 @@ test("WINDOW_PROMPT_CONFIRM=0 across governed UI", () => {
     const source = readFileSync(file, "utf8");
     assert.doesNotMatch(source, /window\.(?:prompt|confirm|alert)\s*\(/, `browser dialog found in ${relative(root, file)}`);
   }
-  for (const source of [mediaVaultUi, taxonomyUi]) assert.match(source, /StandardConfirmDialog/);
+  for (const source of [mediaVaultUi, taxonomyUi, recordEditorUi]) assert.match(source, /StandardConfirmDialog/);
 });
 
 test("CLIENT_INFERRED_ACTIONS=0 for privileged Operations surfaces", () => {
@@ -120,7 +121,7 @@ test("DIRECT_LIFECYCLE_REST_WRITES=0 across governed lifecycle routes", () => {
   assert.match(partnerRoute, /rpc\/admin_transition_partner_submission/);
   assert.match(dataCenterRoute, /rpc\/admin_transition_data_import_batch/);
   assert.match(taxonomyRoute, /rpc\/admin_transition_taxonomy_status/);
-  assert.match(mediaVaultRoute, /mediaRpc\(admin\.token,\s*"admin_media_vault_action"/);
+  assert.match(mediaVaultRoute, /mediaRpc<[^>]+>\(admin\.token,\s*"admin_media_vault_action"/s);
   assert.match(pendingAssetReviewRoute, /mediaRpc<[^>]+>\(admin\.token,\s*"admin_media_review_pending_asset"/s);
   assert.match(mediaPurgeRoute, /admin_media_prepare_purge/);
   assert.match(mediaPurgeRoute, /admin_media_finalize_purge/);
