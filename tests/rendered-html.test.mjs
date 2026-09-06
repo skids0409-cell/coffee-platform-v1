@@ -446,12 +446,13 @@ test("operations center v3 keeps product data, batches, support, and search gove
   const records = readFileSync(new URL("../app/api/admin/records/route.ts", import.meta.url), "utf8");
   const review = readFileSync(new URL("../app/api/admin/review/route.ts", import.meta.url), "utf8");
   const dataCenter = readFileSync(new URL("../app/api/admin/data-center/route.ts", import.meta.url), "utf8");
+  const dataImportProjection = readFileSync(new URL("../lib/data-import-lifecycle-projection.ts", import.meta.url), "utf8");
   const phase2 = readFileSync(new URL("../supabase/migrations/035_phase2_record_capability_contract.sql", import.meta.url), "utf8");
   const recordForm = readFileSync(new URL("../app/ui/admin/RecordForm.tsx", import.meta.url), "utf8");
   assert.match(source, /حفظ والعودة إلى الطابور/);
   assert.match(recordForm, /المواصفات التالية صادرة من عقد الخادم/);
   assert.match(recordForm, /حبوب كاملة/);
-  assert.match(source, /حفظ في الأرشيف/);
+  assert.match(dataImportProjection, /label: "حفظ في الأرشيف"/);
   assert.match(source, /التقرير الأصلي المحفوظ/);
   assert.match(source, /درجة الأولوية \(1–100\)/);
   assert.match(records, /filter_definitions\?select=/);
@@ -462,7 +463,7 @@ test("operations center v3 keeps product data, batches, support, and search gove
   assert.match(review, /المواصفة المطلوبة مفقودة/);
   assert.match(dataCenter, /category_kind_mismatch/);
   assert.match(dataCenter, /archive_batch/);
-  assert.match(source, /مسح نهائي/);
+  assert.match(dataImportProjection, /label: "مسح نهائي"/);
   assert.match(source, /إدارة السجلات المنشورة/);
   assert.match(source, /العلامات التجارية/);
   assert.match(dataCenter, /delete_archived_batch/);
