@@ -1,0 +1,35 @@
+name: Support UI Type Fix
+
+on:
+  push:
+    branches:
+      - phase2/support-lifecycle-projection
+    paths:
+      - "scripts/fix-support-ui-type.mjs"
+      - ".github/workflows/support-ui-type-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: phase2/support-lifecycle-projection
+          fetch-depth: 1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.19.0
+      - name: Fix Support UI lifecycle type
+        run: node scripts/fix-support-ui-type.mjs
+      - name: Commit UI type fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/ui/admin/SupportWorkspace.tsx
+          git commit -m "fix(types): preserve Support lifecycle projection typing"
+          git push origin HEAD:phase2/support-lifecycle-projection
