@@ -292,7 +292,7 @@ export function DataCenterV2App() {
 
   if (state === "loading") return <div className={styles.root}><div className={styles.notice}>جارٍ تحميل Data Center V2 من العقود الخادمية الحالية…</div></div>;
 
-  if (state === "signed_out") return <div className={styles.root}><div className={styles.notice} data-tone="danger"><b>الجلسة الإدارية غير متاحة.</b><p>سجّل الدخول من مركز العمليات ثم عد إلى المسار الجديد.</p><Link className={styles.linkButton} href="/operations">العودة إلى تسجيل الدخول</Link></div></div>;
+  if (state === "signed_out") return <div className={styles.root}><div className={styles.notice} data-tone="danger"><b>الجلسة الإدارية غير متاحة.</b><p>سجّل الدخول من مركز العمليات ثم عد إلى المسار الجديد.</p><Link className={styles.linkButton} href="/operations?workspace=dashboard">العودة إلى تسجيل الدخول</Link></div></div>;
 
   if (state === "error") return <div className={styles.root}><div className={styles.notice} data-tone="danger"><b>تعذر تحميل مركز البيانات V2.</b><p>لم يتم تنفيذ أي mutation. أعد المحاولة بعد التحقق من جلسة الإدارة والخدمات الخادمية.</p><button className={styles.primary} type="button" onClick={() => { setState("loading"); void load().catch(() => setState("error")); }}>إعادة المحاولة</button></div></div>;
 
@@ -320,7 +320,7 @@ export function DataCenterV2App() {
             </div>
             <div className={styles.heroActions}>
               <button className={styles.secondary} type="button" onClick={() => void load().catch(() => setMessage("تعذر تحديث البيانات."))}>تحديث</button>
-              <Link className={styles.secondary} href="/operations">مركز العمليات</Link>
+              <Link className={styles.secondary} href="/operations?workspace=dashboard">مركز العمليات</Link>
             </div>
           </header>
 

@@ -166,7 +166,7 @@ test("smoke tests every declared product route", async () => {
 test("renders private operations and rights intake routes", async () => {
   const worker = await loadWorker("operations");
   const operations = await worker.fetch(
-    new Request("http://localhost/operations", {
+    new Request("http://localhost/operations?workspace=dashboard", {
       headers: { accept: "text/html" },
     }),
     runtimeEnv,
@@ -278,7 +278,7 @@ test("renders privacy, terms, and the governed operations shell", async () => {
   assert.match(termsHtml, /لا تدير سلة أو دفعاً أو طلباً/);
 
   const operations = await worker.fetch(
-    new Request("http://localhost/operations", { headers: { accept: "text/html" } }),
+    new Request("http://localhost/operations?workspace=dashboard", { headers: { accept: "text/html" } }),
     runtimeEnv,
     runtimeContext,
   );
@@ -310,7 +310,7 @@ test("admin review endpoints deny unauthenticated access and render login shell"
   assert.deepEqual(await api.json(), { authenticated: false });
 
   const operations = await worker.fetch(
-    new Request("http://localhost/operations", { headers: { accept: "text/html" } }),
+    new Request("http://localhost/operations?workspace=dashboard", { headers: { accept: "text/html" } }),
     runtimeEnv,
     runtimeContext,
   );
@@ -367,11 +367,13 @@ test("operations renders the protected data center workflow", async () => {
   );
   const html = await response.text();
   assert.equal(response.status, 200);
-  assert.match(html, /طابور المراجعة والاعتماد/);
-  const source = readPlatformAndOperationsSource();
-  assert.match(source, /إضافة سجل جديد/);
-  assert.match(source, /تحويل إلى مسودات/);
-  assert.match(source, /إرسال للمراجعة/);
+  assert.match(html, /data-data-center-version="v2"/);
+  assert.match(html, /جارٍ تحميل Data Center V2/);
+  assert.match(html, /data-manual-uuid="false"/);
+  const source = readFileSync(new URL("../app/ui/admin/data-center-v2/DataCenterV2App.tsx", import.meta.url), "utf8");
+  assert.match(source, /فحص وتجهيز الدفعة/);
+  assert.match(source, /إدخال الكتالوج/);
+  assert.match(source, /data-import.lifecycle.v1/);
 });
 
 test("data center import is staff-only and atomic", () => {

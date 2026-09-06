@@ -4,10 +4,14 @@ import fs from "node:fs";
 
 const route = fs.readFileSync("app/operations/page.tsx", "utf8");
 const controller = fs.readFileSync("app/ui/admin/OperationsController.tsx", "utf8");
+const v2 = fs.readFileSync("app/ui/admin/data-center-v2/DataCenterV2App.tsx", "utf8");
 const rollback = fs.readFileSync("app/ui/admin/data-center-v2/LegacyDataCenterRollback.tsx", "utf8");
 const searchProjection = fs.readFileSync("lib/search-term-lifecycle-projection.ts", "utf8");
 
-test("operations has a dedicated static route outside the catch-all platform host", () => {
+test("operations root is a server-authoritative Data Center V2 gateway", () => {
+  assert.match(route, /import \{ redirect \} from "next\/navigation"/);
+  assert.match(route, /if \(!workspace \|\| workspace === "entry" \|\| workspace === "imports"\)/);
+  assert.match(route, /redirect\(`\/operations\/data-center-v2\?view=\$\{view\}`\)/);
   assert.match(route, /OperationsController/);
   assert.doesNotMatch(route, /Platform/);
   assert.doesNotMatch(route, /\.\.\/ui\/Platform/);
@@ -34,6 +38,11 @@ test("operations controller composes governed modules and cuts Data Center over 
   assert.match(rollback, /DataCenterWorkspace/);
   assert.match(rollback, /CatalogDraftWorkspace/);
   assert.match(rollback, /rollback-only/);
+});
+
+test("V2 links back to the explicit operations dashboard instead of the redirected root", () => {
+  assert.match(v2, /href="\/operations\?workspace=dashboard"/);
+  assert.doesNotMatch(v2, /href="\/operations"/);
 });
 
 test("controller keeps lifecycle-changing actions on existing server APIs", () => {
