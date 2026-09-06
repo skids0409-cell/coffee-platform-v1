@@ -11,6 +11,7 @@ on:
       - "app/ui/admin/**"
       - "app/api/admin/review/route.ts"
       - "supabase/migrations/**"
+      - "scripts/phase1-review-wrapup.mjs"
       - "tests/**"
 
 permissions:
@@ -37,6 +38,17 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --include=dev
 
+      - name: Apply guarded Review and Approval wrap-up
+        run: node scripts/phase1-review-wrapup.mjs
+
+      - name: Persist wrap-up changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/ui/admin/OperationsController.tsx app/api/admin/review/route.ts tests/operations-workspace-extraction.test.mjs
+          git commit -m "refactor(review): standardize confirmations and atomic transition boundary"
+          git push origin HEAD:phase1/legacy-operations-cleanup
+
       - name: Verify legacy cleanup and partner isolation
         run: |
           ! grep -q 'type DataCenterBatch = {' app/ui/Platform.tsx
@@ -47,6 +59,9 @@ jobs:
           grep -q 'export function PartnerPortal()' app/ui/partner/PartnerPortal.tsx
           grep -q 'else if (page.kind === "partner") body = <PartnerPortal />;' app/ui/Platform.tsx
           grep -q 'export default function Platform' app/ui/Platform.tsx
+          ! grep -q 'window.prompt' app/ui/admin/ReviewWorkspace.tsx
+          ! grep -q 'window.confirm' app/ui/admin/ReviewWorkspace.tsx
+          grep -q 'rpc/admin_transition_review_record' app/api/admin/review/route.ts
 
       - name: Lint
         run: npm run lint
