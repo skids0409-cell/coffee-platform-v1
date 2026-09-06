@@ -1,14 +1,24 @@
 import { adminRest, requireStaff, sameOrigin } from "@/lib/supabase-admin";
+import { projectPartnerLifecycle } from "@/lib/partner-lifecycle-projection";
 
 const uuid = /^[0-9a-f-]{36}$/i;
 
-async function loadPartnerQueue(token: string) {
-  return adminRest<Array<Record<string, unknown>>>(token, "partner_submissions?select=id,organization_id,submitted_by,entity_type,target_entity_id,payload,status,review_note,reviewed_at,created_at,updated_at,organizations(name_ar,slug)&status=in.(submitted,in_review,needs_changes)&order=updated_at.desc&limit=200");
+async function loadPartnerQueue(token: string, role: string) {
+  const submissions = await adminRest<Array<Record<string, unknown>>>(token, "partner_submissions?select=id,organization_id,submitted_by,entity_type,target_entity_id,payload,status,review_note,reviewed_at,created_at,updated_at,organizations(name_ar,slug)&status=in.(submitted,in_review,needs_changes)&order=updated_at.desc&limit=200");
+  return submissions.map((row) => ({
+    ...row,
+    lifecycle: projectPartnerLifecycle({
+      status: String(row.status || ""),
+      role,
+      entityType: String(row.entity_type || ""),
+      payload: row.payload && typeof row.payload === "object" ? row.payload as Record<string, unknown> : {},
+    }),
+  }));
 }
 
-async function loadPartnerAdmin(token: string) {
+async function loadPartnerAdmin(token: string, role: string) {
   const [submissions, memberships, organizations] = await Promise.all([
-    loadPartnerQueue(token),
+    loadPartnerQueue(token, role),
     adminRest<Array<Record<string, unknown>>>(token, "organization_memberships?select=id,organization_id,user_id,member_role,status,approved_at,created_at,organizations(name_ar,slug)&order=created_at.desc&limit=300"),
     adminRest<Array<{ id: string; name_ar: string; slug: string }>>(token, "organizations?select=id,name_ar,slug&status=eq.published&order=name_ar.asc&limit=1500"),
   ]);
@@ -18,7 +28,7 @@ async function loadPartnerAdmin(token: string) {
 export async function GET(request: Request) {
   const staff = await requireStaff(request).catch(() => null);
   if (!staff) return Response.json({ authenticated: false }, { status: 401 });
-  return Response.json({ authenticated: true, ...(await loadPartnerAdmin(staff.token)) }, { headers: { "cache-control": "no-store" } });
+  return Response.json({ authenticated: true, ...(await loadPartnerAdmin(staff.token, staff.profile.role)) }, { headers: { "cache-control": "no-store" } });
 }
 
 export async function POST(request: Request) {
@@ -33,7 +43,7 @@ export async function POST(request: Request) {
     const organization = await adminRest<Array<{ id: string }>>(staff.token, `organizations?select=id&id=eq.${body.organizationId}&limit=1`);
     if (!profile[0] || !organization[0]) return Response.json({ updated: false, reason: "profile_or_organization_missing" }, { status: 404 });
     await adminRest(staff.token, "organization_memberships?on_conflict=organization_id,user_id", { method: "POST", headers: { "content-type": "application/json", prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ organization_id: body.organizationId, user_id: body.userId, member_role: body.memberRole, status: body.status, approved_by: staff.user.id, approved_at: body.status === "active" ? new Date().toISOString() : null }) });
-    return Response.json({ updated: true, ...(await loadPartnerAdmin(staff.token)) });
+    return Response.json({ updated: true, ...(await loadPartnerAdmin(staff.token, staff.profile.role)) });
   }
   const next = body?.status || "";
   const note = body?.reviewNote?.trim() || "";
@@ -46,7 +56,7 @@ export async function POST(request: Request) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ p_submission_id: body!.id, p_next_status: next, p_review_note: note || null }),
     });
-    return Response.json({ updated: true, ...(await loadPartnerAdmin(staff.token)), canonical: result?.canonical || null });
+    return Response.json({ updated: true, ...(await loadPartnerAdmin(staff.token, staff.profile.role)), canonical: result?.canonical || null });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message.includes("partner_submission_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
