@@ -16,3 +16,5 @@ test = test.replace(
   'test("V2 primary navigation never drops the operator into the legacy dashboard", () => {\n  assert.match(v2, /href="\\/operations\\/data-center-v2\\?view=overview"/);\n  assert.doesNotMatch(v2, />مركز العمليات<\\/Link>/);\n  assert.doesNotMatch(v2, /href="\\/operations\\?workspace=dashboard">مركز العمليات/);\n});'
 );
 fs.writeFileSync(testPath, test);
+
+// one-shot trigger
