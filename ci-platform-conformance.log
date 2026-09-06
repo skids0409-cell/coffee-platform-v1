@@ -1,0 +1,728 @@
+
+> coffee-platform-v1-private@0.1.0 test
+> npm run build && node --test tests/*.test.mjs
+
+
+> coffee-platform-v1-private@0.1.0 build
+> next build
+
+⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+▲ Next.js 16.2.6 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 4.0s
+  Running TypeScript ...
+  Finished TypeScript in 5.0s ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/39) ...
+  Generating static pages using 3 workers (9/39) 
+  Generating static pages using 3 workers (19/39) 
+  Generating static pages using 3 workers (29/39) 
+✓ Generating static pages using 3 workers (39/39) in 222ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /[...slug]
+├ ƒ /api/admin/architecture-conformance
+├ ƒ /api/admin/data-center
+├ ƒ /api/admin/login
+├ ƒ /api/admin/logout
+├ ƒ /api/admin/media
+├ ƒ /api/admin/media-vault
+├ ƒ /api/admin/media-vault/purge
+├ ƒ /api/admin/media-vault/review
+├ ƒ /api/admin/media/approve
+├ ƒ /api/admin/media/legal-cases
+├ ƒ /api/admin/media/reconcile-legacy
+├ ƒ /api/admin/media/validate
+├ ƒ /api/admin/partner-submissions
+├ ƒ /api/admin/preservation
+├ ƒ /api/admin/record-capabilities
+├ ƒ /api/admin/records
+├ ƒ /api/admin/review
+├ ƒ /api/admin/taxonomy
+├ ƒ /api/admin/work-queue
+├ ƒ /api/auth/password-reset
+├ ƒ /api/auth/recovery-session
+├ ƒ /api/auth/update-password
+├ ƒ /api/beta-feedback
+├ ƒ /api/health
+├ ƒ /api/hello
+├ ƒ /api/partner/login
+├ ƒ /api/partner/logout
+├ ƒ /api/partner/submissions
+├ ƒ /api/platform-status
+├ ƒ /api/public-content
+├ ƒ /api/public-directory
+├ ƒ /api/public-origins
+├ ƒ /api/public-products
+├ ƒ /api/public-search
+├ ƒ /api/rights-request
+├ ƒ /api/search-event
+├ ƒ /api/support-request
+├ ƒ /auth/callback
+├ ○ /forgot-password
+├ ○ /operations
+├ ○ /operations/inbox
+└ ƒ /update-password
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+✔ rights lifecycle enters the atomic RPC and has no direct write fallback (3.456265ms)
+✔ rights RPC locks state, authorizes verifier/admin and audits atomically (0.565844ms)
+✔ support mutations use purpose-built atomic RPCs without direct write fallbacks (0.692405ms)
+✔ support RPCs lock rows, preserve role boundaries and audit inside transactions (0.631173ms)
+✔ partner decisions use one atomic RPC and no longer orchestrate canonical writes in Next (0.392953ms)
+✔ partner atomic RPC owns canonical approval side effects and submission audit (0.460374ms)
+✔ data import staging and lifecycle writes use atomic RPC boundaries (0.492133ms)
+✔ data import RPCs atomize batch rows audit transitions and disposal (0.392432ms)
+✔ search governance uses atomic RPCs with no direct search_terms write fallback (1.633494ms)
+✔ search governance RPCs enforce locking roles and atomic audit (0.813928ms)
+✔ operational inbox remains a read-only projection while operational boundaries become atomic (0.357409ms)
+✔ Phase 2 routes governed record edits through RPC boundaries (1.351889ms)
+✔ records route has no direct writes to governed entity tables (0.751263ms)
+✔ Phase 2 RPCs are SECURITY INVOKER and authorization-gated (0.299933ms)
+✔ Phase 2 centralizes audit and quality issue resolution (0.221925ms)
+✔ Phase 2 governed entity branches do not mutate lifecycle state (1.550329ms)
+✔ catalog draft controller keeps server-authoritative draft creation (0.989993ms)
+✔ duplicate and stale-contract failures remain explicit (0.215275ms)
+✔ media handoff happens only after the draft exists (0.266913ms)
+✔ catalog draft controller has no direct database client (0.215064ms)
+✔ catalog draft workspace keeps the governed intake composition (1.011617ms)
+✔ catalog draft presentation separates product master from seller offer (0.209065ms)
+✔ catalog draft preserves source media and preview safeguards (0.995822ms)
+✔ catalog draft presentation contains no mutation fetch or direct database client (0.327274ms)
+✔ data center extraction preserves the batch lifecycle actions (1.296867ms)
+✔ data center preserves draft-only import safeguards (0.250758ms)
+✔ data center stays behind the existing server boundary (0.44425ms)
+✔ entry form remains an explicit migration slot until catalog intake is extracted (1.186059ms)
+✔ Phase 0 inventory records transition-boundary debt (1.381825ms)
+✔ canonical lifecycle registry implements EA baseline vocabulary (1.425971ms)
+✔ Phase 1 is additive and keeps legacy states behind mappings (0.385762ms)
+✔ governed object envelope is security-invoker read projection (0.381986ms)
+✔ governance registries use RLS and authenticated read-only access (0.449558ms)
+✔ object registry covers DAM Records Intake and core Entities (0.276377ms)
+✔ kernel revision is explicit (0.474466ms)
+✔ Media Vault visibly projects OAIS preservation and architecture conformance (1.28627ms)
+✔ preservation is directly composed inside governed Media Vault surfaces (0.440985ms)
+✔ Media Vault owns asset identity while OAIS provider performs only preservation and conformance reads (0.256016ms)
+✔ operator can create AIP, verify independent fixity, and create DIP from the inspector (0.223467ms)
+✔ preservation actions remain backend-authoritative and role governed (0.382277ms)
+✔ output status is sourced from authoritative preservation and conformance APIs (0.192971ms)
+✔ operations shell owns the unified governed workspace chrome (0.303147ms)
+✔ detects exact signatures instead of trusting extensions (1.052458ms)
+✔ accepts a purpose-compliant image and strips PNG metadata (8.422357ms)
+✔ rejects MIME mismatch and dimensions below the profile (3.080648ms)
+✔ checksum is deterministic and changes with immutable original bytes (2.514213ms)
+✔ rejects unsafe AVIF metadata instead of publishing it unstripped (1.013058ms)
+✔ Phase 4 activates an independent asset-centric Media Vault (1.853626ms)
+✔ Vault queues are computed from assets, links, rights and integrity (0.316968ms)
+✔ bulk actions are atomic, role checked and append-only audited (0.262696ms)
+✔ unlink and purge remain separate and search results cannot delete files (0.387675ms)
+✔ Vault explains metadata, validation, retention and purge outcomes (0.266693ms)
+✔ Migration 038 remains in source and preserves legacy media (0.310038ms)
+✔ legacy reconciliation validates real bytes and never fabricates rights (0.329307ms)
+✔ Migration 043 defines one time-aware lifecycle projection (0.291449ms)
+✔ active records and unsafe assets cannot cross lifecycle boundaries (0.332812ms)
+✔ permanent deletion is two-phase, approved and audit-preserving (0.512934ms)
+✔ legacy record editor can only unlink, never purge storage (0.51043ms)
+✔ operational work queue is read-only and source-owned (1.38507ms)
+✔ operational inbox deep-links back to owning workspaces (2.623378ms)
+✔ inbox interaction does not introduce a mutation bypass (0.386904ms)
+✔ operations center projects the enterprise architecture into four operator domains (0.955632ms)
+✔ all current Operations workspaces are assigned an architectural purpose (0.243237ms)
+✔ major data-center surfaces retain operations-center-v2 visual normalization (0.219982ms)
+✔ navigation metadata is emitted directly from shell state (1.129143ms)
+✔ architecture rail has responsive desktop, tablet, and mobile contracts (0.16552ms)
+✔ operations has a dedicated static route outside the catch-all platform host (1.150536ms)
+✔ operations controller composes all governed workspace modules (0.271299ms)
+✔ controller keeps lifecycle-changing actions on existing server APIs (4.360478ms)
+✔ dedicated controller preserves explicit publication and destructive confirmations (0.199281ms)
+✔ partner review extraction preserves server-authoritative decisions (1.267322ms)
+✔ search term editor preserves the existing review API boundary (0.260904ms)
+✔ quality issue inspector preserves the governed decision boundary (1.169084ms)
+✔ quality issue inspector does not bypass server authority (0.301044ms)
+✔ /operations is a dedicated route and never imports the legacy Platform host (1.202414ms)
+✔ the catch-all route explicitly refuses to serve /operations through Platform (1.096724ms)
+✔ the operations controller owns all active workspaces through the governed shell (0.268966ms)
+✔ admin operations modules cannot regress to Platform imports or compatibility DOM projection (6.470472ms)
+✔ search governance extraction preserves the operator contract (1.303286ms)
+✔ search governance remains controlled by the operations orchestrator (0.33813ms)
+✔ search governance preserves lifecycle actions without inventing new transitions (0.221544ms)
+✔ command dashboard presentation is extracted without mutation logic (1.155924ms)
+✔ dashboard keeps current command and quality signals (0.193011ms)
+✔ archive presentation is extracted with governed restore/delete callbacks (0.230708ms)
+✔ support desk extraction preserves the governed operational workflow (1.045358ms)
+✔ support desk keeps mutation authority on the existing review API (0.276306ms)
+✔ archived import extraction preserves restore and permanent-delete safeguards (0.160142ms)
+✔ archived import component does not bypass the server boundary (0.998086ms)
+✔ all Operations workspaces receive an explicit operator composition (1.395526ms)
+✔ workspace composition exposes the standard command-to-action operating path (0.220582ms)
+✔ visual normalization is scoped to the Operations center root (0.210938ms)
+✔ composition is state-driven and presentation-only (1.567745ms)
+✔ composition contract has responsive tablet and mobile layouts (0.254163ms)
+✔ Records presentation is available as an independent governed workspace (1.276756ms)
+✔ Records extraction preserves the current filter vocabulary (0.299792ms)
+✔ Review presentation is available as an independent governed workspace (0.24475ms)
+✔ Review extraction preserves governed decision boundaries (0.216838ms)
+✔ Extracted workspaces remain presentation-only (0.327695ms)
+✔ dedicated operations route owns the extracted runtime contract (0.209747ms)
+✔ operations shell owns the unified governed navigation contract (5.162299ms)
+✔ operations shell keeps taxonomy role-gated and never performs backend mutations (1.363678ms)
+✔ operations shell exposes every current operations workspace without silently dropping functions (1.714326ms)
+✔ shell emits architecture metadata directly without DOM discovery (1.370388ms)
+✔ legacy Operations runtime is physically absent while partner routing remains explicit (1.52423ms)
+✔ operations shell does not regress the unsupported ARIA description attribute (0.219551ms)
+✔ Review and Approval uses the standard confirmation boundary instead of browser prompts (0.281885ms)
+✔ core Review lifecycle mutations cross the atomic RPC boundary (0.376088ms)
+✔ atomic Review migration locks state, validates authority, and writes audit in one function (0.280233ms)
+✖ platform conformance manifest exposes all CI-gated rules (1.807056ms)
+✔ architecture endpoint separates kernel and platform conformance (0.31145ms)
+✖ legacy Operations remains removed while partner routing stays isolated (2.53183ms)
+✔ Review confirmation and lifecycle boundaries remain governed (0.376248ms)
+✔ Partner and Data Import orchestration stays behind atomic RPC boundaries (0.277779ms)
+✔ Taxonomy lifecycle uses its existing atomic transition RPC (0.242445ms)
+✔ operational inbox remains projection-only (0.196907ms)
+✔ renders development preview metadata (575.06099ms)
+✔ smoke tests every declared product route (577.726321ms)
+✔ renders private operations and rights intake routes (17.065169ms)
+✔ beta feedback endpoint fails closed without Supabase (9.622199ms)
+✔ renders a closed-beta task hub with device-local progress (9.380474ms)
+✔ renders help intake and a consent-based WhatsApp handoff (10.930308ms)
+✔ support requests are protected by explicit grants and staff-only RLS (0.280393ms)
+✔ renders privacy, terms, and the governed operations shell (17.931671ms)
+✔ launch catalog migration seeds a sourced Finder-ready minimum (0.639365ms)
+✔ admin review endpoints deny unauthenticated access and render login shell (9.905666ms)
+✔ partner portal renders and partner APIs fail closed without a session (15.938329ms)
+✔ partner schema enforces membership, workflow, and idempotency (0.270448ms)
+✔ organization CSV intake validates Airtable headers, warnings, and duplicates (2.149253ms)
+✔ operations renders the protected data center workflow (6.532176ms)
+✔ data center import is staff-only and atomic (0.281705ms)
+✔ participant intake preserves the selected organization role (0.186822ms)
+✔ data center API rejects unauthenticated reads and writes (8.782692ms)
+✔ admin REST accepts successful empty 201 responses (0.655479ms)
+✔ same-origin protection accepts Render proxy headers and rejects foreign sites (0.275656ms)
+✔ data center identifies Baghdad as the only current test market (2.88977ms)
+✔ operations center v2 covers editing, support processing, and all MVP data families (3.782938ms)
+✔ operations center v3 keeps product data, batches, support, and search governable (4.034347ms)
+✔ phase 2 serves one strict revisioned capability contract to Add and Manage (9.407505ms)
+✔ brand governance keeps coffee and equipment brands separated (0.295787ms)
+✔ operations center v5 separates product master data from seller offers (4.916698ms)
+✔ catalog media requires governed attestation and accessible alternative text (2.878954ms)
+✔ operations center v2 migration adds support workflow and atomic catalog drafts (0.183567ms)
+✔ coffee origins follow the draft review publication workflow (2.790461ms)
+✔ record review API rejects unauthenticated reads and edits (9.587055ms)
+✔ renders an explicit not-found experience for unknown routes (7.399855ms)
+✔ renders source-aligned in-review equipment pages (11.28649ms)
+✔ rights intake fails closed when Supabase is unavailable (5.352386ms)
+✔ public search fails closed without substituting demo records (4.904309ms)
+✔ search defaults to intent-aware result typing (3.222642ms)
+✔ Arabic search normalization handles common spelling differences (0.559054ms)
+✔ Baghdad directory keeps area options stable while published data loads (3.573482ms)
+✔ search quality event endpoint fails closed without Supabase (4.685219ms)
+✔ search governance migration enforces RLS and human approval (0.335477ms)
+✔ closed-beta search correction keeps generic coffee queries out of organizations (0.189677ms)
+✔ Baghdad directory cards summarize every published branch (1.057896ms)
+✔ published directory UI uses Arabic verification and role labels (0.965066ms)
+✔ public products API fails closed without exposing review records (4.365847ms)
+✔ origins and content APIs fail closed without substituting drafts (7.729874ms)
+✔ labels origin and article examples as internal unpublished previews (12.991042ms)
+✔ waits for published products before rendering the deduplicated review preview (13.557552ms)
+✔ renders category-specific product filters (13.938601ms)
+✔ keeps review product offers non-public and provides a return journey (25.343364ms)
+✔ renders bounded comparison and device-local favorites journeys (14.377113ms)
+✔ waits for the public directory before rendering deduplicated review records (13.826141ms)
+✔ renders the structured coffee finder journey (7.571144ms)
+✔ catalog entry supports checkbox multi-values and persists new-record media against the created id (5.340297ms)
+✔ operations center v3 separates workspaces and previews drafts before saving (3.010152ms)
+✔ operations aligns published taxonomy and exposes stateful rights actions (2.916411ms)
+✔ media intake bypasses the Sites body limit through signed private quarantine upload (2.944443ms)
+✔ seller catalog is prioritized and published records use aligned dropdown filters (2.73724ms)
+✔ catalog intake prevents duplicate products brands and seller offers (0.156977ms)
+✔ commerce keeps customers on internal seller pages and treats external links as evidence (4.454662ms)
+✔ seller offers remain distinct from master products and expose their own media (2.894557ms)
+✔ catalog drafts report the exact missing field and allow manual brand intake (2.656368ms)
+✔ global navigation exposes working menu back and contextual comparison (2.548435ms)
+✔ catalog originals are quarantined before server-side validation (0.261685ms)
+✔ catalog media uses a carousel and exact full-name search suppresses alias noise (2.892895ms)
+✔ operations fixes media loading and separates coffee form from seller filtering (3.10168ms)
+✔ directory support and archives follow the governed operational workflow (3.827165ms)
+✔ media vault is independent from taxonomy navigation and remains controller-owned (0.373533ms)
+✔ quality desk distinguishes physical venues and processes unlinked findings (3.036201ms)
+✔ STEP2 taxonomy migrations harden privileges and expose governed RPCs (0.260684ms)
+✔ STEP2 taxonomy writes are admin-only while its staff tree is read-only (0.143427ms)
+✔ STEP2 taxonomy input validation rejects malformed and duplicate definitions (1.04734ms)
+✔ STEP2 TaxonomyWorkspace is restricted to admins and has no delete workflow (2.901438ms)
+✔ Phase 5 migration makes the legacy attachment outcome unambiguously attached (0.180623ms)
+✔ Phase 5 product Add/Edit uses the server-owned capability contract atomically (2.675828ms)
+✔ Phase 5 attribute serialization rejects malformed and duplicate values (0.535789ms)
+✔ password recovery renders dedicated production-safe pages and fails closed (27.742275ms)
+✔ password recovery supports Supabase recovery links and active-admin authorization (0.658624ms)
+✔ recovery fragments are consumed safely from any Render landing page (0.170377ms)
+✔ GitHub CI gates Phase branches before Render deployment (0.247624ms)
+✔ Render blueprint deploys main only after CI with the public Supabase URL and externalized key (0.276767ms)
+✔ Node health endpoint fails closed when Render environment is incomplete (5.001857ms)
+✔ record editor controller preserves authoritative record mutations (1.286421ms)
+✔ published edits and revision restore retain explicit confirmation (0.224599ms)
+✔ media lifecycle stays intent-upload-validate and never publishes directly (0.402778ms)
+✔ record editor media unlink preserves the Media Vault original (1.089814ms)
+✔ record editor extraction retains the governed inspector contract (1.442066ms)
+✔ record editor preserves entity-specific editing without merging product and seller scope (0.247874ms)
+✔ record editor presentation delegates mutations to its controller (1.944053ms)
+✔ record editor keeps source, media and revision safeguards visible (0.272071ms)
+✔ Review & Approval directly composes the pending asset audit sub-view (2.903571ms)
+✔ Contextual Inspector keeps uploader, timestamp and decisions on-screen (0.255365ms)
+✔ Pending asset decisions are role checked and append-only audited (0.197878ms)
+✔ Zero-orphan traceability is enforced at ingestion and backfilled (0.398381ms)
+✔ Approval requires technical evidence and a real assignment target (0.330388ms)
+✔ Rejection enters governed quarantine with a 30-day timer (0.188865ms)
+✔ Phase 3 registers and enforces polymorphic governed relationships (1.285479ms)
+✔ Phase 3 canonical target validator covers existing source-link target families (0.294014ms)
+✔ Phase 4 creates one canonical append-only audit stream (0.326963ms)
+✔ Phase 4 retention does not invent enterprise legal durations (0.237419ms)
+✔ Phase 4 legal holds are verifier-admin governed and audited (0.286152ms)
+✔ Phase 5 exposes the shared governed workspace design system (1.543349ms)
+✔ Operations route and workspaces no longer depend on compatibility bridges (0.40482ms)
+✔ Records and Entities use the direct governed workspace contract (0.204779ms)
+✔ Review directly owns pending asset audit and Media directly owns preservation (0.349598ms)
+✔ Record editor is now a direct contextual inspector (0.190728ms)
+✔ Wave B does not duplicate or bypass backend lifecycle mutation contracts (0.212431ms)
+✔ Phase 7 implements OAIS archival and dissemination package contracts (1.323026ms)
+✔ OAIS preservation history is immutable and governance audited (0.257869ms)
+✔ Preservation APIs preserve role and same-origin transition boundaries (0.312962ms)
+✔ Phase 8 exposes a machine-readable architecture conformance gate (0.302296ms)
+✔ Conformance gate keeps Supabase security controls explicit (0.287044ms)
+✔ Operator UI viewpoint remains tied to the shared Wave B workspace contract (0.196566ms)
+✔ Architecture conformance API is staff-only and read-only (0.191089ms)
+ℹ tests 226
+ℹ suites 0
+ℹ pass 224
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2248.473238
+
+✖ failing tests:
+
+test at tests/platform-conformance.test.mjs:33:1
+✖ platform conformance manifest exposes all CI-gated rules (1.807056ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  12 !== 11
+  
+      at TestContext.<anonymous> (file:///home/runner/work/coffee-platform-v1/coffee-platform-v1/tests/platform-conformance.test.mjs:36:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 12,
+    expected: 11,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/platform-conformance.test.mjs:47:1
+✖ legacy Operations remains removed while partner routing stays isolated (2.53183ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /kind:\s*"operations"/. Input:
+  
+  '"use client";\n' +
+    '/* eslint-disable @next/next/no-img-element */\n' +
+    'import Link from "next/link";\n' +
+    'import { useEffect, useMemo, useRef, useState } from "react";\n' +
+    'import { PartnerPortal } from "@/app/ui/partner/PartnerPortal";\n' +
+    'import {\n' +
+    '  allSearchTypes,\n' +
+    '  normalizeSearchText,\n' +
+    '  type SearchEntityType,\n' +
+    '  type SearchIntent,\n' +
+    '  type SearchRequestType,\n' +
+    '} from "@/lib/search-governance";\n' +
+    '\n' +
+    'type PageDef = {\n' +
+    '  id: string;\n' +
+    '  path: string;\n' +
+    '  title: string;\n' +
+    '  eyebrow: string;\n' +
+    '  desc: string;\n' +
+    '  kind: string;\n' +
+    '  tags?: string[];\n' +
+    '};\n' +
+    'const pages: PageDef[] = [\n' +
+    '  {\n' +
+    '    id: "PG-001",\n' +
+    '    path: "/",\n' +
+    '    title: "كل ما تحتاجه للقهوة… في مكان واحد",\n' +
+    '    eyebrow: "بغداد أولاً",\n' +
+    '    desc: "اكتشف القهوة والمعدات والجهات الموثقة، وقارن الخيارات وتابعها داخل صفحات البائعين في قهوتنا.",\n' +
+    '    kind: "home",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-002",\n' +
+    '    path: "/coffee",\n' +
+    '    title: "دليل القهوة المحمصة",\n' +
+    '    eyebrow: "القهوة",\n' +
+    '    desc: "قهوة فلتر وإسبريسو وأومني وتركية ببيانات واضحة تساعدك على الاختيار.",\n' +
+    '    kind: "listing",\n' +
+    '    tags: ["فلتر", "إسبريسو", "أومني", "تركية"],\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-003",\n' +
+    '    path: "/coffee/filter",\n' +
+    '    title: "قهوة الفلتر",\n' +
+    '    eyebrow: "القهوة",\n' +
+    '    desc: "خيارات خفيفة وواضحة النكهات مناسبة لأدوات التقطير.",\n' +
+    '    kind: "listing",\n' +
+    '    tags: ["فاكهية", "زهرية", "متوازنة"],\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-004",\n' +
+    '    path: "/coffee/espresso",\n' +
+    '    title: "قهوة الإسبريسو",\n' +
+    '    eyebrow: "القهوة",\n' +
+    '    desc: "تحميصات مناسبة للإسبريسو والمشروبات بالحليب.",\n' +
+    '    kind: "listing",\n' +
+    '    tags: ["شوكولاتة", "مكسرات", "فاكهية"],\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-005",\n' +
+    '    path: "/coffee/omni",\n' +
+    '    title: "قهوة أومني",\n' +
+    '    eyebrow: "القهوة",\n' +
+    '    desc: "تحميصات مرنة تناسب الفلتر والإسبريسو معاً.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-006",\n' +
+    '    path: "/coffee/turkish",\n' +
+    '    title: "القهوة التركية",\n' +
+    '    eyebrow: "القهوة",\n' +
+    '    desc: "قهوة مطحونة بدرجة مناسبة للتحضير التركي.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-007",\n' +
+    '    path: "/coffee/finder",\n' +
+    '    title: "ساعدني أختار القهوة",\n' +
+    '    eyebrow: "Coffee Finder",\n' +
+    '    desc: "أربع إجابات قصيرة تنتج ترشيحات مفهومة وقابلة للتعديل.",\n' +
+    '    kind: "finder",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-008",\n' +
+    '    path: "/coffee/finder/results",\n' +
+    '    title: "نتائج اختيارك",\n' +
+    '    eyebrow: "ترشيحاتك",\n' +
+    '    desc: "رتبنا القهوة حسب توافقها مع طريقة شربك ونكهاتك المفضلة.",\n' +
+    '    kind: "results",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-009",\n' +
+    '    path: "/coffee/sumer-ethiopia",\n' +
+    '    title: "سومر — إثيوبيا قوجي",\n' +
+    '    eyebrow: "تفاصيل القهوة",\n' +
+    '    desc: "قهوة فلتر فاكهية، معالجة طبيعية، بإيحاءات التوت والكاكاو.",\n' +
+    '    kind: "coffee-detail",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-010",\n' +
+    '    path: "/coffee/sumer-ethiopia/offers",\n' +
+    '    title: "أماكن توفر القهوة",\n' +
+    '    eyebrow: "العروض",\n' +
+    '    desc: "قارن البائع والسعر وتاريخ التحقق ثم افتح صفحة البائع داخل قهوتنا.",\n' +
+    '    kind: "offers",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-011",\n' +
+    '    path: "/equipment",\n' +
+    '    title: "معدات القهوة",\n' +
+    '    eyebrow: "المعدات",\n' +
+    '    desc: "مطاحن ومكائن وأدوات تحضير ومكائن تحميص وعناية وصيانة.",\n' +
+    '    kind: "families",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-012",\n' +
+    '    path: "/equipment/grinders",\n' +
+    '    title: "مطاحن القهوة",\n' +
+    '    eyebrow: "المعدات",\n' +
+    '    desc: "مطاحن يدوية وكهربائية للإسبريسو والفلتر والاستخدام المختلط.",\n' +
+    '    kind: "listing",\n' +
+    '    tags: ["يدوية", "كهربائية", "إسبريسو", "فلتر"],\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-013",\n' +
+    '    path: "/equipment/grinders/manual",\n' +
+    '    title: "المطاحن اليدوية",\n' +
+    '    eyebrow: "المطاحن",\n' +
+    '    desc: "خيارات محمولة بتحكم مباشر في درجة الطحن.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-014",\n' +
+    '    path: "/equipment/grinders/electric",\n' +
+    '    title: "المطاحن الكهربائية",\n' +
+    '    eyebrow: "المطاحن",\n' +
+    '    desc: "مطاحن منزلية وتجارية بسرعات وأنظمة ضبط مختلفة.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-015",\n' +
+    '    path: "/equipment/grinders/df54-v4",\n' +
+    '    title: "مطحنة DF54 V4",\n' +
+    '    eyebrow: "تفاصيل المنتج",\n' +
+    '    desc: "مطحنة كهربائية أحادية الجرعة بشفرات مسطحة 54 مم وضبط تدريجي دون درجات.",\n' +
+    '    kind: "product",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-016",\n' +
+    '    path: "/equipment/brew-tools",\n' +
+    '    title: "أدوات التحضير",\n' +
+    '    eyebrow: "المعدات",\n' +
+    '    desc: "قطارات وغلايات وموازين وسيرفرات وفلاتر ومؤقتات.",\n' +
+    '    kind: "listing",\n' +
+    '    tags: ["أدوات التقطير", "الغلايات", "الموازين", "الفلاتر", "أوعية التقديم والموقتات"],\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-017",\n' +
+    '    path: "/equipment/brew-tools/drippers",\n' +
+    '    title: "أدوات التقطير",\n' +
+    '    eyebrow: "أدوات التحضير",\n' +
+    '    desc: "قارن المادة والسعة ونمط التدفق والفلتر المضمن.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-018",\n' +
+    '    path: "/equipment/brew-tools/kettles",\n' +
+    '    title: "الغلايات",\n' +
+    '    eyebrow: "أدوات التحضير",\n' +
+    '    desc: "غلايات عادية ومتحكمة بالحرارة للتحضير الدقيق.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-019",\n' +
+    '    path: "/equipment/brew-tools/scales",\n' +
+    '    title: "الموازين",\n' +
+    '    eyebrow: "أدوات التحضير",\n' +
+    '    desc: "موازين بدقة وتوقيت وسعة تناسب الاستخدام المنزلي والمهني.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-020",\n' +
+    '    path: "/equipment/brew-tools/filters",\n' +
+    '    title: "فلاتر القهوة",\n' +
+    '    eyebrow: "أدوات التحضير",\n' +
+    '    desc: "ورقية ومعدنية وقماشية حسب الأداة والحجم.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-021",\n' +
+    '    path: "/equipment/brew-tools/servers",\n' +
+    '    title: "أوعية التقديم",\n' +
+    '    eyebrow: "أدوات التحضير",\n' +
+    '    desc: "أحجام وخامات متوافقة مع أدوات التقطير.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-022",\n' +
+    '    path: "/equipment/brew-tools/timers",\n' +
+    '    title: "المؤقتات",\n' +
+    '    eyebrow: "أدوات التحضير",\n' +
+    '    desc: "توقيت مستقل أو مدمج لرفع اتساق التحضير.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-023",\n' +
+    '    path: "/equipment/brew-machines",\n' +
+    '    title: "مكائن تحضير القهوة",\n' +
+    '    eyebrow: "المعدات",\n' +
+    '    desc: "مكائن إسبريسو وتقطير وكبسولات للاستخدام المنزلي والتجاري.",\n' +
+    '    kind: "listing",\n' +
+    '    tags: ["إسبريسو", "قهوة مقطرة", "كبسولات"],\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-024",\n' +
+    '    path: "/equipment/brew-machines/espresso",\n' +
+    '    title: "مكائن الإسبريسو",\n' +
+    '    eyebrow: "مكائن التحضير",\n' +
+    '    desc: "قارن نوع المجموعة والمرجل والتحكم والقدرة والخدمة.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-025",\n' +
+    '    path: "/equipment/brew-machines/filter",\n' +
+    '    title: "مكائن القهوة المقطرة",\n' +
+    '    eyebrow: "مكائن التحضير",\n' +
+    '    desc: "مكائن منزلية وتجارية بسعات وبرامج مختلفة.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-026",\n' +
+    '    path: "/equipment/brew-machines/capsule",\n' +
+    '    title: "مكائن الكبسولات",\n' +
+    '    eyebrow: "مكائن التحضير",\n' +
+    '    desc: "أنظمة مدمجة للاستخدام السريع مع توضيح توافق الكبسولات.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-027",\n' +
+    '    path: "/equipment/roasting-machines",\n' +
+    '    title: "مكائن التحميص",\n' +
+    '    eyebrow: "المعدات",\n' +
+    '    desc: "مكائن عينات ومنزلية وتجارية مع مواصفات الحرارة والطاقة والخدمة.",\n' +
+    '    kind: "listing",\n' +
+    '    tags: ["عينات", "منزلية", "تجارية"],\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-028",\n' +
+    '    path: "/equipment/roasting-machines/sample",\n' +
+    '    title: "مكائن تحميص العينات",\n' +
+    '    eyebrow: "مكائن التحميص",\n' +
+    '    desc: "معدات صغيرة لتقييم العينات وتطوير ملفات التحميص.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-029",\n' +
+    '    path: "/equipment/roasting-machines/home",\n' +
+    '    title: "مكائن التحميص المنزلية",\n' +
+    '    eyebrow: "مكائن التحميص",\n' +
+    '    desc: "سعات صغيرة وتحكم مبسط للاستخدام المنزلي والتجريبي.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-030",\n' +
+    '    path: "/equipment/roasting-machines/commercial",\n' +
+    '    title: "مكائن التحميص التجارية",\n' +
+    '    eyebrow: "مكائن التحميص",\n' +
+    '    desc: "قارن سعة الدفعة ومصدر الطاقة والتحكم والتركيب والصيانة.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-031",\n' +
+    '    path: "/equipment/roasting-machines/kuban-supreme-3",\n' +
+    '    title: "ماكينة تحميص Kuban Supreme 3",\n' +
+    '    eyebrow: "تفاصيل ماكينة التحميص",\n' +
+    '    desc: "سعة قصوى 3 كغم وإنتاج معلن يصل إلى 12 كغم/ساعة، بلا عرض محلي موثق في بغداد حتى الآن.",\n' +
+    '    kind: "roaster-detail",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-061",\n' +
+    '    path: "/equipment/grinders/1zpresso-j-ultra",\n' +
+    '    title: "مطحنة 1Zpresso J-Ultra",\n' +
+    '    eyebrow: "تفاصيل المنتج",\n' +
+    '    desc: "مطحنة يدوية بشفرات مخروطية 48 مم وضبط 8 ميكرون لكل نقرة، محسّنة للإسبريسو.",\n' +
+    '    kind: "product",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-032",\n' +
+    '    path: "/equipment/care",\n' +
+    '    title: "العناية والصيانة",\n' +
+    '    eyebrow: "المعدات",\n' +
+    '    desc: "معالجة المياه ومواد التنظيف وقطع الصيانة والتنظيم.",\n' +
+    '    kind: "listing",\n' +
+    '    tags: ["معالجة المياه", "مواد التنظيف", "قطع الصيانة", "منظمات ركن القهوة"],\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-033",\n' +
+    '    path: "/equipment/care/water",\n' +
+    '    title: "معالجة المياه",\n' +
+    '    eyebrow: "العناية والصيانة",\n' +
+    '    desc: "فلاتر وحلول قياس وحماية للمعدات وتحسين الاستخلاص.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-034",\n' +
+    '    path: "/equipment/care/cleaning",\n' +
+    '    title: "مواد التنظيف",\n' +
+    '    eyebrow: "العناية والصيانة",\n' +
+    '    desc: "منظفات للمجموعات والمطاحن وأنظمة الحليب والأسطح.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-035",\n' +
+    '    path: "/equipment/care/parts",\n' +
+    '    title: "قطع الصيانة",\n' +
+    '    eyebrow: "العناية والصيانة",\n' +
+    '    desc: "قطع استبدال موثقة التوافق مع الموديلات.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-036",\n' +
+    '    path: "/equipment/care/organizers",\n' +
+    '    title: "منظمات ركن القهوة",\n' +
+    '    eyebrow: "العناية والصيانة",\n' +
+    '    desc: "حلول ترتيب الأدوات والملحقات ومساحة العمل.",\n' +
+    '    kind: "listing",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-037",\n' +
+    '    path: "/directory",\n' +
+    '    title: "دليل جهات القهوة في بغداد",\n' +
+    '    eyebrow: "الدليل",\n' +
+    '    desc: "محامص ومقاهٍ ومورّدو معدات وبائعون ببيانات مراجعة وحقوق واضحة.",\n' +
+    '    kind: "directory",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-038",\n' +
+    '    path: "/directory/roasters",\n' +
+    '    title: "المحامص في بغداد",\n' +
+    '    eyebrow: "الدليل",\n' +
+    '    desc: "جهات تحمص أو تبيع القهوة المحمصة مع الفروع وقنوات التواصل.",\n' +
+    '    kind: "org-list",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-039",\n' +
+    '    path: "/directory/cafes",\n' +
+    '    title: "المقاهي في بغداد",\n' +
+    '    eyebrow: "الدليل",\n' +
+    '    desc: "مقاهٍ مختصة قابلة للاكتشاف حسب المنطقة والخدمات.",\n' +
+    '    kind: "org-list",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-040",\n' +
+    '    path: "/directory/equipment-suppliers",\n' +
+    '    title: "مورّدو المعدات",\n' +
+    '    eyebrow: "الدليل",\n' +
+    '    desc: "معدات وتركيب وضمان وصيانة وقطع غيار بحسب الأدلة المتاحة.",\n' +
+    '    kind: "org-list",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-041",\n' +
+    '    path: "/directory/sellers",\n' +
+    '    title: "البائعون والمتاجر",\n' +
+    '    eyebrow: "الدليل",\n' +
+    '    desc: "قنوات إحالة موثقة لمنتجات داخلة في نطاق V1.",\n' +
+    '    kind: "org-list",\n' +
+    '  },\n' +
+    '  {\n' +
+    '    id: "PG-042",\n' +
+    '    path: "/directory/sumer",\n' +
+    '    title: "محمصة سومر",\n' +
+    '    eyebrow: "جهة موثقة T2",\n' +
+    '    desc: "محمصة بغدادية مع فرعين وقهوة محمصة وقنوات'... 160072 more characters
+  
+      at TestContext.<anonymous> (file:///home/runner/work/coffee-platform-v1/coffee-platform-v1/tests/platform-conformance.test.mjs:49:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '"use client";\n/* eslint-disable @next/next/no-img-element */\nimport Link from "next/link";\nimport { useEffect, useMemo, useRef, useState } from "react";\nimport { PartnerPortal } from "@/app/ui/partner/PartnerPortal";\nimport {\n  allSearchTypes,\n  normalizeSearchText,\n  type SearchEntityType,\n  type SearchIntent,\n  type SearchRequestType,\n} from "@/lib/search-governance";\n\ntype PageDef = {\n  id: string;\n  path: string;\n  title: string;\n  eyebrow: string;\n  desc: string;\n  kind: string;\n  tags?: string[];\n};\nconst pages: PageDef[] = [\n  {\n    id: "PG-001",\n    path: "/",\n    title: "كل ما تحتاجه للقهوة… في مكان واحد",\n    eyebrow: "بغداد أولاً",\n    desc: "اكتشف القهوة والمعدات والجهات الموثقة، وقارن الخيارات وتابعها داخل صفحات البائعين في قهوتنا.",\n    kind: "home",\n  },\n  {\n    id: "PG-002",\n    path: "/coffee",\n    title: "دليل القهوة المحمصة",\n    eyebrow: "القهوة",\n    desc: "قهوة فلتر وإسبريسو وأومني وتركية ببيانات واضحة تساعدك على الاختيار.",\n    kind: "listing",\n    tags: ["فلتر", "إسبريسو", "أومني", "تركية"],\n  },\n  {\n    id: "PG-003",\n    path: "/coffee/filter",\n    title: "قهوة الفلتر",\n    eyebrow: "القهوة",\n    desc: "خيارات خفيفة وواضحة النكهات مناسبة لأدوات التقطير.",\n    kind: "listing",\n    tags: ["فاكهية", "زهرية", "متوازنة"],\n  },\n  {\n    id: "PG-004",\n    path: "/coffee/espresso",\n    title: "قهوة الإسبريسو",\n    eyebrow: "القهوة",\n    desc: "تحميصات مناسبة للإسبريسو والمشروبات بالحليب.",\n    kind: "listing",\n    tags: ["شوكولاتة", "مكسرات", "فاكهية"],\n  },\n  {\n    id: "PG-005",\n    path: "/coffee/omni",\n    title: "قهوة أومني",\n    eyebrow: "القهوة",\n    desc: "تحميصات مرنة تناسب الفلتر والإسبريسو معاً.",\n    kind: "listing",\n  },\n  {\n    id: "PG-006",\n    path: "/coffee/turkish",\n    title: "القهوة التركية",\n    eyebrow: "القهوة",\n    desc: "قهوة مطحونة بدرجة مناسبة للتحضير التركي.",\n    kind: "listing",\n  },\n  {\n    id: "PG-007",\n    path: "/coffee/finder",\n    title: "ساعدني أختار القهوة",\n    eyebrow: "Coffee Finder",\n    desc: "أربع إجابات قصيرة تنتج ترشيحات مفهومة وقابلة للتعديل.",\n    kind: "finder",\n  },\n  {\n    id: "PG-008",\n    path: "/coffee/finder/results",\n    title: "نتائج اختيارك",\n    eyebrow: "ترشيحاتك",\n    desc: "رتبنا القهوة حسب توافقها مع طريقة شربك ونكهاتك المفضلة.",\n    kind: "results",\n  },\n  {\n    id: "PG-009",\n    path: "/coffee/sumer-ethiopia",\n    title: "سومر — إثيوبيا قوجي",\n    eyebrow: "تفاصيل القهوة",\n    desc: "قهوة فلتر فاكهية، معالجة طبيعية، بإيحاءات التوت والكاكاو.",\n    kind: "coffee-detail",\n  },\n  {\n    id: "PG-010",\n    path: "/coffee/sumer-ethiopia/offers",\n    title: "أماكن توفر القهوة",\n    eyebrow: "العروض",\n    desc: "قارن البائع والسعر وتاريخ التحقق ثم افتح صفحة البائع داخل قهوتنا.",\n    kind: "offers",\n  },\n  {\n    id: "PG-011",\n    path: "/equipment",\n    title: "معدات القهوة",\n    eyebrow: "المعدات",\n    desc: "مطاحن ومكائن وأدوات تحضير ومكائن تحميص وعناية وصيانة.",\n    kind: "families",\n  },\n  {\n    id: "PG-012",\n    path: "/equipment/grinders",\n    title: "مطاحن القهوة",\n    eyebrow: "المعدات",\n    desc: "مطاحن يدوية وكهربائية للإسبريسو والفلتر والاستخدام المختلط.",\n    kind: "listing",\n    tags: ["يدوية", "كهربائية", "إسبريسو", "فلتر"],\n  },\n  {\n    id: "PG-013",\n    path: "/equipment/grinders/manual",\n    title: "المطاحن اليدوية",\n    eyebrow: "المطاحن",\n    desc: "خيارات محمولة بتحكم مباشر في درجة الطحن.",\n    kind: "listing",\n  },\n  {\n    id: "PG-014",\n    path: "/equipment/grinders/electric",\n    title: "المطاحن الكهربائية",\n    eyebrow: "المطاحن",\n    desc: "مطاحن منزلية وتجارية بسرعات وأنظمة ضبط مختلفة.",\n    kind: "listing",\n  },\n  {\n    id: "PG-015",\n    path: "/equipment/grinders/df54-v4",\n    title: "مطحنة DF54 V4",\n    eyebrow: "تفاصيل المنتج",\n    desc: "مطحنة كهربائية أحادية الجرعة بشفرات مسطحة 54 مم وضبط تدريجي دون درجات.",\n    kind: "product",\n  },\n  {\n    id: "PG-016",\n    path: "/equipment/brew-tools",\n    title: "أدوات التحضير",\n    eyebrow: "المعدات",\n    desc: "قطارات وغلايات وموازين وسيرفرات وفلاتر ومؤقتات.",\n    kind: "listing",\n    tags: ["أدوات التقطير", "الغلايات", "الموازين", "الفلاتر", "أوعية التقديم والموقتات"],\n  },\n  {\n    id: "PG-017",\n    path: "/equipment/brew-tools/drippers",\n    title: "أدوات التقطير",\n    eyebrow: "أدوات التحضير",\n    desc: "قارن المادة والسعة ونمط التدفق والفلتر المضمن.",\n    kind: "listing",\n  },\n  {\n    id: "PG-018",\n    path: "/equipment/brew-tools/kettles",\n    title: "الغلايات",\n    eyebrow: "أدوات التحضير",\n    desc: "غلايات عادية ومتحكمة بالحرارة للتحضير الدقيق.",\n    kind: "listing",\n  },\n  {\n    id: "PG-019",\n    path: "/equipment/brew-tools/scales",\n    title: "الموازين",\n    eyebrow: "أدوات التحضير",\n    desc: "موازين بدقة وتوقيت وسعة تناسب الاستخدام المنزلي والمهني.",\n    kind: "listing",\n  },\n  {\n    id: "PG-020",\n    path: "/equipment/brew-tools/filters",\n    title: "فلاتر القهوة",\n    eyebrow: "أدوات التحضير",\n    desc: "ورقية ومعدنية وقماشية حسب الأداة والحجم.",\n    kind: "listing",\n  },\n  {\n    id: "PG-021",\n    path: "/equipment/brew-tools/servers",\n    title: "أوعية التقديم",\n    eyebrow: "أدوات التحضير",\n    desc: "أحجام وخامات متوافقة مع أدوات التقطير.",\n    kind: "listing",\n  },\n  {\n    id: "PG-022",\n    path: "/equipment/brew-tools/timers",\n    title: "المؤقتات",\n    eyebrow: "أدوات التحضير",\n    desc: "توقيت مستقل أو مدمج لرفع اتساق التحضير.",\n    kind: "listing",\n  },\n  {\n    id: "PG-023",\n    path: "/equipment/brew-machines",\n    title: "مكائن تحضير القهوة",\n    eyebrow: "المعدات",\n    desc: "مكائن إسبريسو وتقطير وكبسولات للاستخدام المنزلي والتجاري.",\n    kind: "listing",\n    tags: ["إسبريسو", "قهوة مقطرة", "كبسولات"],\n  },\n  {\n    id: "PG-024",\n    path: "/equipment/brew-machines/espresso",\n    title: "مكائن الإسبريسو",\n    eyebrow: "مكائن التحضير",\n    desc: "قارن نوع المجموعة والمرجل والتحكم والقدرة والخدمة.",\n    kind: "listing",\n  },\n  {\n    id: "PG-025",\n    path: "/equipment/brew-machines/filter",\n    title: "مكائن القهوة المقطرة",\n    eyebrow: "مكائن التحضير",\n    desc: "مكائن منزلية وتجارية بسعات وبرامج مختلفة.",\n    kind: "listing",\n  },\n  {\n    id: "PG-026",\n    path: "/equipment/brew-machines/capsule",\n    title: "مكائن الكبسولات",\n    eyebrow: "مكائن التحضير",\n    desc: "أنظمة مدمجة للاستخدام السريع مع توضيح توافق الكبسولات.",\n    kind: "listing",\n  },\n  {\n    id: "PG-027",\n    path: "/equipment/roasting-machines",\n    title: "مكائن التحميص",\n    eyebrow: "المعدات",\n    desc: "مكائن عينات ومنزلية وتجارية مع مواصفات الحرارة والطاقة والخدمة.",\n    kind: "listing",\n    tags: ["عينات", "منزلية", "تجارية"],\n  },\n  {\n    id: "PG-028",\n    path: "/equipment/roasting-machines/sample",\n    title: "مكائن تحميص العينات",\n    eyebrow: "مكائن التحميص",\n    desc: "معدات صغيرة لتقييم العينات وتطوير ملفات التحميص.",\n    kind: "listing",\n  },\n  {\n    id: "PG-029",\n    path: "/equipment/roasting-machines/home",\n    title: "مكائن التحميص المنزلية",\n    eyebrow: "مكائن التحميص",\n    desc: "سعات صغيرة وتحكم مبسط للاستخدام المنزلي والتجريبي.",\n    kind: "listing",\n  },\n  {\n    id: "PG-030",\n    path: "/equipment/roasting-machines/commercial",\n    title: "مكائن التحميص التجارية",\n    eyebrow: "مكائن التحميص",\n    desc: "قارن سعة الدفعة ومصدر الطاقة والتحكم والتركيب والصيانة.",\n    kind: "listing",\n  },\n  {\n    id: "PG-031",\n    path: "/equipment/roasting-machines/kuban-supreme-3",\n    title: "ماكينة تحميص Kuban Supreme 3",\n    eyebrow: "تفاصيل ماكينة التحميص",\n    desc: "سعة قصوى 3 كغم وإنتاج معلن يصل إلى 12 كغم/ساعة، بلا عرض محلي موثق في بغداد حتى الآن.",\n    kind: "roaster-detail",\n  },\n  {\n    id: "PG-061",\n    path: "/equipment/grinders/1zpresso-j-ultra",\n    title: "مطحنة 1Zpresso J-Ultra",\n    eyebrow: "تفاصيل المنتج",\n    desc: "مطحنة يدوية بشفرات مخروطية 48 مم وضبط 8 ميكرون لكل نقرة، محسّنة للإسبريسو.",\n    kind: "product",\n  },\n  {\n    id: "PG-032",\n    path: "/equipment/care",\n    title: "العناية والصيانة",\n    eyebrow: "المعدات",\n    desc: "معالجة المياه ومواد التنظيف وقطع الصيانة والتنظيم.",\n    kind: "listing",\n    tags: ["معالجة المياه", "مواد التنظيف", "قطع الصيانة", "منظمات ركن القهوة"],\n  },\n  {\n    id: "PG-033",\n    path: "/equipment/care/water",\n    title: "معالجة المياه",\n    eyebrow: "العناية والصيانة",\n    desc: "فلاتر وحلول قياس وحماية للمعدات وتحسين الاستخلاص.",\n    kind: "listing",\n  },\n  {\n    id: "PG-034",\n    path: "/equipment/care/cleaning",\n    title: "مواد التنظيف",\n    eyebrow: "العناية والصيانة",\n    desc: "منظفات للمجموعات والمطاحن وأنظمة الحليب والأسطح.",\n    kind: "listing",\n  },\n  {\n    id: "PG-035",\n    path: "/equipment/care/parts",\n    title: "قطع الصيانة",\n    eyebrow: "العناية والصيانة",\n    desc: "قطع استبدال موثقة التوافق مع الموديلات.",\n    kind: "listing",\n  },\n  {\n    id: "PG-036",\n    path: "/equipment/care/organizers",\n    title: "منظمات ركن القهوة",\n    eyebrow: "العناية والصيانة",\n    desc: "حلول ترتيب الأدوات والملحقات ومساحة العمل.",\n    kind: "listing",\n  },\n  {\n    id: "PG-037",\n    path: "/directory",\n    title: "دليل جهات القهوة في بغداد",\n    eyebrow: "الدليل",\n    desc: "محامص ومقاهٍ ومورّدو معدات وبائعون ببيانات مراجعة وحقوق واضحة.",\n    kind: "directory",\n  },\n  {\n    id: "PG-038",\n    path: "/directory/roasters",\n    title: "المحامص في بغداد",\n    eyebrow: "الدليل",\n    desc: "جهات تحمص أو تبيع القهوة المحمصة مع الفروع وقنوات التواصل.",\n    kind: "org-list",\n  },\n  {\n    id: "PG-039",\n    path: "/directory/cafes",\n    title: "المقاهي في بغداد",\n    eyebrow: "الدليل",\n    desc: "مقاهٍ مختصة قابلة للاكتشاف حسب المنطقة والخدمات.",\n    kind: "org-list",\n  },\n  {\n    id: "PG-040",\n    path: "/directory/equipment-suppliers",\n    title: "مورّدو المعدات",\n    eyebrow: "الدليل",\n    desc: "معدات وتركيب وضمان وصيانة وقطع غيار بحسب الأدلة المتاحة.",\n    kind: "org-list",\n  },\n  {\n    id: "PG-041",\n    path: "/directory/sellers",\n    title: "البائعون والمتاجر",\n    eyebrow: "الدليل",\n    desc: "قنوات إحالة موثقة لمنتجات داخلة في نطاق V1.",\n    kind: "org-list",\n  },\n  {\n    id: "PG-042",\n    path: "/directory/sumer",\n    title: "محمصة سومر",\n    eyebrow: "جهة موثقة T2",\n    desc: "محمصة بغدادية مع فرعين وقهوة محمصة وقنوات'... 160072 more characters,
+    expected: /kind:\s*"operations"/,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }
+EXIT_CODE=1
