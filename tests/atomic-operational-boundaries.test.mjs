@@ -100,6 +100,35 @@ test("partner atomic RPC owns canonical approval side effects and submission aud
   assert.match(migration, /grant execute .* to authenticated/i);
 });
 
+test("data import staging and lifecycle writes use atomic RPC boundaries", () => {
+  const route = read("../app/api/admin/data-center/route.ts");
+  assert.match(route, /rpc\/admin_stage_organization_intake_batch/);
+  assert.match(route, /rpc\/import_organization_intake_batch/);
+  assert.match(route, /rpc\/admin_transition_data_import_batch/);
+  assert.match(route, /rpc\/admin_delete_archived_data_import_batch/);
+  assert.doesNotMatch(route, /data_import_batches\?select=\*.*method:\s*"POST"/s);
+  assert.doesNotMatch(route, /data_import_batches\?id=.*method:\s*"(?:PATCH|DELETE)"/s);
+  assert.doesNotMatch(route, /"data_intake_rows",\s*\{\s*method:\s*"POST"/s);
+});
+
+test("data import RPCs atomize batch rows audit transitions and disposal", () => {
+  const migration = read("../supabase/migrations/060_atomic_data_import_boundaries.sql");
+  assert.match(migration, /admin_stage_organization_intake_batch/);
+  assert.match(migration, /insert into public\.data_import_batches/);
+  assert.match(migration, /insert into public\.data_intake_rows/);
+  assert.match(migration, /data_import_atomic_stage_v1/);
+  assert.match(migration, /admin_transition_data_import_batch/);
+  assert.match(migration, /for update/i);
+  assert.match(migration, /batch_not_complete/);
+  assert.match(migration, /data_import_atomic_transition_v1/);
+  assert.match(migration, /admin_delete_archived_data_import_batch/);
+  assert.match(migration, /private\.is_staff\(array\['admin'\]::public\.staff_role\[\]\)/);
+  assert.match(migration, /data_import_atomic_delete_v1/);
+  assert.equal((migration.match(/security invoker/gi) || []).length, 3);
+  assert.ok((migration.match(/revoke all .* from public,anon/gi) || []).length >= 3);
+  assert.ok((migration.match(/grant execute .* to authenticated/gi) || []).length >= 3);
+});
+
 test("operational inbox remains a read-only projection while operational boundaries become atomic", () => {
   const inbox = read("../app/api/admin/work-queue/route.ts");
   assert.doesNotMatch(inbox, /export async function (POST|PATCH|DELETE)/);
