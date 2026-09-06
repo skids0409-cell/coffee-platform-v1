@@ -16,7 +16,7 @@ const legacyMediaApi = readFileSync(new URL("../app/api/admin/media/route.ts", i
 
 test("Phase 4 activates an independent asset-centric Media Vault", () => {
   assert.match(platform, /media: <MediaVaultWorkspace/);
-  assert.match(ui, /Media Vault — خزنة الأصول/);
+  assert.match(ui, /خزنة الوسائط والأصول/);
   assert.match(ui, /media-vault-assets/);
   assert.match(ui, /media-vault-inspector/);
   assert.match(ui, /الكيانات المرتبطة/);

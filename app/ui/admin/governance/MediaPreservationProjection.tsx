@@ -127,7 +127,7 @@ async function readConformanceProjection(): Promise<ConformanceProjection> {
 
 function loadErrorLabel(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  if (message.startsWith("preservation:")) return "تعذر تحميل سجل OAIS Preservation من واجهة الحفظ.";
+  if (message.startsWith("preservation:")) return "تعذر تحميل سجل الحفظ من الواجهة الخادمية.";
   return "تعذر تحميل بيانات الحفظ حالياً.";
 }
 
@@ -177,15 +177,16 @@ export function MediaPreservationStatusStrip() {
 
   const coverage = data.assets.filter((asset) => data.packages.some((item) => item.asset_id === asset.id && item.package_type === "AIP")).length;
   const conformanceTone = conformance.conformanceStatus === "CONFORMANT" ? "ready" : conformance.conformanceStatus === "NON_CONFORMANT" ? "blocked" : "neutral";
+  const conformanceLabel = conformance.conformanceStatus === "CONFORMANT" ? "متوافق" : conformance.conformanceStatus === "NON_CONFORMANT" ? "غير متوافق" : "غير معروف";
   return <section className="rounded-xl border border-[#dfd4c5] bg-white p-4" aria-label="OAIS Preservation Status" data-preservation-status-strip>
     <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
       <div><span className="text-xs font-black text-[#6d371e]">حالة الحفظ والحوكمة</span><div className="mt-1 text-sm text-[#756b63]">حالة الحفظ والتحقق من سلامة الملفات من واجهة OAIS الرسمية؛ التوافق المعماري يُقرأ بشكل مستقل ولا يعطل بيانات الحفظ.</div></div>
-      <span className={`rounded-full px-3 py-1 text-xs font-black ${conformance.conformanceStatus === "CONFORMANT" ? "bg-emerald-50 text-emerald-800" : conformance.conformanceStatus === "NON_CONFORMANT" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`}>{conformance.available ? conformance.conformanceStatus : "التوافق غير متاح"}</span>
+      <span className={`rounded-full px-3 py-1 text-xs font-black ${conformance.conformanceStatus === "CONFORMANT" ? "bg-emerald-50 text-emerald-800" : conformance.conformanceStatus === "NON_CONFORMANT" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`}>{conformance.available ? conformanceLabel : "التوافق غير متاح"}</span>
     </div>
     <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
       <GovernanceStatusSummary label="تغطية حزم الحفظ" value={`${coverage}/${data.assets.length}`} tone={coverage === data.assets.length ? "ready" : "blocked"} />
-      <GovernanceStatusSummary label="AIP" value={data.preservationSummary.aipCount} tone="ready" />
-      <GovernanceStatusSummary label="DIP" value={data.preservationSummary.dipCount} />
+      <GovernanceStatusSummary label="حزم الحفظ (AIP)" value={data.preservationSummary.aipCount} tone="ready" />
+      <GovernanceStatusSummary label="حزم التوزيع (DIP)" value={data.preservationSummary.dipCount} />
       <GovernanceStatusSummary label="إخفاقات التحقق" value={data.preservationSummary.failedFixity} tone={data.preservationSummary.failedFixity === 0 ? "ready" : "blocked"} />
       <GovernanceStatusSummary label={conformance.baselineRevision} value={conformance.available ? `${conformance.passedRules}/${conformance.totalRules} ناجح` : "غير متاح حالياً"} tone={conformanceTone} />
     </div>

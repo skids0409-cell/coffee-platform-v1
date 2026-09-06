@@ -9,18 +9,20 @@ const media = fs.readFileSync("app/ui/admin/MediaVaultWorkspace.tsx", "utf8");
 
 test("V2 operator chrome is Arabic-first", () => {
   for (const legacy of [
-    "Legacy Freeze",
-    "Draft only",
-    "read-only",
-    "Imported / Rejected",
-    "no duplicate authority",
-    "Pending Technical Audit",
-    "Quarantine / Legal Hold",
-    "Disposal Requests",
+    ">Draft only<",
+    ">read-only<",
+    ">Imported / Rejected<",
+    ">no duplicate authority<",
+    ">Pending Technical Audit<",
+    ">Quarantine / Legal Hold<",
+    ">Disposal Requests<",
+    ">Contextual Inspector<",
+    ">Approve & Assign<",
+    ">Reject & Quarantine<",
   ]) {
-    assert.equal(app.includes(legacy), false, `DataCenterV2App still exposes: ${legacy}`);
-    assert.equal(catalog.includes(legacy), false, `CatalogIntakeV2 still exposes: ${legacy}`);
-    assert.equal(media.includes(legacy), false, `MediaVaultWorkspace still exposes: ${legacy}`);
+    assert.equal(app.includes(legacy), false, `V2 still exposes visible English: ${legacy}`);
+    assert.equal(catalog.includes(legacy), false, `Catalog still exposes visible English: ${legacy}`);
+    assert.equal(media.includes(legacy), false, `Media still exposes visible English: ${legacy}`);
   }
   assert.match(app, /مركز البيانات V2/);
   assert.match(catalog, /مسودة فقط/);

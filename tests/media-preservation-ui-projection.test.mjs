@@ -11,10 +11,10 @@ const preservationApi = fs.readFileSync("app/api/admin/preservation/route.ts", "
 const conformanceApi = fs.readFileSync("app/api/admin/architecture-conformance/route.ts", "utf8");
 
 test("Media Vault visibly projects OAIS preservation and architecture conformance", () => {
-  assert.match(projection, /OAIS Preservation · Governance Projection/);
-  assert.match(projection, /AIP Coverage/);
-  assert.match(projection, /Fixity Failures/);
-  assert.match(projection, /Architecture Conformance/);
+  assert.match(projection, /حالة الحفظ والحوكمة/);
+  assert.match(projection, /تغطية حزم الحفظ/);
+  assert.match(projection, /إخفاقات التحقق/);
+  assert.match(projection, /architecture-conformance/);
   assert.match(projection, /wave-c\.phase8\.v1/);
 });
 

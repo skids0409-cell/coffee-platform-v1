@@ -373,7 +373,8 @@ test("operations renders the protected data center workflow", async () => {
   const source = readFileSync(new URL("../app/ui/admin/data-center-v2/DataCenterV2App.tsx", import.meta.url), "utf8");
   assert.match(source, /فحص وتجهيز الدفعة/);
   assert.match(source, /إدخال الكتالوج/);
-  assert.match(source, /data-import.lifecycle.v1/);
+  assert.match(source, /batch\.lifecycle\?\.availableActions/);
+  assert.match(source, /DataImportLifecycleProjection/);
 });
 
 test("data center import is staff-only and atomic", () => {
@@ -1105,7 +1106,7 @@ test("media vault is independent from taxonomy navigation and remains controller
   const mediaUi = readFileSync(new URL("../app/ui/admin/MediaVaultWorkspace.tsx", import.meta.url), "utf8");
   const controller = readFileSync(new URL("../app/ui/admin/OperationsController.tsx", import.meta.url), "utf8");
   assert.match(controller, /media: <MediaVaultWorkspace/);
-  assert.match(mediaUi, /Media Vault — خزنة الأصول/);
+  assert.match(mediaUi, /خزنة الوسائط والأصول/);
   assert.doesNotMatch(mediaUi, /consumer=media-workspace-v2|rootCategoryId|familyCategoryId/);
 });
 
