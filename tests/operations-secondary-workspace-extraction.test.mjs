@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 const dashboard = fs.readFileSync("app/ui/admin/OperationsDashboardWorkspace.tsx", "utf8");
 const archive = fs.readFileSync("app/ui/admin/ArchiveWorkspace.tsx", "utf8");
+const controller = fs.readFileSync("app/ui/admin/OperationsController.tsx", "utf8");
 
 test("command dashboard presentation is extracted without mutation logic", () => {
   assert.match(dashboard, /export function OperationsDashboardWorkspace/);
@@ -25,7 +26,9 @@ test("archive presentation is extracted with governed restore/delete callbacks",
   assert.match(archive, /data-workspace-contract="command-master-inspector-v1"/);
   assert.match(archive, /data-governed-master="true"/);
   assert.match(archive, /onRestoreDraft\(item\.entity, item\.id\)/);
-  assert.match(archive, /role === "admin"/);
+  assert.match(archive, /canDelete && <button/);
+  assert.match(controller, /canDelete=\{adminData\.operatorCapabilities\.canDeleteInactiveCatalog\}/);
+  assert.doesNotMatch(archive, /role === "admin"/);
   assert.match(archive, /onDelete\(item\.entity, item\.id, item\.label\)/);
   assert.match(archive, /importArchive/);
   assert.doesNotMatch(archive, /fetch\(/);

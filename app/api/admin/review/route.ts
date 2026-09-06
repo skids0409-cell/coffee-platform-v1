@@ -5,6 +5,7 @@ import { projectRightsLifecycle, type RightsLifecycleProjection } from "@/lib/ri
 import { projectBetaLifecycle, type BetaLifecycleProjection } from "@/lib/beta-lifecycle-projection";
 import { projectSupportLifecycle } from "@/lib/support-lifecycle-projection";
 import { projectSearchTermLifecycle } from "@/lib/search-term-lifecycle-projection";
+import { projectOperationsCapabilities } from "@/lib/operations-capabilities-projection";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -260,6 +261,7 @@ async function loadQueue(token: string, role: string) {
     .sort((a, b) => b.zeroResults - a.zeroResults || b.searches - a.searches || b.lastSearchedAt.localeCompare(a.lastSearchedAt))
     .slice(0, 30);
   return {
+    operatorCapabilities: projectOperationsCapabilities(role),
     queues: rows,
     inactiveCatalog: [
       ...inactiveProducts.map((row) => ({ entity: "products", ...row, label: row.name_ar })),
