@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 const support = fs.readFileSync("app/ui/admin/SupportWorkspace.tsx", "utf8");
 const archive = fs.readFileSync("app/ui/admin/ArchivedImportBatches.tsx", "utf8");
+const dataImportProjection = fs.readFileSync("lib/data-import-lifecycle-projection.ts", "utf8");
 
 test("support desk extraction preserves the governed operational workflow", () => {
   assert.match(support, /id="operations-support"/);
@@ -25,11 +26,14 @@ test("support desk keeps mutation authority on the existing review API", () => {
 
 test("archived import extraction preserves restore and permanent-delete safeguards", () => {
   assert.match(archive, /fetch\("\/api\/admin\/data-center"/);
-  assert.match(archive, /restore_batch/);
-  assert.match(archive, /delete_archived_batch/);
-  assert.match(archive, /confirmation\?\.trim\(\) !== batch\.batch_code/);
+  assert.match(archive, /batch\.lifecycle\?\.availableActions/);
+  assert.match(dataImportProjection, /apiAction: "restore_batch"/);
+  assert.match(dataImportProjection, /apiAction: "delete_archived_batch"/);
+  assert.match(archive, /StandardConfirmDialog/);
+  assert.match(archive, /requiredValue: lifecycleRequest\.batch\.batch_code/);
   assert.match(archive, /status === "archived"/);
   assert.match(archive, /data-workspace-contract="command-master-inspector-v1"/);
+  assert.doesNotMatch(archive, /window\.(confirm|prompt|alert)\s*\(/);
 });
 
 test("archived import component does not bypass the server boundary", () => {
