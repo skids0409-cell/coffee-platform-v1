@@ -28,3 +28,4 @@ replaceOnce(
 );
 
 fs.writeFileSync(path, source);
+// one-shot trigger
