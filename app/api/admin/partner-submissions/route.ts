@@ -38,34 +38,25 @@ export async function POST(request: Request) {
   }
   const next = body?.status || "";
   const note = body?.reviewNote?.trim() || "";
-  if (!uuid.test(body?.id || "") || !["in_review", "needs_changes", "approved", "rejected"].includes(next) || ((next === "needs_changes" || next === "rejected") && note.length < 10)) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
-  const rows = await adminRest<PartnerSubmissionRow[]>(staff.token, `partner_submissions?select=id,organization_id,entity_type,status,payload&id=eq.${body!.id}&limit=1`);
-  const row = rows[0];
-  if (!row || !["submitted", "in_review", "needs_changes"].includes(row.status)) return Response.json({ updated: false, reason: "not_reviewable" }, { status: 409 });
-
-  let canonical: Record<string, unknown> | null = null;
-  if (next === "approved") {
-    const payload = row.payload || {};
-    if (row.entity_type === "organization_update") {
-      const allowed = ["name_ar", "name_en", "description_ar", "phone", "email", "website_url"];
-      const patch = Object.fromEntries(allowed.filter((key) => typeof payload[key] === "string").map((key) => [key, String(payload[key]).trim() || null]));
-      const updated = await adminRest<Array<Record<string, unknown>>>(staff.token, `organizations?id=eq.${row.organization_id}&select=id,name_ar,slug,status`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify(patch) });
-      canonical = updated[0] || null;
-    } else if (row.entity_type === "product_offer") {
-      canonical = await adminRest<Record<string, unknown>>(staff.token, "rpc/admin_create_catalog_draft", { method: "POST", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify({ p_entity_type: "offer", p_payload: { ...payload, seller_organization_id: row.organization_id, source_label: payload.source_label || "بوابة الجهة المشاركة", source_type: payload.source_type || "organization" } }) });
-    } else if (row.entity_type === "new_product") {
-      const contractRevision = await adminRest<string>(staff.token, "rpc/admin_record_contract_revision", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
-      const created = await adminRest<Record<string, unknown>>(staff.token, "rpc/admin_create_product_draft_v2", { method: "POST", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify({ p_payload: { ...payload, owner_organization_id: row.organization_id, source_label: payload.source_label || "بوابة الجهة المشاركة", source_type: payload.source_type || "organization" }, p_values: [], p_contract_revision: contractRevision }) });
-      canonical = { ...created, status: "attached" };
-    } else if (row.entity_type === "location") {
-      const markets = await adminRest<Array<{ id: string }>>(staff.token, "markets?select=id&code=eq.IQ-BGD&limit=1");
-      if (!markets[0] || String(payload.address_ar || "").trim().length < 3) return Response.json({ updated: false, reason: "location_data_missing" }, { status: 400 });
-      const created = await adminRest<Array<Record<string, unknown>>>(staff.token, "locations?select=id,status", { method: "POST", headers: { "content-type": "application/json", prefer: "return=representation" }, body: JSON.stringify({ source_key: `LOC-PARTNER-${crypto.randomUUID().slice(0, 12).toUpperCase()}`, organization_id: row.organization_id, market_id: markets[0].id, name_ar: payload.name_ar || null, address_ar: String(payload.address_ar).trim(), district_ar: payload.district_ar || null, phone: payload.phone || null, opening_hours: payload.opening_hours || {}, services: payload.services || [], status: "draft" }) });
-      canonical = created[0] || null;
-    }
-    if (!canonical) return Response.json({ updated: false, reason: "canonical_write_failed" }, { status: 502 });
+  if (!uuid.test(body?.id || "") || !["in_review", "needs_changes", "approved", "rejected"].includes(next) || ((next === "needs_changes" || next === "rejected") && note.length < 10)) {
+    return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
   }
-  await adminRest(staff.token, `partner_submissions?id=eq.${body!.id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ status: next, review_note: note || null, reviewed_by: staff.user.id, reviewed_at: new Date().toISOString(), payload: canonical ? { ...row.payload, canonical_result: canonical } : row.payload }) });
-  await adminRest(staff.token, "audit_events", { method: "POST", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ actor_user_id: staff.user.id, action: `partner_submission_${next}`, entity_table: "partner_submissions", entity_id: body!.id, before_data: { status: row.status }, after_data: { status: next, review_note: note || null, canonical }, source: "partner_review" }) });
-  return Response.json({ updated: true, ...(await loadPartnerAdmin(staff.token)), canonical });
+  try {
+    const result = await adminRest<{ canonical?: Record<string, unknown> | null }>(staff.token, "rpc/admin_transition_partner_submission", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ p_submission_id: body!.id, p_next_status: next, p_review_note: note || null }),
+    });
+    return Response.json({ updated: true, ...(await loadPartnerAdmin(staff.token)), canonical: result?.canonical || null });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("partner_submission_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
+    if (message.includes("partner_submission_not_reviewable")) return Response.json({ updated: false, reason: "not_reviewable" }, { status: 409 });
+    if (message.includes("review_note_required") || message.includes("invalid_partner_status") || message.includes("unsupported_partner_entity")) {
+      return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
+    }
+    if (message.includes("location_data_missing")) return Response.json({ updated: false, reason: "location_data_missing" }, { status: 400 });
+    if (message.includes("canonical_write_failed")) return Response.json({ updated: false, reason: "canonical_write_failed" }, { status: 502 });
+    throw error;
+  }
 }
