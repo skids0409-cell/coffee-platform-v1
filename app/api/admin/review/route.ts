@@ -1,5 +1,6 @@
 import { adminRest, requireStaff, sameOrigin } from "@/lib/supabase-admin";
 import { normalizeSearchText, type SearchEntityType, type SearchIntent } from "@/lib/search-governance";
+import { projectReviewLifecycle, type ReviewLifecycleProjection } from "@/lib/review-lifecycle-projection";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -13,6 +14,7 @@ type QueueRow = {
   ready: boolean;
   blockers: string[];
   warnings: string[];
+  lifecycle?: ReviewLifecycleProjection;
 };
 
 type LinkRow = { entity_table: string; entity_id: string };
@@ -51,7 +53,7 @@ const countBy = (rows: Array<Record<string, unknown>>, key: string) => {
 const issuesByEntity = (rows: IssueRow[], table: string, id: string) =>
   rows.filter((issue) => issue.entity_table === table && issue.entity_id === id);
 
-async function loadQueue(token: string) {
+async function loadQueue(token: string, role: string) {
   const [products, brands, organizations, offers, contents, origins, rights, betaFeedback, supportRequests, staffProfiles, categories, attributes, requiredRules, roles, locations, links, issues, searchTerms, searchEvents, supportHistory, publishedProducts, publishedBrands, publishedOrganizations, publishedOffers, publishedContents, publishedOrigins] = await Promise.all([
     adminRest<Array<{ id: string; name_ar: string; status: string; source_checked_at: string | null; verification_tier: string; brand_id: string | null; owner_organization_id: string | null; updated_at: string }>>(
       token,
@@ -215,6 +217,13 @@ async function loadQueue(token: string) {
     beta: betaFeedback.map((row) => ({ id: row.id, label: row.feedback_text, status: row.status, evidence: `${row.public_reference} · ${row.task_code} · ${row.outcome} · ${row.severity} · ${row.page_path}`, updated_at: row.created_at, ready: false, blockers: [], warnings: [`الجهاز: ${row.device_type}`] })),
     support: supportRequests.map((row) => ({ id: row.id, label: row.subject, status: row.status, evidence: `${row.public_reference} · ${row.request_type} · ${row.preferred_channel} · ${row.page_path}`, updated_at: row.created_at, ready: false, blockers: [], warnings: [row.message] })),
   };
+  const governedReviewKeys = ["products", "brands", "organizations", "offers", "contents", "origins"] as const;
+  for (const key of governedReviewKeys) {
+    rows[key] = rows[key].map((row) => ({
+      ...row,
+      lifecycle: projectReviewLifecycle({ status: row.status, ready: row.ready, blockers: row.blockers, role }),
+    }));
+  }
   const weakQueryMap = new Map<string, { query: string; searches: number; zeroResults: number; lowResults: number; lastSearchedAt: string; inferredIntent: SearchIntent }>();
   for (const event of searchEvents) {
     if (event.result_count > 1) continue;
@@ -303,7 +312,7 @@ export async function GET(request: Request) {
   const admin = await requireStaff(request).catch(() => null);
   if (!admin) return Response.json({ authenticated: false }, { status: 401 });
   try {
-    const data = await loadQueue(admin.token);
+    const data = await loadQueue(admin.token, admin.profile.role);
     return Response.json({ authenticated: true, profile: admin.profile, ...data });
   } catch (error) {
     console.error("admin-review", error);
@@ -347,7 +356,7 @@ export async function POST(request: Request) {
     const after = { entity_table: targetEntity || existing[0].entity_table || null, entity_id: targetId || existing[0].entity_id || null, status: nextStatus, resolution_note: note || null, resolved_by: resolved ? admin.user.id : null, resolved_at: resolved ? new Date().toISOString() : null };
     await adminRest(admin.token, `data_quality_issues?id=eq.${body.id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify(after) });
     await adminRest(admin.token, "audit_events", { method: "POST", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ actor_user_id: admin.user.id, action: `process_quality_issue_${nextStatus}`, entity_table: "data_quality_issues", entity_id: body.id, before_data: existing[0], after_data: after, source: "quality_desk" }) });
-    return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+    return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
   }
   if (body?.action === "create_search_term") {
     const canonicalTermAr = String(body.canonicalTermAr || "").trim().slice(0, 120);
@@ -380,7 +389,7 @@ export async function POST(request: Request) {
           p_source_basis: sourceBasis,
         }),
       });
-      return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (message.includes("invalid_search_") || message.includes("invalid_match_mode") || message.includes("invalid_source_basis") || message.includes("invalid_weight")) {
@@ -398,7 +407,7 @@ export async function POST(request: Request) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ p_term_id: body.id, p_next_status: body.status }),
       });
-      return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (message.includes("search_term_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
@@ -417,7 +426,7 @@ export async function POST(request: Request) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ p_term_id: body.id }),
       });
-      return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (message.includes("search_term_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
@@ -454,7 +463,7 @@ export async function POST(request: Request) {
           p_source_basis: sourceBasis,
         }),
       });
-      return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (message.includes("search_term_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
@@ -480,7 +489,7 @@ export async function POST(request: Request) {
           p_technical_reference: String(body.technicalReference || "").trim().slice(0, 300) || null,
         }),
       });
-      return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (message.includes("support_request_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
@@ -497,7 +506,7 @@ export async function POST(request: Request) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ p_request_id: body.id }),
       });
-      return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (message.includes("support_request_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
@@ -513,7 +522,7 @@ export async function POST(request: Request) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ p_request_id: body.id, p_event: body.action === "mark_support_escalated" ? "escalated" : "reply" }),
       });
-      return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (message.includes("support_request_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
@@ -528,7 +537,7 @@ export async function POST(request: Request) {
       const media = await adminRest<Array<{ storage_path: string }>>(admin.token, `entity_media?select=storage_path&entity_table=eq.${body.table}&entity_id=eq.${body.id}`);
       await adminRest(admin.token, "rpc/admin_delete_catalog_record", { method: "POST", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ p_entity_table: body.table, p_entity_id: body.id }) });
       if (SUPABASE_URL && SUPABASE_KEY) for (const item of media) await fetch(`${SUPABASE_URL}/storage/v1/object/public-media/${item.storage_path}`, { method:"DELETE",headers:{apikey:SUPABASE_KEY,authorization:`Bearer ${admin.token}`} }).catch(()=>null);
-      return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       return Response.json({ updated: false, reason: message.includes("published_record") ? "published_record_cannot_be_deleted" : message.includes("23503") ? "record_has_dependencies" : "delete_failed" }, { status: 409 });
@@ -548,7 +557,7 @@ export async function POST(request: Request) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ p_request_id: body.id, p_next_status: next, p_resolution_note: note || null }),
       });
-      return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (message.includes("rights_request_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
@@ -580,7 +589,7 @@ export async function POST(request: Request) {
   const row = rows[0];
   if (!row) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
   if (body.status === "published") {
-    const data = await loadQueue(admin.token);
+    const data = await loadQueue(admin.token, admin.profile.role);
     const queueKey = table === "origin_claims" ? "origins" : table;
     const readiness = data.queues[queueKey]?.find((candidate) => candidate.id === body.id);
     const overrideReason = String(body.overrideReason || "").trim().slice(0, 1000);
@@ -595,7 +604,7 @@ export async function POST(request: Request) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ p_entity: table, p_entity_id: body.id, p_next_status: body.status, p_override_reason: overrideReason }),
     });
-    return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+    return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
   }
 
   await adminRest(admin.token, `${table}?id=eq.${body.id}`, {
@@ -623,5 +632,5 @@ export async function POST(request: Request) {
       source: "operations_ui",
     }),
   });
-  return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+  return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
 }
