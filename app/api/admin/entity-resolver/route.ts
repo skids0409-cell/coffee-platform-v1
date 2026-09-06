@@ -6,6 +6,7 @@ type ResolverOption = { id: string; label: string; secondaryLabel: string | null
 type NamedRow = { id: string; name_ar?: string | null; name_en?: string | null; title_ar?: string | null; title_en?: string | null; slug?: string | null; status?: string | null };
 type OfferRow = { id: string; status?: string | null; product?: { name_ar?: string | null; name_en?: string | null } | null; seller?: { name_ar?: string | null; name_en?: string | null } | null };
 type OriginRow = { id: string; farm_or_producer_name?: string | null; lot_reference?: string | null; product?: { name_ar?: string | null; name_en?: string | null } | null };
+type TechnicalTaskRow = { id: string; task_code: string; title: string; status: string };
 
 const allowedContexts = new Set<EntityResolverContext>(["media_pending_review", "support_technical_reference"]);
 
@@ -33,6 +34,15 @@ async function loadOptions(token: string, entityType: EntityTypeKey): Promise<Re
       label: `${row.product?.name_ar || row.product?.name_en || "منتج"} — ${row.seller?.name_ar || row.seller?.name_en || "جهة"}`,
       secondaryLabel: "عرض تجاري",
       status: row.status || null,
+    }));
+  }
+  if (entityType === "technical_tasks") {
+    const rows = await adminRest<TechnicalTaskRow[]>(token, "technical_tasks?select=id,task_code,title,status&status=neq.closed&order=updated_at.desc&limit=100");
+    return rows.map((row) => ({
+      id: row.id,
+      label: `${row.task_code} — ${row.title}`,
+      secondaryLabel: "مهمة تقنية معتمدة",
+      status: row.status,
     }));
   }
   const rows = await adminRest<OriginRow[]>(token, "origin_claims?select=id,farm_or_producer_name,lot_reference,product:products(name_ar,name_en)&order=updated_at.desc&limit=100");
