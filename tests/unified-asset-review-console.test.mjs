@@ -17,15 +17,15 @@ test("Review & Approval directly composes the pending asset audit sub-view", () 
   assert.match(ui, /export function PendingAssetReviewConsole/);
   assert.doesNotMatch(ui, /MutationObserver|createPortal/);
   assert.match(ui, /الأصول بانتظار الاعتماد وتقارير الفحص/);
-  assert.match(ui, /Pending Technical Audit/);
+  assert.match(ui, /بانتظار الفحص التقني/);
 });
 
-test("Contextual Inspector keeps uploader, timestamp and decisions on-screen", () => {
-  assert.match(ui, /Contextual Inspector/);
+test("المعاين السياقي keeps uploader, timestamp and decisions on-screen", () => {
+  assert.match(ui, /المعاين السياقي/);
   assert.match(ui, /selected\.uploader\?\.display_name/);
   assert.match(ui, /selected\.created_at/);
-  assert.match(ui, /Approve & Assign/);
-  assert.match(ui, /Reject & Quarantine/);
+  assert.match(ui, /اعتماد وإسناد/);
+  assert.match(ui, /رفض وحجر/);
   assert.match(api, /profiles\?select=id,display_name,role/);
 });
 

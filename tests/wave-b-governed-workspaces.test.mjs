@@ -58,9 +58,9 @@ test("Review directly owns pending asset audit and Media directly owns preservat
   assert.match(reviewWorkspace, /data-workspace-contract="master-detail-v1"/);
   assert.match(reviewWorkspace, /PendingAssetReviewConsole/);
   assert.doesNotMatch(assetReview, /MutationObserver|createPortal/);
-  assert.match(assetReview, /Contextual Inspector/);
-  assert.match(assetReview, /Approve & Assign/);
-  assert.match(assetReview, /Reject & Quarantine/);
+  assert.match(assetReview, /المعاين السياقي/);
+  assert.match(assetReview, /اعتماد وإسناد/);
+  assert.match(assetReview, /رفض وحجر/);
   assert.match(mediaVault, /id="operations-media"/);
   assert.match(mediaVault, /MediaPreservationStatusStrip/);
   assert.match(mediaVault, /MediaPreservationInspectorPanel/);

@@ -1,6 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { OperationsWorkspaceChrome } from "@/app/ui/admin/governance/OperationsWorkspaceChrome";
 import { OperationsCenterArchitecture, operationsWorkspaceDescriptors } from "@/app/ui/admin/governance/OperationsCenterArchitecture";
 import { OperationsWorkspaceComposition } from "@/app/ui/admin/governance/OperationsWorkspaceComposition";
@@ -53,10 +55,27 @@ export function OperationsWorkspaceShell({
   operatorRoleLabel,
   onLogout,
 }: OperationsWorkspaceShellProps) {
+  const pathname = usePathname();
+  const isV2Specialist = pathname.startsWith("/operations/data-center-v2/specialist");
   const visibleNavigation = navigation.filter(
     (value) => value !== "taxonomy" || canManageTaxonomy,
   );
   const activePanel = panels[workspace];
+
+  if (isV2Specialist) {
+    const descriptor = operationsWorkspaceDescriptors[workspace];
+    return (
+      <div className="operations v2-specialist-shell" dir="rtl" data-v2-specialist-shell="true">
+        <header className="v2-specialist-header">
+          <div><span>مسار تشغيلي متخصص</span><h1>{descriptor.label}</h1><p>{descriptor.purpose}</p></div>
+          <Link href="/operations/data-center-v2?view=handoffs">العودة إلى مسارات الحوكمة</Link>
+        </header>
+        <main className="v2-specialist-panel" data-governed-inspector="true">
+          {activePanel ?? <section className="directory-state compact" role="status"><h3>الوحدة غير متاحة حالياً</h3><p>لم يتم تحميل المسار التشغيلي المطلوب.</p></section>}
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div

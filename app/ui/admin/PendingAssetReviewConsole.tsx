@@ -44,6 +44,9 @@ type ReviewResponse = {
   reason?: string;
 };
 
+const staffRoleLabels: Record<string, string> = { admin: "مدير", verifier: "مراجع", editor: "محرر", staff: "موظف" };
+const technicalStatusLabels: Record<string, string> = { pending_technical_audit: "بانتظار الفحص التقني", validating: "قيد الفحص", passed: "اجتاز الفحص", failed: "فشل الفحص", pending_approval: "بانتظار الاعتماد" };
+
 const roleLabels: Record<string, string> = {
   primary: "رئيسية",
   gallery: "معرض",
@@ -172,7 +175,7 @@ export function PendingAssetReviewConsole() {
     <section className="pending-asset-review-console priority-section" aria-label="الأصول بانتظار الاعتماد وتقارير الفحص" data-governed-master="true">
       <div className="section-head">
         <div>
-          <span className="eyebrow">Unified Asset Review</span>
+          <span className="eyebrow">مراجعة الأصول الموحدة</span>
           <h2>الأصول بانتظار الاعتماد وتقارير الفحص</h2>
         </div>
         <div className="queue-title">
@@ -182,7 +185,7 @@ export function PendingAssetReviewConsole() {
       </div>
       <p>هذه شاشة مراجعة تشغيلية موحدة. كل أصل معلّق يملك مسار قرار واضحاً ولا يحتاج المراجع إلى مغادرة قسم المراجعة والاعتماد.</p>
 
-      {!assets.length ? <div className="directory-state compact"><h3>لا توجد أصول عالقة حالياً</h3><p>طابور Pending Technical Audit / Pending Approval فارغ.</p></div> : (
+      {!assets.length ? <div className="directory-state compact"><h3>لا توجد أصول عالقة حالياً</h3><p>طابور الفحص التقني والاعتماد فارغ.</p></div> : (
         <div className="grid gap-4 xl:grid-cols-[minmax(300px,.9fr)_minmax(420px,1.4fr)]">
           <div className="space-y-2">
             {assets.map((asset) => (
@@ -193,26 +196,26 @@ export function PendingAssetReviewConsole() {
                 className={`w-full rounded-lg border p-3 text-right ${selectedId === asset.id ? "border-[#6d371e] bg-[#f7f1e8]" : "border-[#dfd4c5] bg-white"}`}
               >
                 <b className="block truncate">{asset.original_filename}</b>
-                <span className="mt-1 block text-xs text-[#756b63]">{asset.lifecycle_state === "pending_technical_audit" ? "Pending Technical Audit" : "Pending Approval"} · {new Date(asset.created_at).toLocaleString("ar-IQ")}</span>
+                <span className="mt-1 block text-xs text-[#756b63]">{asset.lifecycle_state === "pending_technical_audit" ? "بانتظار الفحص التقني" : "بانتظار الاعتماد"} · {new Date(asset.created_at).toLocaleString("ar-IQ")}</span>
                 <span className="mt-1 block truncate text-xs text-[#756b63]">{asset.sha256_hex ? `${asset.sha256_hex.slice(0, 20)}…` : "SHA-256 غير مكتمل"}</span>
               </button>
             ))}
           </div>
 
           {selected && (
-            <aside className="rounded-xl border border-[#dfd4c5] bg-white p-5" aria-label="Contextual Inspector" data-governed-inspector="true">
+            <aside className="rounded-xl border border-[#dfd4c5] bg-white p-5" aria-label="المعاين السياقي" data-governed-inspector="true">
               <div className="flex flex-wrap items-start gap-4">
                 <div className="h-28 w-28 shrink-0 overflow-hidden rounded-lg border border-[#dfd4c5] bg-[#f7f1e8]">
                   {selected.preview_url ? <img src={selected.preview_url} alt="" className="h-full w-full object-cover" /> : null}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="text-xs font-black text-[#6d371e]">Contextual Inspector</span>
+                  <span className="text-xs font-black text-[#6d371e]">المعاين السياقي</span>
                   <h3 className="mt-1 truncate text-xl font-black">{selected.original_filename}</h3>
-                  <p className="mt-1 text-xs text-[#756b63]">Asset ID: {selected.id}</p>
+                  <p className="mt-1 text-xs text-[#756b63]">مرجع داخلي: {selected.id.slice(0, 8)}…</p>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <div><small>الرافع</small><b className="block">{selected.uploader?.display_name || "مستخدم إداري"}</b><span className="block text-xs text-[#756b63]">{selected.uploader?.role || "staff"} · {selected.uploaded_by}</span></div>
+                    <div><small>الرافع</small><b className="block">{selected.uploader?.display_name || "مستخدم إداري"}</b><span className="block text-xs text-[#756b63]">{staffRoleLabels[selected.uploader?.role || "staff"] || "موظف"}</span></div>
                     <div><small>وقت الرفع</small><b className="block">{new Date(selected.created_at).toLocaleString("ar-IQ")}</b></div>
-                    <div><small>الفحص</small><b className="block">{selected.technical_status}</b><span className="block text-xs text-[#756b63]">{selected.detected_mime || selected.declared_mime}</span></div>
+                    <div><small>الفحص</small><b className="block">{technicalStatusLabels[selected.technical_status] || "حالة فحص مسجلة"}</b><span className="block text-xs text-[#756b63]">{selected.detected_mime || selected.declared_mime}</span></div>
                     <div><small>الحجم/الأبعاد</small><b className="block">{bytes(selected.byte_size)}</b><span className="block text-xs text-[#756b63]">{selected.width && selected.height ? `${selected.width}×${selected.height}` : "—"}</span></div>
                   </div>
                 </div>
@@ -225,17 +228,17 @@ export function PendingAssetReviewConsole() {
 
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <fieldset className="rounded-lg border border-emerald-200 bg-emerald-50 p-4" disabled={working || !capabilities.canDecide}>
-                  <legend className="px-2 font-black">Approve & Assign · اعتماد وإسناد</legend>
+                  <legend className="px-2 font-black">اعتماد وإسناد</legend>
                   <ContextualEntitySelector context="media_pending_review" role={linkRole} value={entityTarget} onChange={setEntityTarget} disabled={working || !capabilities.canDecide} />
                   <label className="mt-2 block text-sm">دور الصورة<select className="mt-1 w-full rounded-md border p-2" value={linkRole} onChange={(event) => setLinkRole(event.target.value)}>{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                   <label className="mt-2 block text-sm">الوصف البديل<input className="mt-1 w-full rounded-md border p-2" value={altAr} onChange={(event) => setAltAr(event.target.value)} placeholder={defaultAltAr} /></label>
-                  <button type="button" className="primary mt-3" onClick={() => void act("approve_assign")}>Approve & Assign</button>
+                  <button type="button" className="primary mt-3" onClick={() => void act("approve_assign")}>اعتماد وإسناد</button>
                 </fieldset>
 
                 <fieldset className="rounded-lg border border-red-200 bg-red-50 p-4" disabled={working || !capabilities.canDecide}>
-                  <legend className="px-2 font-black">Reject & Quarantine · رفض وحجر</legend>
+                  <legend className="px-2 font-black">رفض وحجر</legend>
                   <label className="block text-sm">سبب القرار<textarea className="mt-1 min-h-24 w-full rounded-md border p-2" value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} placeholder="سبب واضح سيظهر في سجل التدقيق" /></label>
-                  <button type="button" className="danger-action mt-3" onClick={() => void act("reject_quarantine")}>Reject & Quarantine</button>
+                  <button type="button" className="danger-action mt-3" onClick={() => void act("reject_quarantine")}>رفض وحجر</button>
                   <p className="mt-2 text-xs">الحجر يبدأ مؤقت الاحتفاظ النظامي لمدة 30 يوماً، مع بقاء الحذف النهائي منفصلاً وخاضعاً للموافقة.</p>
                 </fieldset>
               </div>

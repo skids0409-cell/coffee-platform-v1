@@ -82,7 +82,7 @@ const emptyConformance: ConformanceProjection = {
 const ProjectionContext = createContext<ProjectionState | null>(null);
 const emptyPreservationCapabilities: PreservationCapabilitiesProjection = { contractRevision: "preservation.capabilities.v1", canCreateAip: false, canVerifyFixity: false, canCreateDip: false, blockedReason: "صلاحيات إجراءات الحفظ غير متاحة." };
 
-const fixityLabel = (value: string | null) => value === "success" ? "Verified" : value === "failure" ? "FAILED" : "Not verified";
+const fixityLabel = (value: string | null) => value === "success" ? "تم التحقق" : value === "failure" ? "فشل التحقق" : "لم يتم التحقق";
 const shortHash = (value: string | null) => value ? `${value.slice(0, 12)}…${value.slice(-8)}` : "—";
 const activeLinks = (asset: MediaPreservationAsset | undefined) => (asset?.links || []).filter((link) => ["active", "pending"].includes(String(link.link_status))).length;
 
@@ -127,7 +127,7 @@ async function readConformanceProjection(): Promise<ConformanceProjection> {
 
 function loadErrorLabel(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  if (message.startsWith("preservation:")) return "تعذر تحميل سجل OAIS Preservation من واجهة الحفظ.";
+  if (message.startsWith("preservation:")) return "تعذر تحميل سجل الحفظ من الواجهة الخادمية.";
   return "تعذر تحميل بيانات الحفظ حالياً.";
 }
 
@@ -177,17 +177,18 @@ export function MediaPreservationStatusStrip() {
 
   const coverage = data.assets.filter((asset) => data.packages.some((item) => item.asset_id === asset.id && item.package_type === "AIP")).length;
   const conformanceTone = conformance.conformanceStatus === "CONFORMANT" ? "ready" : conformance.conformanceStatus === "NON_CONFORMANT" ? "blocked" : "neutral";
+  const conformanceLabel = conformance.conformanceStatus === "CONFORMANT" ? "متوافق" : conformance.conformanceStatus === "NON_CONFORMANT" ? "غير متوافق" : "غير معروف";
   return <section className="rounded-xl border border-[#dfd4c5] bg-white p-4" aria-label="OAIS Preservation Status" data-preservation-status-strip>
     <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-      <div><span className="text-xs font-black text-[#6d371e]">OAIS Preservation · Governance Projection</span><div className="mt-1 text-sm text-[#756b63]">حالة الحفظ وFixity من واجهة OAIS الرسمية؛ التوافق المعماري يُقرأ بشكل مستقل ولا يعطل بيانات الحفظ.</div></div>
-      <span className={`rounded-full px-3 py-1 text-xs font-black ${conformance.conformanceStatus === "CONFORMANT" ? "bg-emerald-50 text-emerald-800" : conformance.conformanceStatus === "NON_CONFORMANT" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`}>{conformance.available ? conformance.conformanceStatus : "CONFORMANCE UNAVAILABLE"}</span>
+      <div><span className="text-xs font-black text-[#6d371e]">حالة الحفظ والحوكمة</span><div className="mt-1 text-sm text-[#756b63]">حالة الحفظ والتحقق من سلامة الملفات من واجهة OAIS الرسمية؛ التوافق المعماري يُقرأ بشكل مستقل ولا يعطل بيانات الحفظ.</div></div>
+      <span className={`rounded-full px-3 py-1 text-xs font-black ${conformance.conformanceStatus === "CONFORMANT" ? "bg-emerald-50 text-emerald-800" : conformance.conformanceStatus === "NON_CONFORMANT" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`}>{conformance.available ? conformanceLabel : "التوافق غير متاح"}</span>
     </div>
     <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-      <GovernanceStatusSummary label="AIP Coverage" value={`${coverage}/${data.assets.length}`} tone={coverage === data.assets.length ? "ready" : "blocked"} />
-      <GovernanceStatusSummary label="AIP" value={data.preservationSummary.aipCount} tone="ready" />
-      <GovernanceStatusSummary label="DIP" value={data.preservationSummary.dipCount} />
-      <GovernanceStatusSummary label="Fixity Failures" value={data.preservationSummary.failedFixity} tone={data.preservationSummary.failedFixity === 0 ? "ready" : "blocked"} />
-      <GovernanceStatusSummary label={conformance.baselineRevision} value={conformance.available ? `${conformance.passedRules}/${conformance.totalRules} PASS` : "غير متاح حالياً"} tone={conformanceTone} />
+      <GovernanceStatusSummary label="تغطية حزم الحفظ" value={`${coverage}/${data.assets.length}`} tone={coverage === data.assets.length ? "ready" : "blocked"} />
+      <GovernanceStatusSummary label="حزم الحفظ (AIP)" value={data.preservationSummary.aipCount} tone="ready" />
+      <GovernanceStatusSummary label="حزم التوزيع (DIP)" value={data.preservationSummary.dipCount} />
+      <GovernanceStatusSummary label="إخفاقات التحقق" value={data.preservationSummary.failedFixity} tone={data.preservationSummary.failedFixity === 0 ? "ready" : "blocked"} />
+      <GovernanceStatusSummary label={conformance.baselineRevision} value={conformance.available ? `${conformance.passedRules}/${conformance.totalRules} ناجح` : "غير متاح حالياً"} tone={conformanceTone} />
     </div>
   </section>;
 }
@@ -241,16 +242,16 @@ function MediaPreservationInspectorPanelContent({ selectedAssetId }: { selectedA
     } finally { setWorking(false); }
   };
 
-  if (!selectedAssetId) return <section className="mt-4 rounded-lg border border-[#eee4d8] bg-[#fffaf3] p-3 text-sm text-[#756b63]">حدد أصلاً واحداً في Media Vault لعرض OAIS / Fixity لنفس الأصل.</section>;
-  if (state === "loading") return <section className="mt-4 rounded-lg border border-[#eee4d8] bg-[#fffaf3] p-3 text-sm text-[#756b63]">جارٍ تحميل OAIS Preservation…</section>;
+  if (!selectedAssetId) return <section className="mt-4 rounded-lg border border-[#eee4d8] bg-[#fffaf3] p-3 text-sm text-[#756b63]">حدد أصلاً واحداً في خزنة الوسائط لعرض بيانات الحفظ والتحقق من سلامة الملف.</section>;
+  if (state === "loading") return <section className="mt-4 rounded-lg border border-[#eee4d8] bg-[#fffaf3] p-3 text-sm text-[#756b63]">جارٍ تحميل بيانات الحفظ…</section>;
   if (state === "error") return <section className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><div>{errorMessage}</div><button type="button" className="secondary mt-3" onClick={() => void refresh()}>إعادة المحاولة</button></section>;
 
-  return <section className="mt-4 space-y-3 border-t border-[#eee4d8] pt-4" aria-label="Preservation & Governance" data-preservation-inspector>
-    <div><span className="text-xs font-black text-[#6d371e]">Preservation & Governance</span><h4 className="font-black">OAIS / Fixity</h4>{selectedAsset ? <small className="text-[#756b63]">{selectedAsset.original_filename}</small> : null}</div>
+  return <section className="mt-4 space-y-3 border-t border-[#eee4d8] pt-4" aria-label="الحفظ والحوكمة" data-preservation-inspector>
+    <div><span className="text-xs font-black text-[#6d371e]">الحفظ والحوكمة</span><h4 className="font-black">الحفظ والتحقق من السلامة</h4>{selectedAsset ? <small className="text-[#756b63]">{selectedAsset.original_filename}</small> : null}</div>
 
     {selectedAsset ? <div className="space-y-2 rounded-lg border border-[#eee4d8] bg-[#fffaf3] p-3 text-xs">
-      <div className="flex flex-wrap items-center justify-between gap-2"><b>Lifecycle</b><LifecycleBadge label={latestAip?.lifecycle_state || selectedAsset.lifecycle_state} canonicalPhase={latestAip?.canonical_phase} /></div>
-      <div className="grid grid-cols-2 gap-2"><span>Canonical Phase</span><b className="text-left">{latestAip?.canonical_phase || "—"}</b><span>SHA-256</span><b className="text-left" dir="ltr">{shortHash(selectedAsset.sha256_hex)}</b><span>Active Links</span><b className="text-left">{activeLinks(selectedAsset)}</b><span>Legal Hold</span><b className="text-left">{selectedAsset.legal_hold ? "YES" : "NO"}</b></div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><b>دورة الحياة</b><LifecycleBadge label={latestAip?.lifecycle_state || selectedAsset.lifecycle_state} canonicalPhase={latestAip?.canonical_phase} /></div>
+      <div className="grid grid-cols-2 gap-2"><span>المرحلة المعتمدة</span><b className="text-left">{latestAip?.canonical_phase || "—"}</b><span>SHA-256</span><b className="text-left" dir="ltr">{shortHash(selectedAsset.sha256_hex)}</b><span>Active Links</span><b className="text-left">{activeLinks(selectedAsset)}</b><span>Legal Hold</span><b className="text-left">{selectedAsset.legal_hold ? "YES" : "NO"}</b></div>
     </div> : <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">الأصل المحدد لم يعد موجوداً في القراءة الحالية. حدّث Media Vault.</div>}
 
     <div className="rounded-lg border border-[#eee4d8] bg-white p-3 text-xs">
