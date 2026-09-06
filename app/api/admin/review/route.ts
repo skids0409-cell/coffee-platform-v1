@@ -353,92 +353,116 @@ export async function POST(request: Request) {
     const canonicalTermAr = String(body.canonicalTermAr || "").trim().slice(0, 120);
     const canonicalTermEn = String(body.canonicalTermEn || "").trim().slice(0, 120) || null;
     const normalizedTerm = normalizeSearchText(canonicalTermAr);
-    const intent = searchIntents.includes(body.intent as (typeof searchIntents)[number])
-      ? body.intent as (typeof searchIntents)[number]
-      : null;
+    const intent = searchIntents.includes(body.intent as (typeof searchIntents)[number]) ? body.intent as (typeof searchIntents)[number] : null;
     const aliases = Array.isArray(body.aliases)
       ? body.aliases.map((alias) => String(alias).trim().slice(0, 120)).filter((alias, index, list) => alias.length >= 2 && list.indexOf(alias) === index).slice(0, 30)
       : [];
     const entityScope = Array.isArray(body.entityScope)
       ? body.entityScope.filter((type): type is SearchEntityType => searchEntityTypes.includes(type as SearchEntityType))
       : [];
-    if (normalizedTerm.length < 2 || !intent || entityScope.length < 1) {
-      return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
+    const matchMode = ["exact", "prefix", "contains"].includes(body.matchMode || "") ? body.matchMode! : "contains";
+    const weight = Math.max(1, Math.min(100, Number(body.weight) || 50));
+    const sourceBasis = searchSourceBases.includes(body.sourceBasis as (typeof searchSourceBases)[number]) ? body.sourceBasis! : "observed_query";
+    if (normalizedTerm.length < 2 || !intent || entityScope.length < 1) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
+    try {
+      await adminRest(admin.token, "rpc/admin_create_search_term", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          p_canonical_term_ar: canonicalTermAr,
+          p_canonical_term_en: canonicalTermEn,
+          p_normalized_term: normalizedTerm,
+          p_aliases: aliases,
+          p_intent: intent,
+          p_entity_scope: entityScope,
+          p_match_mode: matchMode,
+          p_weight: weight,
+          p_source_basis: sourceBasis,
+        }),
+      });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("invalid_search_") || message.includes("invalid_match_mode") || message.includes("invalid_source_basis") || message.includes("invalid_weight")) {
+        return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
+      }
+      throw error;
     }
-    const created = await adminRest<SearchTermAdminRow[]>(admin.token, "search_terms?select=*", {
-      method: "POST",
-      headers: { "content-type": "application/json", prefer: "return=representation" },
-      body: JSON.stringify({
-        market_code: "IQ-BGD",
-        canonical_term_ar: canonicalTermAr,
-        canonical_term_en: canonicalTermEn,
-        normalized_term: normalizedTerm,
-        aliases,
-        intent,
-        entity_scope: entityScope,
-        match_mode: ["exact", "prefix", "contains"].includes(body.matchMode || "") ? body.matchMode : "contains",
-        weight: Math.max(1, Math.min(100, Number(body.weight) || 50)),
-        source_basis: searchSourceBases.includes(body.sourceBasis as (typeof searchSourceBases)[number]) ? body.sourceBasis : "observed_query",
-        notes_ar: "أضيف من لوحة حوكمة البحث ويحتاج إلى اعتماد بشري قبل التفعيل.",
-        status: "draft",
-        updated_by: admin.user.id,
-      }),
-    });
-    const createdRow = created[0];
-    if (!createdRow) return Response.json({ updated: false, reason: "upstream_error" }, { status: 502 });
-    await adminRest(admin.token, "audit_events", {
-      method: "POST",
-      headers: { "content-type": "application/json", prefer: "return=minimal" },
-      body: JSON.stringify({ actor_user_id: admin.user.id, action: "create_search_term_draft", entity_table: "search_terms", entity_id: createdRow.id, after_data: createdRow, source: "operations_ui" }),
-    });
-    return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
   }
   if (body?.action === "set_search_term_status") {
-    if (!body.id || !/^[0-9a-f-]{36}$/i.test(body.id) || !searchTermStatuses.includes(body.status || "")) {
-      return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
-    }
-    const existing = await adminRest<SearchTermAdminRow[]>(admin.token, `search_terms?select=*&id=eq.${body.id}&limit=1`);
-    if (!existing[0]) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
+    if (!body.id || !/^[0-9a-f-]{36}$/i.test(body.id) || !searchTermStatuses.includes(body.status || "")) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
     if (body.status === "active" && !canVerify) return Response.json({ updated: false, reason: "verifier_required" }, { status: 403 });
-    await adminRest(admin.token, `search_terms?id=eq.${body.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json", prefer: "return=minimal" },
-      body: JSON.stringify({ status: body.status, updated_by: admin.user.id }),
-    });
-    await adminRest(admin.token, "audit_events", {
-      method: "POST",
-      headers: { "content-type": "application/json", prefer: "return=minimal" },
-      body: JSON.stringify({ actor_user_id: admin.user.id, action: `set_search_term_${body.status}`, entity_table: "search_terms", entity_id: body.id, before_data: { status: existing[0].status }, after_data: { status: body.status }, source: "operations_ui" }),
-    });
-    return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+    try {
+      await adminRest(admin.token, "rpc/admin_set_search_term_status", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ p_term_id: body.id, p_next_status: body.status }),
+      });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("search_term_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
+      if (message.includes("verifier_required")) return Response.json({ updated: false, reason: "verifier_required" }, { status: 403 });
+      if (message.includes("search_status_unchanged")) return Response.json({ updated: false, reason: "status_unchanged" }, { status: 409 });
+      if (message.includes("invalid_search_status")) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
+      throw error;
+    }
   }
   if (body?.action === "delete_search_term") {
     if (!isOwnerAdmin) return Response.json({ updated: false, reason: "admin_required" }, { status: 403 });
     if (!body.id || !/^[0-9a-f-]{36}$/i.test(body.id)) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
-    const existing = await adminRest<SearchTermAdminRow[]>(admin.token, `search_terms?select=*&id=eq.${body.id}&limit=1`);
-    if (!existing[0]) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
-    if (existing[0].status === "active") return Response.json({ updated: false, reason: "active_term_cannot_be_deleted" }, { status: 409 });
-    await adminRest(admin.token, "audit_events", { method: "POST", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ actor_user_id: admin.user.id, action: "delete_search_term", entity_table: "search_terms", entity_id: body.id, before_data: existing[0], source: "operations_center_v4" }) });
-    await adminRest(admin.token, `search_terms?id=eq.${body.id}`, { method: "DELETE", headers: { prefer: "return=minimal" } });
-    return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+    try {
+      await adminRest(admin.token, "rpc/admin_delete_search_term", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ p_term_id: body.id }),
+      });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("search_term_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
+      if (message.includes("active_term_cannot_be_deleted")) return Response.json({ updated: false, reason: "active_term_cannot_be_deleted" }, { status: 409 });
+      throw error;
+    }
   }
   if (body?.action === "update_search_term") {
     if (!body.id || !/^[0-9a-f-]{36}$/i.test(body.id)) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
-    const existing = await adminRest<SearchTermAdminRow[]>(admin.token, `search_terms?select=*&id=eq.${body.id}&limit=1`);
-    if (!existing[0]) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
     const canonicalTermAr = String(body.canonicalTermAr || "").trim().slice(0, 120);
     const canonicalTermEn = String(body.canonicalTermEn || "").trim().slice(0, 120) || null;
     const normalizedTerm = normalizeSearchText(canonicalTermAr);
-    const intent = searchIntents.includes(body.intent as (typeof searchIntents)[number]) ? body.intent : null;
+    const intent = searchIntents.includes(body.intent as (typeof searchIntents)[number]) ? body.intent as (typeof searchIntents)[number] : null;
     const aliases = Array.isArray(body.aliases) ? body.aliases.map((value) => String(value).trim().slice(0, 120)).filter((value, index, list) => value.length >= 2 && list.indexOf(value) === index).slice(0, 30) : [];
     const entityScope = Array.isArray(body.entityScope) ? body.entityScope.filter((value): value is SearchEntityType => searchEntityTypes.includes(value as SearchEntityType)) : [];
-    const matchMode = ["exact", "prefix", "contains"].includes(body.matchMode || "") ? body.matchMode : "contains";
+    const matchMode = ["exact", "prefix", "contains"].includes(body.matchMode || "") ? body.matchMode! : "contains";
     const weight = Math.max(1, Math.min(100, Number(body.weight) || 50));
+    const sourceBasis = searchSourceBases.includes(body.sourceBasis as (typeof searchSourceBases)[number]) ? body.sourceBasis! : "observed_query";
     if (normalizedTerm.length < 2 || !intent || !entityScope.length) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
-    const after = { canonical_term_ar: canonicalTermAr, canonical_term_en: canonicalTermEn, normalized_term: normalizedTerm, aliases, intent, entity_scope: entityScope, match_mode: matchMode, weight, source_basis: searchSourceBases.includes(body.sourceBasis as (typeof searchSourceBases)[number]) ? body.sourceBasis : existing[0].source_basis, updated_by: admin.user.id };
-    await adminRest(admin.token, `search_terms?id=eq.${body.id}`, { method: "PATCH", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify(after) });
-    await adminRest(admin.token, "audit_events", { method: "POST", headers: { "content-type": "application/json", prefer: "return=minimal" }, body: JSON.stringify({ actor_user_id: admin.user.id, action: "update_search_term", entity_table: "search_terms", entity_id: body.id, before_data: existing[0], after_data: after, source: "operations_center_v2" }) });
-    return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+    try {
+      await adminRest(admin.token, "rpc/admin_update_search_term", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          p_term_id: body.id,
+          p_canonical_term_ar: canonicalTermAr,
+          p_canonical_term_en: canonicalTermEn,
+          p_normalized_term: normalizedTerm,
+          p_aliases: aliases,
+          p_intent: intent,
+          p_entity_scope: entityScope,
+          p_match_mode: matchMode,
+          p_weight: weight,
+          p_source_basis: sourceBasis,
+        }),
+      });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token)) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("search_term_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
+      if (message.includes("invalid_search_") || message.includes("invalid_match_mode") || message.includes("invalid_source_basis") || message.includes("invalid_weight")) {
+        return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
+      }
+      throw error;
+    }
   }
   if (body?.action === "update_support_request") {
     if (!body.id || !/^[0-9a-f-]{36}$/i.test(body.id) || !supportStatuses.includes(body.status || "") || !["low", "normal", "high", "urgent"].includes(body.priority || "")) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
