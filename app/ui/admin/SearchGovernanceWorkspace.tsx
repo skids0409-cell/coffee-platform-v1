@@ -49,6 +49,7 @@ type SearchGovernanceWorkspaceProps = {
   onLetterChange: (value: string) => void;
   onEdit: (id: string) => void;
   onLifecycleAction: (term: SearchTerm, action: SearchTermLifecycleAction) => void;
+  onPromoteWeakQuery: (gap: WeakQuery) => void;
   renderEditingTerm?: (term: SearchTerm) => ReactNode;
 };
 
@@ -72,6 +73,7 @@ export function SearchGovernanceWorkspace({
   onLetterChange,
   onEdit,
   onLifecycleAction,
+  onPromoteWeakQuery,
   renderEditingTerm,
 }: SearchGovernanceWorkspaceProps) {
   return <div className="search-governance-disclosure" id="operations-search" data-workspace-contract="command-master-inspector-v1">
@@ -143,7 +145,7 @@ export function SearchGovernanceWorkspace({
         <h3>كلمات تحتاج إلى معالجة <span>{weakQueries.length}</span></h3>
         {weakQueries.length ? <div className="weak-query-table" role="table" aria-label="الكلمات ذات النتائج الضعيفة">
           <div role="row" className="head"><span>الكلمة</span><span>المقصد</span><span>بلا نتائج</span><span>نتيجة واحدة</span></div>
-          {weakQueries.map((gap) => <div role="row" key={gap.query}><b>{gap.query}</b><span>{intentLabels[gap.inferredIntent]}</span><span>{gap.zeroResults}</span><span>{gap.lowResults}</span></div>)}
+          {weakQueries.map((gap) => <div role="row" key={gap.query}><b>{gap.query}</b><span>{intentLabels[gap.inferredIntent]}</span><span>{gap.zeroResults}</span><span>{gap.lowResults}</span><button type="button" disabled={workingId === `weak:${gap.query}`} onClick={() => onPromoteWeakQuery(gap)}>تحويل لمسودة محكومة</button></div>)}
         </div> : <p>لا توجد كلمات ضعيفة مسجلة بعد. ستظهر هنا تلقائياً بعد الاختبارات.</p>}
       </div>
     </section>
