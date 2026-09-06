@@ -3,10 +3,11 @@ name: One-time legacy Operations cleanup
 on:
   push:
     branches:
-      - main
+      - phase1/legacy-operations-cleanup
     paths:
       - ".github/workflows/legacy-operations-cleanup.yml"
       - "tests/operations-workspace-extraction.test.mjs"
+      - "app/ui/admin/OperationsWorkspaceShell.tsx"
 
 permissions:
   contents: write
@@ -17,10 +18,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - name: Check out main
+      - name: Check out cleanup branch
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: main
+          ref: phase1/legacy-operations-cleanup
           fetch-depth: 1
 
       - name: Use verified Node.js runtime
@@ -60,6 +61,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/ui/Platform.tsx app/ui/partner/PartnerPortal.tsx
+          git add app/ui/Platform.tsx app/ui/partner/PartnerPortal.tsx app/ui/admin/OperationsWorkspaceShell.tsx
           git commit -m "refactor(platform): physically remove legacy operations monolith"
-          git push origin HEAD:main
+          git push origin HEAD:phase1/legacy-operations-cleanup
