@@ -1,10 +1,10 @@
 import { requireStaff, sameOrigin, adminRest } from "@/lib/supabase-admin";
 import { cleanHttps, mapMediaError, mediaRpc, mediaStorageRequest } from "@/lib/media-vault";
 import { projectPendingAssetReviewCapabilities } from "@/lib/pending-asset-review-capabilities";
+import { isEntityTypeAllowed, projectEntityLinkingContract } from "@/lib/entity-linking-contract";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ENTITY_TYPES = new Set(["organizations", "brands", "products", "offers", "contents", "origin_claims"]);
 const LINK_ROLES = new Set(["primary", "gallery", "logo", "hero", "evidence", "document"]);
 
 type ReviewAsset = {
@@ -111,7 +111,8 @@ export async function POST(request: Request) {
     const entityId = String(payload.entity_id || "");
     const linkRole = String(payload.role || "");
     const altAr = String(payload.alt_ar || "").trim();
-    if (!ENTITY_TYPES.has(entityType) || !UUID.test(entityId) || !LINK_ROLES.has(linkRole) || altAr.length < 2) {
+    const linkingContract = projectEntityLinkingContract({ context: "media_pending_review", linkRole });
+    if (!LINK_ROLES.has(linkRole) || !isEntityTypeAllowed(linkingContract, entityType) || !UUID.test(entityId) || altAr.length < 2) {
       return Response.json({ updated: false, reason: "invalid_assignment" }, { status: 400 });
     }
   }
