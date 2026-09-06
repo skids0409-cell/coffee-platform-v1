@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { StandardConfirmDialog } from "@/app/ui/admin/StandardConfirmDialog";
 import type { SupportLifecycleProjection, SupportWorkflowAction } from "@/lib/support-lifecycle-projection";
 
-type SupportRequest = any & { lifecycle?: SupportLifecycleProjection };
+type SupportRequest = { lifecycle?: SupportLifecycleProjection; [key: string]: any };
 
 type SupportWorkspaceProps = {
   data: { requests: SupportRequest[]; staff: any[] };
