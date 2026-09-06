@@ -2,6 +2,7 @@ import { adminRest, requireStaff, sameOrigin } from "@/lib/supabase-admin";
 import { normalizeSearchText, type SearchEntityType, type SearchIntent } from "@/lib/search-governance";
 import { projectReviewLifecycle, type ReviewLifecycleProjection } from "@/lib/review-lifecycle-projection";
 import { projectRightsLifecycle, type RightsLifecycleProjection } from "@/lib/rights-lifecycle-projection";
+import { projectBetaLifecycle, type BetaLifecycleProjection } from "@/lib/beta-lifecycle-projection";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -17,6 +18,7 @@ type QueueRow = {
   warnings: string[];
   lifecycle?: ReviewLifecycleProjection;
   rightsLifecycle?: RightsLifecycleProjection;
+  betaLifecycle?: BetaLifecycleProjection;
 };
 
 type LinkRow = { entity_table: string; entity_id: string };
@@ -219,6 +221,10 @@ async function loadQueue(token: string, role: string) {
     beta: betaFeedback.map((row) => ({ id: row.id, label: row.feedback_text, status: row.status, evidence: `${row.public_reference} · ${row.task_code} · ${row.outcome} · ${row.severity} · ${row.page_path}`, updated_at: row.created_at, ready: false, blockers: [], warnings: [`الجهاز: ${row.device_type}`] })),
     support: supportRequests.map((row) => ({ id: row.id, label: row.subject, status: row.status, evidence: `${row.public_reference} · ${row.request_type} · ${row.preferred_channel} · ${row.page_path}`, updated_at: row.created_at, ready: false, blockers: [], warnings: [row.message] })),
   };
+  rows.beta = rows.beta.map((row) => ({
+    ...row,
+    betaLifecycle: projectBetaLifecycle(row.status),
+  }));
   rows.rights = rows.rights.map((row) => ({
     ...row,
     rightsLifecycle: projectRightsLifecycle({ status: row.status, role }),
@@ -326,7 +332,7 @@ export async function GET(request: Request) {
   }
 }
 
-const allowedTables = ["products", "brands", "organizations", "offers", "contents", "origin_claims", "beta_feedback", "support_requests"] as const;
+const allowedTables = ["products", "brands", "organizations", "offers", "contents", "origin_claims", "support_requests"] as const;
 const publicationStatuses = ["draft", "in_review", "published", "rejected", "archived"];
 const feedbackStatuses = ["new", "triaged", "in_progress", "resolved", "duplicate"];
 const supportStatuses = ["new", "triaged", "in_progress", "waiting_user", "resolved", "closed", "spam", "archived"];
@@ -572,17 +578,35 @@ export async function POST(request: Request) {
       throw error;
     }
   }
+  if (body?.table === "beta_feedback") {
+    if (!body.id || !/^[0-9a-f-]{36}$/i.test(body.id) || !body.status || !feedbackStatuses.includes(body.status)) {
+      return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
+    }
+    try {
+      await adminRest(admin.token, "rpc/admin_transition_beta_feedback", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ p_feedback_id: body.id, p_next_status: body.status }),
+      });
+      return Response.json({ updated: true, ...(await loadQueue(admin.token, admin.profile.role)) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("beta_feedback_not_found")) return Response.json({ updated: false, reason: "not_found" }, { status: 404 });
+      if (message.includes("illegal_beta_feedback_transition") || message.includes("beta_feedback_state_unchanged")) return Response.json({ updated: false, reason: "illegal_transition" }, { status: 409 });
+      if (message.includes("invalid_beta_feedback_status")) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
+      if (message.includes("staff_required")) return Response.json({ updated: false, reason: "staff_required" }, { status: 403 });
+      throw error;
+    }
+  }
   if (
     !body?.table ||
     !allowedTables.includes(body.table as (typeof allowedTables)[number]) ||
     !body.id ||
     !/^[0-9a-f-]{36}$/i.test(body.id) ||
     !body.status ||
-    (body.table === "beta_feedback"
-      ? !feedbackStatuses.includes(body.status)
-      : body.table === "support_requests"
-        ? !supportStatuses.includes(body.status)
-        : !publicationStatuses.includes(body.status))
+    (body.table === "support_requests"
+      ? !supportStatuses.includes(body.status)
+      : !publicationStatuses.includes(body.status))
   ) return Response.json({ updated: false, reason: "invalid_input" }, { status: 400 });
 
   const table = body.table as (typeof allowedTables)[number];

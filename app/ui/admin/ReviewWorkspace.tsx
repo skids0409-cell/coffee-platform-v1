@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { PendingAssetReviewConsole } from "@/app/ui/admin/PendingAssetReviewConsole";
 import type { ReviewLifecycleAction, ReviewLifecycleProjection } from "@/lib/review-lifecycle-projection";
 import type { RightsLifecycleAction, RightsLifecycleProjection } from "@/lib/rights-lifecycle-projection";
+import type { BetaLifecycleAction, BetaLifecycleProjection } from "@/lib/beta-lifecycle-projection";
 
 export type ReviewQueueRow = {
   id: string;
@@ -15,6 +16,7 @@ export type ReviewQueueRow = {
   warnings: string[];
   lifecycle?: ReviewLifecycleProjection;
   rightsLifecycle?: RightsLifecycleProjection;
+  betaLifecycle?: BetaLifecycleProjection;
 };
 
 export type ReviewQueues = Record<string, ReviewQueueRow[]>;
@@ -88,6 +90,10 @@ export function ReviewWorkspace({
     if (action.enabled) onProcessRights(row.id, action.targetStatus);
   };
 
+  const runProjectedBetaAction = (row: ReviewQueueRow, action: BetaLifecycleAction) => {
+    if (action.enabled) onSetStatus("beta_feedback", row.id, action.targetStatus);
+  };
+
   return <div className="review-queues" id="operations-review" data-workspace-contract="master-detail-v1" data-review-role={role}>
     <PendingAssetReviewConsole />
     {queueSections.filter(([key]) => (queues[key]?.length || 0) > 0).map(([key, label]) => (
@@ -105,10 +111,19 @@ export function ReviewWorkspace({
             {row.warnings.length > 0 && <ul className="queue-notes warnings">{row.warnings.map((note) => <li key={note}>{note}</li>)}</ul>}
           </div>
 
-          {key === "beta" && <div className="queue-actions">
-            {row.status === "new" && <button type="button" disabled={workingId === row.id} onClick={() => onSetStatus("beta_feedback", row.id, "triaged")}>بدء المعالجة</button>}
-            {["triaged", "in_progress"].includes(row.status) && <button type="button" disabled={workingId === row.id} onClick={() => onSetStatus("beta_feedback", row.id, "resolved")}>إغلاق بعد الإصلاح</button>}
-            <button type="button" disabled={workingId === row.id} onClick={() => onSetStatus("beta_feedback", row.id, "duplicate")}>مكرر</button>
+          {key === "beta" && <div className="queue-actions" data-lifecycle-revision={row.betaLifecycle?.contractRevision || "missing"}>
+            {(row.betaLifecycle?.availableActions || []).map((action) => (
+              <button
+                key={action.action}
+                type="button"
+                disabled={workingId === row.id || !action.enabled}
+                title={action.blockedReason || ""}
+                data-confirmation-mode={action.confirmationMode}
+                onClick={() => runProjectedBetaAction(row, action)}
+              >
+                {action.label}
+              </button>
+            ))}
           </div>}
 
           {key === "rights" && <div className="queue-actions rights-actions" data-lifecycle-revision={row.rightsLifecycle?.contractRevision || "missing"}>
