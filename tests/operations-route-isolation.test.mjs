@@ -18,7 +18,10 @@ function walk(dir) {
   });
 }
 
-test("/operations is a dedicated route and never imports the legacy Platform host", () => {
+test("/operations defaults to Data Center V2 while explicit governed workspaces stay reachable", () => {
+  assert.match(operationsRoute, /redirect\(`\/operations\/data-center-v2\?view=\$\{view\}`\)/);
+  assert.match(operationsRoute, /workspace === "entry"/);
+  assert.match(operationsRoute, /workspace === "imports"/);
   assert.match(operationsRoute, /OperationsController/);
   assert.doesNotMatch(operationsRoute, /Platform/);
   assert.doesNotMatch(operationsRoute, /GovernedOperationsBridge|PendingAssetReviewBridge|MediaPreservationBridge/);
