@@ -1,4 +1,4 @@
-name: One-time legacy Operations cleanup
+name: Phase 1 validation
 
 on:
   push:
@@ -6,19 +6,23 @@ on:
       - phase1/legacy-operations-cleanup
     paths:
       - ".github/workflows/legacy-operations-cleanup.yml"
-      - "tests/operations-workspace-extraction.test.mjs"
-      - "app/ui/admin/OperationsWorkspaceShell.tsx"
+      - "app/ui/Platform.tsx"
+      - "app/ui/partner/PartnerPortal.tsx"
+      - "app/ui/admin/**"
+      - "app/api/admin/review/route.ts"
+      - "supabase/migrations/**"
+      - "tests/**"
 
 permissions:
   contents: write
 
 jobs:
-  cleanup:
+  validate:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - name: Check out cleanup branch
+      - name: Check out branch
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: phase1/legacy-operations-cleanup
@@ -33,10 +37,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --include=dev
 
-      - name: Remove legacy Operations block with guarded codemod
-        run: node scripts/remove-legacy-operations.mjs
-
-      - name: Verify no legacy Operations residue remains
+      - name: Verify legacy cleanup and partner isolation
         run: |
           ! grep -q 'type DataCenterBatch = {' app/ui/Platform.tsx
           ! grep -q 'function Operations()' app/ui/Platform.tsx
@@ -44,26 +45,50 @@ jobs:
           ! grep -q 'PartnerReviewQueue' app/ui/Platform.tsx
           grep -q 'PartnerPortal' app/ui/Platform.tsx
           grep -q 'export function PartnerPortal()' app/ui/partner/PartnerPortal.tsx
-          grep -q 'const betaTestTasks = \[' app/ui/Platform.tsx
-          grep -q 'function HelpSupport()' app/ui/Platform.tsx
+          grep -q 'else if (page.kind === "partner") body = <PartnerPortal />;' app/ui/Platform.tsx
           grep -q 'export default function Platform' app/ui/Platform.tsx
 
-      - name: Persist physical cleanup before validation
+      - name: Lint
+        run: npm run lint
+
+      - name: Build with captured diagnostics
+        id: build
+        shell: bash
+        run: |
+          set +e
+          npm run build > ci-build.log 2>&1
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          cat ci-build.log
+          exit 0
+
+      - name: Persist build diagnostics on failure
+        if: steps.build.outputs.exit_code != '0'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/ui/Platform.tsx app/ui/partner/PartnerPortal.tsx
-          git commit -m "refactor(platform): physically remove legacy operations monolith"
+          git add ci-build.log
+          git commit -m "ci: capture phase1 build diagnostics" || true
           git push origin HEAD:phase1/legacy-operations-cleanup
+          exit 1
 
-      - name: Lint cleaned source
-        run: npm run lint
-
-      - name: Test and build cleaned source
-        run: npm test
-
-      - name: Remove one-time cleanup machinery
+      - name: Tests with captured diagnostics
+        id: tests
+        shell: bash
         run: |
-          git rm scripts/remove-legacy-operations.mjs .github/workflows/legacy-operations-cleanup.yml
-          git commit -m "chore: remove one-time legacy cleanup machinery"
+          set +e
+          node --test tests/*.test.mjs > ci-tests.log 2>&1
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          cat ci-tests.log
+          exit 0
+
+      - name: Persist test diagnostics on failure
+        if: steps.tests.outputs.exit_code != '0'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ci-tests.log
+          git commit -m "ci: capture phase1 test diagnostics" || true
           git push origin HEAD:phase1/legacy-operations-cleanup
+          exit 1
