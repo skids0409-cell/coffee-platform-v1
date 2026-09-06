@@ -11,7 +11,6 @@ on:
       - "app/ui/admin/**"
       - "app/api/admin/review/route.ts"
       - "supabase/migrations/**"
-      - "scripts/phase1-review-wrapup.mjs"
       - "scripts/phase1-test-realignment.mjs"
       - "tests/**"
 
@@ -39,21 +38,18 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --include=dev
 
-      - name: Apply guarded Review and Approval wrap-up
-        run: node scripts/phase1-review-wrapup.mjs
-
       - name: Realign regression tests to extracted architecture
         run: node scripts/phase1-test-realignment.mjs
 
-      - name: Persist wrap-up changes
+      - name: Persist test realignment
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/ui/admin/OperationsController.tsx app/api/admin/review/route.ts tests/operations-workspace-extraction.test.mjs tests/rendered-html.test.mjs tests/media-vault-phase4.test.mjs tests/operations-center-architecture.test.mjs
-          git commit -m "refactor(review): standardize transitions and realign extraction regressions"
+          git add tests/rendered-html.test.mjs tests/media-vault-phase4.test.mjs tests/operations-center-architecture.test.mjs
+          git commit -m "test: realign regressions to extracted operations architecture"
           git push origin HEAD:phase1/legacy-operations-cleanup
 
-      - name: Verify legacy cleanup and partner isolation
+      - name: Verify phase 1 boundaries
         run: |
           ! grep -q 'type DataCenterBatch = {' app/ui/Platform.tsx
           ! grep -q 'function Operations()' app/ui/Platform.tsx
@@ -62,7 +58,7 @@ jobs:
           grep -q 'PartnerPortal' app/ui/Platform.tsx
           grep -q 'export function PartnerPortal()' app/ui/partner/PartnerPortal.tsx
           grep -q 'else if (page.kind === "partner") body = <PartnerPortal />;' app/ui/Platform.tsx
-          grep -q 'export default function Platform' app/ui/Platform.tsx
+          ! grep -q 'aria-description' app/ui/admin/OperationsWorkspaceShell.tsx
           ! grep -q 'window.prompt' app/ui/admin/ReviewWorkspace.tsx
           ! grep -q 'window.confirm' app/ui/admin/ReviewWorkspace.tsx
           grep -q 'StandardConfirmDialog' app/ui/admin/OperationsController.tsx
@@ -71,44 +67,8 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Build with captured diagnostics
-        id: build
-        shell: bash
-        run: |
-          set +e
-          npm run build > ci-build.log 2>&1
-          code=$?
-          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
-          cat ci-build.log
-          exit 0
+      - name: Build
+        run: npm run build
 
-      - name: Persist build diagnostics on failure
-        if: steps.build.outputs.exit_code != '0'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ci-build.log
-          git commit -m "ci: capture phase1 build diagnostics" || true
-          git push origin HEAD:phase1/legacy-operations-cleanup
-          exit 1
-
-      - name: Tests with captured diagnostics
-        id: tests
-        shell: bash
-        run: |
-          set +e
-          node --test tests/*.test.mjs > ci-tests.log 2>&1
-          code=$?
-          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
-          cat ci-tests.log
-          exit 0
-
-      - name: Persist test diagnostics on failure
-        if: steps.tests.outputs.exit_code != '0'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ci-tests.log
-          git commit -m "ci: capture phase1 test diagnostics" || true
-          git push origin HEAD:phase1/legacy-operations-cleanup
-          exit 1
+      - name: Tests
+        run: node --test tests/*.test.mjs
