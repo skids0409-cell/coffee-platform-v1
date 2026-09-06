@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const source = fs.readFileSync("app/ui/admin/SearchGovernanceWorkspace.tsx", "utf8");
+const projection = fs.readFileSync("lib/search-term-lifecycle-projection.ts", "utf8");
 
 test("search governance extraction preserves the operator contract", () => {
   assert.match(source, /id="operations-search"/);
@@ -16,7 +17,7 @@ test("search governance extraction preserves the operator contract", () => {
 });
 
 test("search governance remains controlled by the operations orchestrator", () => {
-  for (const callback of ["onCreate", "onViewChange", "onQueryChange", "onLetterChange", "onEdit", "onStatusChange", "onDelete"]) {
+  for (const callback of ["onCreate", "onViewChange", "onQueryChange", "onLetterChange", "onEdit", "onLifecycleAction"]) {
     assert.match(source, new RegExp(callback));
   }
   assert.doesNotMatch(source, /fetch\(/);
@@ -24,11 +25,16 @@ test("search governance remains controlled by the operations orchestrator", () =
   assert.doesNotMatch(source, /localStorage|sessionStorage/);
 });
 
-test("search governance preserves lifecycle actions without inventing new transitions", () => {
-  assert.match(source, /"active"/);
-  assert.match(source, /"draft"/);
-  assert.match(source, /"retired"/);
-  assert.match(source, /onStatusChange\(term\.id, "active"\)/);
-  assert.match(source, /onStatusChange\(term\.id, "retired"\)/);
-  assert.match(source, /onStatusChange\(term\.id, "draft"\)/);
+test("search governance consumes projected lifecycle actions without local transition inference", () => {
+  assert.match(source, /term\.lifecycle\.availableActions\.map/);
+  assert.match(source, /action\.enabled/);
+  assert.match(source, /action\.blockedReason/);
+  assert.match(source, /action\.label/);
+  assert.match(projection, /SEARCH_TERM_LIFECYCLE_CONTRACT_REVISION\s*=\s*"search-governance\.lifecycle\.v1"/);
+  assert.match(projection, /nextStatus: "active"/);
+  assert.match(projection, /nextStatus: "retired"/);
+  assert.match(projection, /nextStatus: "draft"/);
+  assert.doesNotMatch(source, /onStatusChange\(term\.id/);
+  assert.doesNotMatch(source, /term\.status\s*!==\s*"active"\s*&&\s*<button/);
+  assert.doesNotMatch(source, /term\.status\s*===\s*"active"\s*&&\s*<button/);
 });
