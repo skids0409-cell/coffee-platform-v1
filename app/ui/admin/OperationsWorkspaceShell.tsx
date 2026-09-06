@@ -104,7 +104,7 @@ export function OperationsWorkspaceShell({
                 key={value}
                 className={workspace === value ? "active" : ""}
                 aria-current={workspace === value ? "page" : undefined}
-                aria-description={`${descriptor.group} · ${descriptor.purpose}`}
+                aria-label={`${descriptor.label} · ${descriptor.group} · ${descriptor.purpose}`}
                 data-architecture-group={descriptor.group}
                 data-architecture-purpose={descriptor.purpose}
                 onClick={() => onWorkspaceChange(value)}
