@@ -68,6 +68,12 @@ type MirrorProbe = {
   count: number | null;
 };
 
+const mirrorDefinitions: Array<Omit<MirrorProbe, "state" | "count">> = [
+  { key: "products", label: "المنتجات العامة", endpoint: "/api/public-products" },
+  { key: "directory", label: "دليل الجهات", endpoint: "/api/public-directory" },
+  { key: "search", label: "البحث العام", endpoint: "/api/public-search?q=%D9%82%D9%87%D9%88%D8%A9" },
+];
+
 const emptyReference: ReferenceData = {
   categories: [],
   organizations: [],
@@ -119,11 +125,7 @@ export function DataCenterV2App() {
   const [working, setWorking] = useState("");
   const [confirmRequest, setConfirmRequest] = useState<{ batch: Batch; action: DataImportLifecycleAction } | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
-  const [mirror, setMirror] = useState<MirrorProbe[]>([
-    { key: "products", label: "المنتجات العامة", endpoint: "/api/public-products", state: "idle", count: null },
-    { key: "directory", label: "دليل الجهات", endpoint: "/api/public-directory", state: "idle", count: null },
-    { key: "search", label: "البحث العام", endpoint: "/api/public-search?q=%D9%82%D9%87%D9%88%D8%A9", state: "idle", count: null },
-  ]);
+  const [mirror, setMirror] = useState<MirrorProbe[]>(() => mirrorDefinitions.map((probe) => ({ ...probe, state: "idle", count: null })));
 
   const load = useCallback(async () => {
     const response = await fetch("/api/admin/data-center", { cache: "no-store", credentials: "same-origin" });
@@ -256,9 +258,9 @@ export function DataCenterV2App() {
     setMessage(action.action === "import" ? "تم إنشاء مسودات فقط؛ لم ينتقل أي سجل إلى العميل دون المراجعة والنشر." : "تم تنفيذ انتقال الدفعة وتسجيله عبر الحد الخادمي المعتمد.");
   };
 
-  const runMirror = async () => {
-    setMirror((current) => current.map((probe) => ({ ...probe, state: "loading", count: null })));
-    const next = await Promise.all(mirror.map(async (probe) => {
+  const runMirror = useCallback(async () => {
+    setMirror(mirrorDefinitions.map((probe) => ({ ...probe, state: "loading", count: null })));
+    const next = await Promise.all(mirrorDefinitions.map(async (probe) => {
       try {
         const response = await fetch(probe.endpoint, { cache: "no-store" });
         const payload = await response.json().catch(() => null);
@@ -268,7 +270,20 @@ export function DataCenterV2App() {
       }
     }));
     setMirror(next);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (state !== "ready") return;
+    const initial = window.setTimeout(() => void runMirror(), 0);
+    const interval = window.setInterval(() => void runMirror(), 60_000);
+    const onVisibility = () => { if (document.visibilityState === "visible") void runMirror(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [state, runMirror]);
 
   if (state === "loading") return <div className={styles.root}><div className={styles.notice}>جارٍ تحميل Data Center V2 من العقود الخادمية الحالية…</div></div>;
 
@@ -355,7 +370,7 @@ export function DataCenterV2App() {
             {preview.length > 0 && <section className={styles.panel}><div className={styles.panelHead}><h2>معاينة التحقق</h2><span className={styles.badge}>{preview.length.toLocaleString("ar-IQ")} صف</span></div><ul className={styles.previewList}>{preview.slice(0, 100).map((row) => <li className={styles.previewItem} data-status={row.status} key={`${row.sourceRowNumber}-${row.normalized.name_ar}`}><b>{row.normalized.name_ar || "بدون اسم"}</b><div className={styles.meta}>{row.normalized.address_ar}</div>{row.messages.length > 0 && <small>{row.messages.join(" · ")}</small>}</li>)}</ul></section>}
           </>}
 
-          {view === "catalog" && <CatalogIntakeV2 reference={reference} onCreated={load} />}
+          {view === "catalog" && <CatalogIntakeV2 reference={reference} onCreated={async () => { await load(); await runMirror(); }} />}
 
           {view === "batches" && <section className={styles.panel}>
             <div className={styles.panelHead}><div><h2>دفعات الاستيراد</h2><p className={styles.muted}>الأزرار أدناه ترسم `availableActions` من `data-import.lifecycle.v1` فقط.</p></div><span className={styles.badge}>{activeBatches.length.toLocaleString("ar-IQ")}</span></div>
@@ -381,7 +396,7 @@ export function DataCenterV2App() {
           </section>}
 
           {view === "client" && <section className={styles.panel} data-client-facing-parity="read-only">
-            <div className={styles.panelHead}><div><h2>مرآة المنصة الرئيسية للزبون</h2><p className={styles.muted}>فحص read-only لواجهات النشر العامة. لا يسمح V2 بتجاوز بوابة publication.</p></div><button className={styles.primary} type="button" onClick={() => void runMirror()}>فحص الآن</button></div>
+            <div className={styles.panelHead}><div><h2>مرآة المنصة الرئيسية للزبون</h2><p className={styles.muted}>Watchdog read-only يعمل عند فتح V2، كل 60 ثانية، وعند العودة للنافذة. لا يسمح V2 بتجاوز بوابة publication.</p></div><button className={styles.primary} type="button" onClick={() => void runMirror()}>فحص الآن</button></div>
             {mirror.map((probe) => <div className={styles.mirrorRow} key={probe.key}><div><b>{probe.label}</b><div className={`${styles.meta} ${styles.code}`}>{probe.endpoint}</div></div><span className={styles.badge} data-tone={probe.state === "ok" ? "ready" : probe.state === "error" ? "danger" : "warning"}>{probe.state === "idle" ? "لم يُفحص" : probe.state === "loading" ? "جارٍ الفحص" : probe.state === "ok" ? "متاح" : "خطأ"}</span><strong>{probe.count === null ? "—" : probe.count.toLocaleString("ar-IQ")}</strong></div>)}
             <div className={styles.notice}><b>قاعدة الموازنة:</b> أي إدخال من V2 يبقى Draft حتى يمر عبر Review. هذه المرآة تقيس فقط ما يستطيع العميل العام رؤيته حالياً.</div>
           </section>}
