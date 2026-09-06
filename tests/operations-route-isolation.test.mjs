@@ -8,6 +8,7 @@ const operationsRoute = fs.readFileSync(path.join(repoRoot, "app/operations/page
 const catchAllRoute = fs.readFileSync(path.join(repoRoot, "app/[...slug]/page.tsx"), "utf8");
 const controller = fs.readFileSync(path.join(repoRoot, "app/ui/admin/OperationsController.tsx"), "utf8");
 const shell = fs.readFileSync(path.join(repoRoot, "app/ui/admin/OperationsWorkspaceShell.tsx"), "utf8");
+const rollback = fs.readFileSync(path.join(repoRoot, "app/ui/admin/data-center-v2/LegacyDataCenterRollback.tsx"), "utf8");
 
 function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -29,14 +30,12 @@ test("the catch-all route explicitly refuses to serve /operations through Platfo
   assert.match(catchAllRoute, /Platform/);
 });
 
-test("the operations controller owns all active workspaces through the governed shell", () => {
+test("the operations controller owns active workspaces and routes Data Center to V2", () => {
   for (const moduleName of [
     "OperationsDashboardWorkspace",
     "RecordsWorkspace",
     "ReviewWorkspace",
     "MediaVaultWorkspace",
-    "DataCenterWorkspace",
-    "CatalogDraftWorkspace",
     "PartnerReviewQueue",
     "SearchGovernanceWorkspace",
     "SupportWorkspace",
@@ -44,6 +43,11 @@ test("the operations controller owns all active workspaces through the governed 
     "TaxonomyWorkspace",
   ]) assert.match(controller, new RegExp(moduleName));
   assert.match(controller, /OperationsWorkspaceShell/);
+  assert.match(controller, /\/operations\/data-center-v2\?view=/);
+  assert.doesNotMatch(controller, /import\s+\{?\s*DataCenterWorkspace/);
+  assert.doesNotMatch(controller, /import\s+\{?\s*CatalogDraftWorkspace/);
+  assert.match(rollback, /DataCenterWorkspace/);
+  assert.match(rollback, /CatalogDraftWorkspace/);
   assert.match(shell, /command-master-inspector-v1/);
 });
 

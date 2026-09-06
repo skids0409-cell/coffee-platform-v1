@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 const route = fs.readFileSync("app/operations/page.tsx", "utf8");
 const controller = fs.readFileSync("app/ui/admin/OperationsController.tsx", "utf8");
+const rollback = fs.readFileSync("app/ui/admin/data-center-v2/LegacyDataCenterRollback.tsx", "utf8");
 const searchProjection = fs.readFileSync("lib/search-term-lifecycle-projection.ts", "utf8");
 
 test("operations has a dedicated static route outside the catch-all platform host", () => {
@@ -12,15 +13,13 @@ test("operations has a dedicated static route outside the catch-all platform hos
   assert.doesNotMatch(route, /\.\.\/ui\/Platform/);
 });
 
-test("operations controller composes all governed workspace modules", () => {
+test("operations controller composes governed modules and cuts Data Center over to V2", () => {
   for (const component of [
     "OperationsWorkspaceShell",
     "OperationsDashboardWorkspace",
     "RecordsWorkspace",
     "ReviewWorkspace",
     "MediaVaultWorkspace",
-    "DataCenterWorkspace",
-    "CatalogDraftWorkspace",
     "PartnerReviewQueue",
     "SearchGovernanceWorkspace",
     "SupportWorkspace",
@@ -29,6 +28,12 @@ test("operations controller composes all governed workspace modules", () => {
     "ReviewRecordEditor",
     "QualityIssueEditor",
   ]) assert.match(controller, new RegExp(component));
+  assert.match(controller, /\/operations\/data-center-v2\?view=/);
+  assert.doesNotMatch(controller, /import\s+\{?\s*DataCenterWorkspace/);
+  assert.doesNotMatch(controller, /import\s+\{?\s*CatalogDraftWorkspace/);
+  assert.match(rollback, /DataCenterWorkspace/);
+  assert.match(rollback, /CatalogDraftWorkspace/);
+  assert.match(rollback, /rollback-only/);
 });
 
 test("controller keeps lifecycle-changing actions on existing server APIs", () => {

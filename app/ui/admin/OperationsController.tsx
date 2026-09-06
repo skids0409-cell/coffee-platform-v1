@@ -1,14 +1,14 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { OperationsWorkspaceShell, type OperationsWorkspaceId } from "@/app/ui/admin/OperationsWorkspaceShell";
 import { OperationsDashboardWorkspace, type QualitySuspectView } from "@/app/ui/admin/OperationsDashboardWorkspace";
 import { RecordsWorkspace } from "@/app/ui/admin/RecordsWorkspace";
 import { ReviewWorkspace } from "@/app/ui/admin/ReviewWorkspace";
 import { MediaVaultWorkspace } from "@/app/ui/admin/MediaVaultWorkspace";
-import { DataCenterWorkspace } from "@/app/ui/admin/DataCenterWorkspace";
-import { CatalogDraftWorkspace } from "@/app/ui/admin/CatalogDraftWorkspace";
 import { PartnerReviewQueue } from "@/app/ui/admin/PartnerReviewQueue";
 import { SearchGovernanceWorkspace } from "@/app/ui/admin/SearchGovernanceWorkspace";
 import { SearchTermEditForm } from "@/app/ui/admin/SearchTermEditForm";
@@ -119,6 +119,7 @@ function adoptAdminPayload(current: AdminData, payload: any): AdminData {
 }
 
 export function OperationsController() {
+  const router = useRouter();
   const [adminState, setAdminState] = useState<"loading" | "signed_out" | "ready" | "error">("loading");
   const [adminData, setAdminData] = useState<AdminData | null>(null);
   const [adminMessage, setAdminMessage] = useState("");
@@ -155,6 +156,10 @@ export function OperationsController() {
       const params = new URLSearchParams(window.location.search);
       const requestedWorkspace = params.get("workspace") as OperationsWorkspaceId | null;
       const allowedWorkspaces: OperationsWorkspaceId[] = ["dashboard", "records", "entry", "review", "partners", "media", "imports", "search", "requests", "archive", "taxonomy"];
+      if (requestedWorkspace === "entry" || requestedWorkspace === "imports") {
+        window.location.replace(`/operations/data-center-v2?view=${requestedWorkspace === "entry" ? "catalog" : "batches"}`);
+        return;
+      }
       if (requestedWorkspace && allowedWorkspaces.includes(requestedWorkspace)) setWorkspace(requestedWorkspace);
       setDeepLinkTarget({
         quality: params.get("quality") || "",
@@ -384,14 +389,22 @@ export function OperationsController() {
   if (adminState === "error") return <div className="operations"><section className="admin-review-panel"><div className="directory-state compact"><h3>تعذر تحميل لوحة الإدارة</h3><p>لم يتغير أي سجل. أعد تحميل الصفحة أو سجّل الدخول من جديد.</p><button type="button" onClick={() => { setAdminState("loading"); void loadAdmin().catch(() => setAdminState("error")); }}>إعادة المحاولة</button></div></section></div>;
   if (adminState === "signed_out" || !adminData) return <div className="operations"><section className="admin-review-panel"><div className="section-head"><div><span className="eyebrow">Governed Operations Center</span><h2>دخول فريق البيانات</h2></div></div><form className="admin-login" onSubmit={login}><label>البريد الإلكتروني<input type="email" name="email" autoComplete="email" required /></label><label>كلمة المرور<input type="password" name="password" autoComplete="current-password" required /></label><button className="primary" type="submit">تسجيل الدخول</button>{adminMessage && <p className="admin-message" role="status">{adminMessage}</p>}</form></section></div>;
 
+  const openWorkspace = (next: OperationsWorkspaceId) => {
+    if (next === "entry" || next === "imports") {
+      router.push(`/operations/data-center-v2?view=${next === "entry" ? "catalog" : "batches"}`);
+      return;
+    }
+    setWorkspace(next);
+  };
+
   const panels = {
     dashboard: <OperationsDashboardWorkspace checks={[["جلسة الإدارة", "متصلة"], ["حاجز النشر", "مفعّل"], ["نطاق التشغيل", "بغداد"], ["معمارية الواجهة", "Operations Center v2"]]} summary={adminData.qualityDesk.summary} suspects={adminData.qualityDesk.suspects} onOpenIssue={(issue) => setQualityIssueEditor(issue as QualitySuspect)} onOpenRecord={setRecordEditor} />,
     records: <RecordsWorkspace items={adminData.publishedCatalog} visibleItems={visiblePublished} publishedType={publishedType} publishedGroup={publishedGroup} publishedGroups={publishedGroups} publishedQuery={publishedQuery} onTypeChange={(value) => { setPublishedType(value); setPublishedGroup("all"); }} onGroupChange={setPublishedGroup} onQueryChange={setPublishedQuery} onOpen={setRecordEditor} />,
-    entry: <DataCenterWorkspace mode="entry" onChanged={loadAdmin} renderEntry={(reference, reload) => <CatalogDraftWorkspace reference={reference} onCreated={reload} />} />,
+    entry: <section className="directory-state compact" data-data-center-cutover="v2"><h3>تم نقل الإدخال إلى Data Center V2</h3><p>المسار التشغيلي المعتمد الآن هو V2. المركز القديم متاح فقط لمسار rollback المقيد.</p><Link className="primary" href="/operations/data-center-v2?view=catalog">فتح إدخال V2</Link></section>,
     review: <ReviewWorkspace queues={adminData.queues} role={adminData.profile.role} workingId={workingId} statusLabels={queueStatusLabels} focusId={deepLinkTarget.rights} onOpenRecord={setRecordEditor} onSetStatus={setReviewStatus} onAdminOverride={requestAdminOverride} onProcessRights={processRightsRequest} onDeleteRecord={deleteCatalogRecord} />,
     partners: <PartnerReviewQueue focusId={deepLinkTarget.submission} />,
     media: <MediaVaultWorkspace onOpen={setRecordEditor} onUnauthorized={() => { setAdminData(null); setAdminState("signed_out"); }} />,
-    imports: <DataCenterWorkspace mode="imports" onChanged={loadAdmin} />,
+    imports: <section className="directory-state compact" data-data-center-cutover="v2"><h3>تم نقل الاستيراد إلى Data Center V2</h3><p>إدارة الدفعات ودورة حياتها تعمل من المسار الجديد فقط.</p><Link className="primary" href="/operations/data-center-v2?view=batches">فتح دفعات V2</Link></section>,
     search: <SearchGovernanceWorkspace terms={adminData.searchGovernance.terms} visibleTerms={visibleSearchTerms} weakQueries={adminData.searchGovernance.weakQueries} activeTerms={adminData.searchGovernance.activeTerms} draftTerms={adminData.searchGovernance.draftTerms} totalEventsReviewed={adminData.searchGovernance.totalEventsReviewed} workingId={workingId} view={searchTermView} query={searchTermQuery} letter={searchLetter} letters={arabicLetters} editingTermId={editingSearchTermId} intentLabels={searchIntentLabels} typeLabels={searchTypeLabels} onCreate={createSearchTerm} onViewChange={setSearchTermView} onQueryChange={setSearchTermQuery} onLetterChange={setSearchLetter} onEdit={setEditingSearchTermId} onLifecycleAction={requestSearchTermAction} onPromoteWeakQuery={(gap) => void promoteWeakQuery(gap)} renderEditingTerm={(term) => <SearchTermEditForm key={term.id} term={term} onCancel={() => setEditingSearchTermId("")} onSaved={(result) => { setAdminData((current) => current ? adoptAdminPayload(current, result) : current); setEditingSearchTermId(""); setAdminMessage("تم تعديل مصطلح البحث وتسجيل التغيير."); }} />} />,
     requests: <SupportWorkspace data={adminData.supportWorkspace} focusId={deepLinkTarget.support} onUpdated={(result) => setAdminData((current) => current ? adoptAdminPayload(current, result) : current)} />,
     archive: <ArchiveWorkspace items={adminData.inactiveCatalog} canDelete={adminData.operatorCapabilities.canDeleteInactiveCatalog} workingId={workingId} onOpen={setRecordEditor} onRestoreDraft={(entity, id) => void setReviewStatus(entity, id, "draft")} onDelete={deleteCatalogRecord} importArchive={<ArchivedImportBatches />} />,
@@ -400,7 +413,7 @@ export function OperationsController() {
 
   return <>
     {adminMessage && <div className="operations-global-message"><p className="admin-message" role="status">{adminMessage}</p></div>}
-    <OperationsWorkspaceShell workspace={workspace} onWorkspaceChange={setWorkspace} panels={panels} canManageTaxonomy={adminData.operatorCapabilities.canManageTaxonomy} operatorLabel={adminData.profile.display_name || "فريق البيانات"} operatorRoleLabel={roleLabels[adminData.profile.role]} onLogout={logout} />
+    <OperationsWorkspaceShell workspace={workspace} onWorkspaceChange={openWorkspace} panels={panels} canManageTaxonomy={adminData.operatorCapabilities.canManageTaxonomy} operatorLabel={adminData.profile.display_name || "فريق البيانات"} operatorRoleLabel={roleLabels[adminData.profile.role]} onLogout={logout} />
     {recordEditor && <ReviewRecordEditor entity={recordEditor.entity} id={recordEditor.id} canRestore={adminData.operatorCapabilities.canRestoreRevision} onClose={() => setRecordEditor(null)} onSaved={loadAdmin} />}
     {qualityIssueEditor && <QualityIssueEditor issue={qualityIssueEditor} candidates={qualityRecordCandidates} canDecide={adminData.operatorCapabilities.canResolveQualityIssue} onClose={() => setQualityIssueEditor(null)} onUpdated={(result) => setAdminData((current) => current ? adoptAdminPayload(current, result) : current)} />}
     <StandardConfirmDialog
