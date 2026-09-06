@@ -11,7 +11,8 @@ const rollbackPage = read("app/operations/data-center-legacy/page.tsx");
 test("Operations routes entry and imports to Data Center V2 by default", () => {
   assert.match(controller, /requestedWorkspace === "entry" \|\| requestedWorkspace === "imports"/);
   assert.match(controller, /window\.location\.replace\(`\/operations\/data-center-v2\?view=/);
-  assert.match(controller, /window\.location\.assign\(`\/operations\/data-center-v2\?view=/);
+  assert.match(controller, /useRouter/);
+  assert.match(controller, /router\.push\(`\/operations\/data-center-v2\?view=/);
   assert.match(controller, /onWorkspaceChange=\{openWorkspace\}/);
 });
 
