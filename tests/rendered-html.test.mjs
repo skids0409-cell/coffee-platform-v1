@@ -952,10 +952,16 @@ test("operations aligns published taxonomy and exposes stateful rights actions",
   const ui = readPlatformAndOperationsSource();
   const recordForm = readFileSync(new URL("../app/ui/admin/RecordForm.tsx", import.meta.url), "utf8");
   const api = readFileSync(new URL("../app/api/admin/review/route.ts", import.meta.url), "utf8");
+  const rightsProjection = readFileSync(new URL("../lib/rights-lifecycle-projection.ts", import.meta.url), "utf8");
   assert.match(recordForm, /العائلة الرئيسية<select value=\{familyId\}/);
   assert.match(recordForm, /الفئة الدقيقة<select value=\{props\.categoryId\}/);
   assert.match(ui, /بانتظار دليل إضافي/);
-  assert.match(ui, /استئناف المراجعة بعد وصول الدليل/);
+  assert.match(rightsProjection, /RIGHTS_LIFECYCLE_CONTRACT_REVISION\s*=\s*"rights\.lifecycle\.v1"/);
+  assert.match(rightsProjection, /label: "استئناف المراجعة بعد وصول الدليل"/);
+  assert.match(rightsProjection, /targetStatus: "needs_evidence"/);
+  assert.match(rightsProjection, /targetStatus: "approved"/);
+  assert.match(rightsProjection, /targetStatus: "rejected"/);
+  assert.match(api, /projectRightsLifecycle\(\{ status: row\.status, role \}\)/);
   assert.match(api, /const taxonomyPath/);
   assert.match(api, /requester_email,requester_phone,details,evidence_reference/);
 });
