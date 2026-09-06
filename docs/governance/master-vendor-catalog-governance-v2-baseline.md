@@ -57,6 +57,15 @@ This is consistent with the existing UI rule that product identity/specification
 
 This establishes a strong starting boundary: **seller offers reference a master product; they are not independent product masters**.
 
+### Partner approval side-effects
+
+The atomic partner decision RPC already classifies partner submissions by entity type:
+
+- `product_offer` → calls `admin_create_catalog_draft('offer', ...)` with the partner organization forced into `seller_organization_id`.
+- `new_product` → calls `admin_create_product_draft_v2(...)` with the partner organization forced into `owner_organization_id`.
+
+Both paths create **draft canonical records**, not published records, and the partner transition is row-locked and audited atomically. This preserves server authority, but it also identifies the first v2.0 governance seam: one partner-review approval currently authorizes creation of either a master draft or vendor-offer draft. The v2.0 dual-verification contract must explicitly define what additional independent verification is required before either record can become publication-eligible.
+
 ## Governance requirements already explicit for v2 rollout
 
 ### G-01 — Master / Vendor separation is mandatory
@@ -92,6 +101,8 @@ The implementation design must distinguish at minimum:
 
 The two approvals must be independently auditable and must not collapse into one browser/UI confirmation.
 
+**Verified seam:** partner review currently creates the downstream master/vendor draft after one verifier/admin approval. This is acceptable as controlled intake, but must not count as completion of both v2.0 verification domains unless the authoritative document explicitly says so.
+
 **Open design decision:** exact role separation, independence rule, and whether the same verifier may satisfy both checks must come from the authoritative v2.0 document before migration code is written.
 
 ### G-05 — Publication must consume verification state, not infer it
@@ -125,7 +136,7 @@ Partner/vendor submissions must enter governed review and atomic approval bounda
 | C-01 | Product identity | `products` canonical; brand/model partial uniqueness | products without reliable model numbers can duplicate | inspect all product-kind identity rules and duplicate APIs |
 | C-02 | Seller scope | `offers` references product + seller | need explicit publication eligibility against master/seller lifecycle | inspect offer create/review RPCs and public-offer query |
 | C-03 | Dual verification | general verification tiers and lifecycle exist | no verified evidence yet of a two-check master/vendor contract | map source v2.0 clauses before DDL |
-| C-04 | Partner approval | atomic partner transition exists | canonical side-effects must be classified as master vs vendor and double-checked | inspect migration 059 + partner API |
+| C-04 | Partner approval | `product_offer` creates offer draft; `new_product` creates master draft inside atomic partner approval | one partner-review approval currently authorizes controlled draft creation in either domain; v2.0 must define the independent verification still required before publication | trace both draft types into review/publication projections and map the authoritative v2.0 independence clause |
 | C-05 | Catalog intake | governed draft/record APIs exist | duplicate/master resolution may vary by intake path | inventory every create path |
 | C-06 | Media | Media Vault governed | need enforceable master-media vs vendor-media semantic scope | inspect entity media role contracts |
 | C-07 | Audit | canonical audit streams exist | dual verification needs distinct auditable decisions | design only after source-clause confirmation |
