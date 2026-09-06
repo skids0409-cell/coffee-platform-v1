@@ -1,4 +1,5 @@
 // one-shot lint fix; remove before final PR
+// trigger: use Next client navigation
 import fs from 'node:fs';
 
 const path = 'app/ui/admin/OperationsController.tsx';
