@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: frankfurt
-    branch: main
+    branch: v2-development
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
